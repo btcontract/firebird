@@ -1,0 +1,73 @@
+apply plugin: "com.android.application"
+apply plugin: "jp.leafytree.android-scala"
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "30.0.1"
+
+    defaultConfig {
+        applicationId "com.btcontract.wallet"
+        multiDexEnabled true
+        targetSdkVersion 29
+        minSdkVersion 21
+
+        versionName "1.0"
+        versionCode 1
+
+        ndk {
+            abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+
+    dexOptions {
+        javaMaxHeapSize "12g"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled true
+            proguardFiles 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'androidx.biometric:biometric:1.0.1'
+    implementation 'com.stepstone.stepper:material-stepper:4.3.1'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation 'com.codemybrainsout.rating:ratingdialog:1.0.8'
+    implementation 'com.google.android.material:material:1.2.0'
+    implementation 'com.github.medyo:fancybuttons:1.9.1'
+    implementation 'com.thefuntasty.hauler:core:3.1.0'
+
+    implementation 'com.google.code.ndef-tools-for-android:ndeftools:1.2.4'
+    implementation 'com.softwaremill.quicklens:quicklens_2.11:1.4.11'
+    implementation 'com.journeyapps:zxing-android-embedded:3.6.0'
+    implementation 'org.scala-lang:scala-library:2.11.12'
+    implementation 'org.scodec:scodec-core_2.11:1.11.3'
+    implementation 'commons-codec:commons-codec:1.10'
+    implementation 'io.reactivex:rxscala_2.11:0.27.0'
+    implementation 'io.spray:spray-json_2.11:1.3.5'
+
+    // Bitcoinj
+    api 'com.squareup.okhttp3:okhttp:3.12.11'
+    api 'com.google.guava:guava:29.0-android'
+    api 'org.bouncycastle:bcprov-jdk15to18:1.65'
+    api 'com.google.protobuf:protobuf-java:3.9.2'
+    implementation group: 'net.jcip', name: 'jcip-annotations', version: '1.0'
+    implementation group: 'com.squareup.okio', name: 'okio', version: '1.15.0'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+    implementation 'info.guardianproject.netcipher:netcipher:2.1.0'
+}
