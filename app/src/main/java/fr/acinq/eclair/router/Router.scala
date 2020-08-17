@@ -28,9 +28,7 @@ import scodec.bits.ByteVector
 import scala.collection.immutable.SortedMap
 
 object Router {
-  case class RouterConf(searchAttempts: Int,
-                        nodeFailTolerance: Int,
-                        requestNodeAnnouncements: Boolean,
+  case class RouterConf(requestNodeAnnouncements: Boolean,
                         encodingType: EncodingType,
                         channelRangeChunkSize: Int,
                         channelQueryChunkSize: Int,
@@ -139,7 +137,7 @@ object Router {
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 
-  case class Data(channels: SortedMap[ShortChannelId, PublicChannel], graph: DirectedGraph)
+  case class Data(channels: SortedMap[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2

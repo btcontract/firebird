@@ -30,13 +30,14 @@ object HostedChannel {
   // Single stacking thread for all channels, must be used when asking channels for pending payments to avoid race conditions
   implicit val channelContext: scala.concurrent.ExecutionContextExecutor = scala.concurrent.ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def isOperational(chan: HostedChannel): Boolean = chan.data match { case hc: HostedCommits => hc.getError.isEmpty case _ => false }
-  def isOperationalAndOpen(chan: HostedChannel): Boolean = isOperational(chan)
+  def isOperationalAndOpen(chan: HostedChannel): Boolean = isOperational(chan) && OPEN == chan.state
   type ChansAndMax = (Vector[HostedChannel], MilliSatoshi)
 }
 
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
   def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException this -> failure }
+  def maxPaymentsInFlight: Int = data match { case hc: HostedCommits => hc.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs case _ => Int.MaxValue }
   def pendingOutgoing: Set[UpdateAddHtlc] = data match { case hc: HostedCommits => hc.localSpec.outgoingAdds ++ hc.nextLocalSpec.outgoingAdds case _ => Set.empty } // Cross-signed + new payments offered by us
   def pendingIncoming: Set[UpdateAddHtlc] = data match { case hc: HostedCommits => hc.localSpec.incomingAdds intersect hc.nextLocalSpec.incomingAdds case _ => Set.empty } // Cross-signed but not yet resolved by us
   def remoteBalance: MilliSatoshi = data match { case hc: HostedCommits => hc.nextLocalSpec.toRemote case _ => 0.msat }

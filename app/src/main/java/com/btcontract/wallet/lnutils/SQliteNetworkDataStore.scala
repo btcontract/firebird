@@ -79,20 +79,25 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def getCurrentRoutingMap: SortedMap[ShortChannelId, PublicChannel] = {
-    val updates = listChannelUpdates.toList.groupBy(_.shortChannelId)
+  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], MilliSatoshi) = {
+    val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
+    val groupedUpdates = updates.groupBy(_.shortChannelId)
     val announcements = listChannelAnnouncements.toList
 
-    val res = announcements flatMap { ann =>
-      updates get ann.shortChannelId collect {
-        case update1 :: update2 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update1), Some(update2))
-        case update2 :: update1 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update2), Some(update1))
-        case update1 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update1), None)
-        case update2 :: Nil => ann.shortChannelId -> PublicChannel(ann, None, Some(update2))
+    val tuples = announcements flatMap { ann =>
+      groupedUpdates get ann.shortChannelId collect {
+        case Vector(update1, update2) if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some apply update1, Some apply update2)
+        case Vector(update2, update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some apply update2, Some apply update1)
+        case Vector(update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some apply update1, None)
+        case Vector(update2) => ann.shortChannelId -> PublicChannel(ann, None, Some apply update2)
       }
     }
 
-    SortedMap(res:_*)
+    val outlierCut = updates.size / 10
+    val feeBases = updates.map(_.feeBaseMsat).sorted
+    val clearFeeBases = feeBases.drop(outlierCut).dropRight(outlierCut)
+    val averageFeeBase = clearFeeBases.sum / clearFeeBases.size
+    SortedMap(tuples:_*) -> averageFeeBase
   }
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit = {

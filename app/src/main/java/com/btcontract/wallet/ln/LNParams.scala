@@ -30,9 +30,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(searchAttempts = 100, nodeFailTolerance = 10, requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED,
-      channelRangeChunkSize = 200, channelQueryChunkSize = 100, searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008),
-      firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
+    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelRangeChunkSize = 200, channelQueryChunkSize = 100,
+      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1,
+      searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
       mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
@@ -45,10 +45,6 @@ object LNParams {
   )
 
   var keys: LightningNodeKeys = _
-
-  // Approximates how much a given number of payments and hops can take in off-chain fees
-  def maxAcceptableFee(msat: MilliSatoshi, shards: Int, hops: Int, conf: RouterConf): MilliSatoshi =
-    conf.searchMaxFeeBase * (hops + shards + 1) + msat * conf.searchMaxFeePct
 
   def makeLocalInitMessage: Init = {
     val networks = InitTlv.Networks(chainHash :: Nil)
@@ -159,7 +155,7 @@ trait NetworkDataStore {
   def incrementScore(cu: ChannelUpdate): Unit
   def addChannelUpdate(cu: ChannelUpdate): Unit
   def listChannelUpdates: Iterable[ChannelUpdate]
-  def getCurrentRoutingMap: SortedMap[ShortChannelId, PublicChannel]
+  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], MilliSatoshi)
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit
   def listExcludedChannels(until: Long): ShortChanIdSet

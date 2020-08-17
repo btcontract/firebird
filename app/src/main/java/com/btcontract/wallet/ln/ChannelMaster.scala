@@ -144,26 +144,26 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
 
   // Sending
 
-  val estimateCanSend: Vector[HostedChannel] => MilliSatoshi = channels => {
-    val mppSendable: MilliSatoshi = channels.filter(isOperational).map(_.localBalance).sum
-    val approxFees = LNParams.maxAcceptableFee(mppSendable, shards = 5, hops = 4, LNParams.routerConf)
-    0.msat.max(mppSendable - approxFees)
+  def maxSendable(avgFeeBase: MilliSatoshi)(chan: HostedChannel): MilliSatoshi = {
+    // We assume a payment could be split to `maxPaymentsInFlight` parts each taking `firstPassMaxRouteLength` routes
+    val cumulativeMaxFeeBase = avgFeeBase * chan.maxPaymentsInFlight * LNParams.routerConf.firstPassMaxRouteLength
+    val feePctOfTheRest = (chan.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
+    0.msat.max(chan.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
   }
 
-  def estimateCanSendInPrinciple: MilliSatoshi = estimateCanSend(all filter isOperational)
-  def estimateCanSendNow: MilliSatoshi = estimateCanSend(all filter isOperationalAndOpen)
+  def estimateCanSendInPrinciple(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperational).map(me maxSendable avgFeeBase).sum
+  def estimateCanSendNow(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperationalAndOpen).map(me maxSendable avgFeeBase).sum
 
-  // Must be called in channel context to avoid race conditions
-  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Future[Int] = Future {
-    val chanCurrentlyInFlight = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
-    val dbStatus = payBag.getPaymentInfo(paymentHash).map(_.status)
+  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi, avgFeeBase: MilliSatoshi): Int = {
+    val chanCurrentlyInFlight: Boolean = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val dbStatus: Option[Int] = payBag.getPaymentInfo(paymentHash).map(_.status)
 
     if (chanCurrentlyInFlight) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    else if (estimateCanSendInPrinciple(avgFeeBase) < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (dbStatus contains PaymentInfo.WAITING) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (dbStatus contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
-  } (channelContext)
+  }
 }
 
 trait ChannelMasterListener {
