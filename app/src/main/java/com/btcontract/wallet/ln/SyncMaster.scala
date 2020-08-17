@@ -1,20 +1,18 @@
 package com.btcontract.wallet.ln
 
 import fr.acinq.eclair.wire._
-
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.SyncMaster._
-import com.btcontract.wallet.ln.crypto.Tools.{\, mkNodeAnnouncement, randomKeyPair}
-
+import com.btcontract.wallet.ln.crypto.Tools._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Router.{Data, RouterConf}
 import fr.acinq.eclair.{MilliSatoshi, ShortChannelId}
-import fr.acinq.eclair.router.{Announcements, StaleChannels, Sync}
+import fr.acinq.eclair.router.{StaleChannels, Sync}
+
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.StateMachine
 import fr.acinq.bitcoin.Crypto.PublicKey
 import java.util.concurrent.Executors
-
 import scala.collection.mutable
 import scodec.bits.ByteVector
 
@@ -83,9 +81,9 @@ object SyncMaster {
   val syncNodeVec: NodeAnnouncements = List(zap, lnMarkets, bitstamp, openNode, bitrefill, bitrefillTor, coinGate, liteGo, acinq, fold)
   val minCapacity = MilliSatoshi(1000000000L) // We are not interested in channels with capacity less than this
 
-  def isBadChannelUpdate(cu: ChannelUpdate, routerData: Data): Boolean = {
+  def isFresh(cu: ChannelUpdate, routerData: Data): Boolean = {
     val oldCopyOpt = routerData.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)
-    oldCopyOpt.exists(_.timestamp >= cu.timestamp) || StaleChannels.isStale(cu)
+    oldCopyOpt.forall(_.timestamp < cu.timestamp) || !StaleChannels.isStale(cu)
   }
 }
 
@@ -101,7 +99,7 @@ abstract class SyncMaster(extraNodes: NodeAnnouncements, excludedShortIds: Short
     override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = (msg, data) match {
       case (ca: ChannelAnnouncement, csd: CatchupSyncData) if !isExcluded(ca.shortChannelId) => become(csd.copy(announcements = csd.announcements + ca), state)
       case (cu: ChannelUpdate, csd: CatchupSyncData) if cu.htlcMaximumMsat.forall(_ < minCapacity) => become(csd.copy(excluded = csd.excluded + cu.shortChannelId), state)
-      case (cu: ChannelUpdate, csd: CatchupSyncData) if !isBadChannelUpdate(cu, routerData) => become(csd.copy(updates = csd.updates + cu), state)
+      case (cu: ChannelUpdate, csd: CatchupSyncData) if routerData.channels.contains(cu.shortChannelId) && isFresh(cu, routerData) => become(csd.copy(updates = csd.updates + cu), state)
       case (_: ReplyShortChannelIdsEnd, _) => me process CMDGetGossip
       case _ =>
     }

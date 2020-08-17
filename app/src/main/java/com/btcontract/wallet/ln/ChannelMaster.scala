@@ -6,10 +6,9 @@ import fr.acinq.eclair.channel._
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
-import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
+import com.btcontract.wallet.ln.ChannelListener.{Incoming, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
-import com.btcontract.wallet.ln.crypto.CMDAddImpossible
 import com.btcontract.wallet.helper.ThrottledWork
 import fr.acinq.eclair.router.Router.Route
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -21,7 +20,6 @@ import scodec.Attempt
 
 
 class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) extends ChannelListener { me =>
-  var activeOutgoingPayments: Map[ByteVector32, OutgoingPayment] = Map.empty
   var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
 
   var listeners = Set.empty[ChannelMasterListener]
@@ -109,17 +107,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
     val allFulfilledHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinialized
     for (paymentHash <- allFulfilledHashes diff allIncomingHashes) events.incomingAllShardsCleared(paymentHash) // Fulfilled, no unfinalized shards
-    for (data <- hc.localSpec.remoteMalformed) activeOutgoingPayments(data.ourAdd.paymentHash) process data
-    for (data <- hc.localSpec.remoteFailed) activeOutgoingPayments(data.ourAdd.paymentHash) process data
     processIncoming
-  }
-
-  override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit =
-    activeOutgoingPayments(fulfill.paymentHash) process fulfill
-
-  override def onException: PartialFunction[Malfunction, Unit] = {
-    // Payment was initially added by MPP state machine so it must exist at this point, inform it
-    case (_, error: CMDAddImpossible) => activeOutgoingPayments(error.cmd.paymentHash) process error
   }
 
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {

@@ -32,15 +32,14 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
-  def getLocalGraphEdges: Iterable[GraphEdge]
   def getExtraNodes: NodeAnnouncements
   def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
-    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL =>
-      val dataWithAugmentedGraph = data.modify(_.graph).using(_ addEdges getLocalGraphEdges)
-      val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, request)
-      sender process routesTry.map(RouteResponse)
+    case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
+      val dataWithAugmentedGraph = data.modify(_.graph).using(_ addEdge routeRequest.localEdge)
+      val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, routeRequest)
+      sender process routesTry
 
     case CMDResync \ OPERATIONAL =>
       if (data.channels.isEmpty) become(data, INIT_SYNC)
@@ -60,27 +59,29 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       become(Data(channels = currentChannelsMap, graph), OPERATIONAL)
       if (pruneOld) store.removeStaleChannels(data, getChainTip)
 
-    case (catchUp: CatchupSyncData, INIT_SYNC) =>
-      // Run in PathFinder thread to not interfere
-      // SyncMaster thread may be getting new gossip
+    case (catchUp: CatchupSyncData, OPERATIONAL | INIT_SYNC) =>
+      // Run in PathFinder thread to not interfere with SyncMaster thread
       store.processCatchup(catchUp)
 
-      // We accept and store disabled channels at sync phase:
-      // - to reduce subsequent sync traffic if channel remains disabled
-      // - to account for the case when channel becomes ebabled but we don't know
-      // If we hit an updated channel while routing we save it to db and update in-memory graph
-      // If disabled channel stays disabled for a long time it will eventually be pruned from db
+    // We always accept and store disabled channels:
+    // - to reduce subsequent sync traffic if channel remains disabled
+    // - to account for the case when channel becomes ebabled but we don't know
+    // If we hit an updated channel while routing we save it to db and update in-memory graph
+    // If disabled channel stays disabled for a long time it will eventually be pruned from db
 
-    case (cu: ChannelUpdate, OPERATIONAL)
-      if !SyncMaster.isBadChannelUpdate(cu, data)
-        && cu.htlcMaximumMsat.exists(_ >= SyncMaster.minCapacity)
-        && data.channels.contains(cu.shortChannelId) =>
+    case (cu: ChannelUpdate, OPERATIONAL) if cu.htlcMaximumMsat.isDefined =>
+      val shouldSaveToDb = data.channels.contains(cu.shortChannelId) && SyncMaster.isFresh(cu, data)
+      val chanDesc = Router.getDesc(cu, announcement = data.channels(cu.shortChannelId).ann)
+      val isEnabled = Announcements.isEnabled(cu.channelFlags)
 
-      val isChannelEnabled = Announcements.isEnabled(cu.channelFlags)
-      val desc = Router.getDesc(cu, data.channels(cu.shortChannelId).ann)
-      val g1 = if (isChannelEnabled) data.graph.addEdge(desc, cu, None) else data.graph.removeEdge(desc)
-      if (isChannelEnabled) store.addChannelUpdate(cu) // But do not remove disabled channels from db
+      // This update may belong to a private channel, in this case we only update runtime graph, but not db
+      val g1 = if (isEnabled) data.graph.addEdge(chanDesc, cu) else data.graph.removeEdge(chanDesc)
+      if (shouldSaveToDb) store.addChannelUpdate(cu)
       become(data.copy(graph = g1), OPERATIONAL)
+
+    case (edge: GraphEdge, OPERATIONAL) =>
+      // We add assited channels to runtime graph as if they are normal
+      become(data.modify(_.graph).using(_ addEdge edge), OPERATIONAL)
 
     case _ =>
   }
