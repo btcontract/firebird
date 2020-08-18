@@ -147,19 +147,19 @@ case class LightningMessageExt(msg: LightningMessage) {
 
 
 trait NetworkDataStore {
-  def removeChannel(sid: ShortChannelId): Unit
-  def removeStaleChannels(data: Data, chainTip: Long): Unit
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit
   def listChannelAnnouncements: Iterable[ChannelAnnouncement]
 
-  def incrementScore(cu: ChannelUpdate): Unit
   def addChannelUpdate(cu: ChannelUpdate): Unit
   def listChannelUpdates: Iterable[ChannelUpdate]
-  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], MilliSatoshi)
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit
   def listExcludedChannels(until: Long): ShortChanIdSet
-  def processCatchup(data: CatchupSyncData): Unit
+
+  def incrementChannelScore(cu: ChannelUpdate): Unit
+  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
+  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit
+  def processPureData(data: PureRoutingData): Unit
 }
 
 

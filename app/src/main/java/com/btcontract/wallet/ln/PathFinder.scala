@@ -4,11 +4,11 @@ import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouterConf}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
 import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouterConf}
-import com.btcontract.wallet.ln.SyncMaster.NodeAnnouncements
+import com.btcontract.wallet.ln.SyncMaster.{NodeAnnouncements, ShortChanIdSet}
 import scala.collection.immutable.SortedMap
 import fr.acinq.eclair.wire.ChannelUpdate
 import java.util.concurrent.Executors
@@ -19,16 +19,16 @@ object PathFinder {
   val OPERATIONAL = "state-operational"
   val INIT_SYNC = "state-init-sync"
   val CMDResync = "cmd-resync"
+  val CMDLoad = "cmd-load"
 }
 
-case class CMDLoad(pruneOld: Boolean)
 abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
 
   become(freshData = Data(SortedMap.empty, MilliSatoshi(5000L), DirectedGraph.apply), freshState = OPERATIONAL)
   RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24).subscribe(none)
-  me process CMDLoad(pruneOld = false)
+  me process CMDLoad
 
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
@@ -45,24 +45,23 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       if (data.channels.isEmpty) become(data, INIT_SYNC)
       val excluded = store.listExcludedChannels(System.currentTimeMillis)
       new SyncMaster(getExtraNodes, excluded, routerData = data, routerConf) {
-        def onChunkSyncComplete(catchUpSyncData: CatchupSyncData): Unit = me process catchUpSyncData
-        def onTotalSyncComplete(catchUpSyncData: CatchupSyncData): Unit = me process CMDLoad(pruneOld = true)
+        def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
+        def onTotalSyncComplete(syncMasterGossip: SyncMasterGossipData): Unit = me process syncMasterGossip
       }
 
-    case (CMDLoad(pruneOld), OPERATIONAL | INIT_SYNC) =>
-      val currentChannelsMap \ avgFeeBase = store.getRoutingData
-      val graph = DirectedGraph.makeGraph(currentChannelsMap)
-      val data = Data(currentChannelsMap, avgFeeBase, graph)
-      become(data, OPERATIONAL)
+    case (CMDLoad, OPERATIONAL | INIT_SYNC) =>
+      // Initial graph load from local data
+      loadGraph
 
-      if (pruneOld) {
-        store.removeStaleChannels(data, getChainTip)
-        updateLastResyncStamp(System.currentTimeMillis)
-      }
-
-    case (catchUp: CatchupSyncData, OPERATIONAL | INIT_SYNC) =>
+    case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
       // Run in PathFinder thread to not overload SyncMaster thread
-      store.processCatchup(catchUp)
+      store.processPureData(pure)
+
+    case (sync: SyncMasterGossipData, OPERATIONAL | INIT_SYNC) =>
+      // On sync done we might have shortIds which no peer is aware of
+      val probablyClosedShortIds = loadGraph diff sync.provenShortIds
+      store.removeMissingChannels(probablyClosedShortIds)
+      updateLastResyncStamp(System.currentTimeMillis)
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled
@@ -81,9 +80,16 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       become(data.copy(graph = g1), OPERATIONAL)
 
     case (edge: GraphEdge, OPERATIONAL) =>
-      // We add remote private channels to runtime graph as if they are normal
+      // We add remote private channels to graph as if they are normal
       become(data.modify(_.graph).using(_ addEdge edge), OPERATIONAL)
 
     case _ =>
+  }
+
+  def loadGraph: ShortChanIdSet = {
+    val Tuple3(currentChannelsMap, localShortIds, avgFeeBase) = store.getRoutingData
+    val data = Data(currentChannelsMap, avgFeeBase, DirectedGraph makeGraph currentChannelsMap)
+    become(data, OPERATIONAL)
+    localShortIds
   }
 }
