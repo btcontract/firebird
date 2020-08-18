@@ -27,6 +27,7 @@ target_include_directories(libwally-core
         src
         src/ccan
         src/secp256k1
+        src/secp256k1/src
         src/secp256k1/include
 )
 
