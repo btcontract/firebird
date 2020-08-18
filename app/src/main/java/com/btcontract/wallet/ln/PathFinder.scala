@@ -4,84 +4,91 @@ import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouterConf}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
 import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouteResponse, RouterConf}
-import com.btcontract.wallet.ln.SyncMaster.NodeAnnouncements
+import com.btcontract.wallet.ln.SyncMaster.{NodeAnnouncements, ShortChanIdSet}
 import scala.collection.immutable.SortedMap
 import fr.acinq.eclair.wire.ChannelUpdate
 import java.util.concurrent.Executors
+import fr.acinq.eclair.MilliSatoshi
 
 
 object PathFinder {
   val OPERATIONAL = "state-operational"
   val INIT_SYNC = "state-init-sync"
   val CMDResync = "cmd-resync"
-  val CMDReload = "cmd-reload"
+  val CMDLoad = "cmd-load"
 }
 
-case class CMDLoad(pruneOld: Boolean)
 abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
 
-  become(freshData = Data(channels = SortedMap.empty, graph = DirectedGraph.apply), freshState = OPERATIONAL)
+  become(freshData = Data(SortedMap.empty, MilliSatoshi(5000L), DirectedGraph.apply), freshState = OPERATIONAL)
   RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24).subscribe(none)
-  me process CMDLoad(pruneOld = false)
+  me process CMDLoad
 
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
-  def getLocalGraphEdges: Iterable[GraphEdge]
   def getExtraNodes: NodeAnnouncements
   def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
-    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL =>
-      val dataWithAugmentedGraph = data.modify(_.graph).using(_ addEdges getLocalGraphEdges)
-      val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, request)
-      sender process routesTry.map(RouteResponse)
+    case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
+      val dataWithAugmentedGraph = data.modify(_.graph).using(_ addEdge routeRequest.localEdge)
+      val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, routeRequest)
+      sender process routesTry
 
     case CMDResync \ OPERATIONAL =>
       if (data.channels.isEmpty) become(data, INIT_SYNC)
-      val excluded = store.listExcludedChannels(System.currentTimeMillis)
-      new SyncMaster(getExtraNodes, excluded, routerData = data, routerConf) {
-        def onChunkSyncComplete(catchUp: CatchupSyncData): Unit = me process catchUp
-        def onTotalSyncComplete(catchUp: CatchupSyncData): Unit = me process CMDReload
+      new SyncMaster(getExtraNodes, store.listExcludedChannels(System.currentTimeMillis), data, routerConf) {
+        def onTotalSyncComplete(syncMasterGossip: SyncMasterGossipData): Unit = me process syncMasterGossip
+        def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
       }
 
-    case (CMDReload, OPERATIONAL | INIT_SYNC) =>
+    case (CMDLoad, OPERATIONAL | INIT_SYNC) =>
+      // Initial graph load from local data
+      loadGraph
+
+    case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
+      // Run in PathFinder thread to not overload SyncMaster thread
+      store.processPureData(pure)
+
+    case (sync: SyncMasterGossipData, OPERATIONAL | INIT_SYNC) =>
+      // On sync done we might have shortIds which no peer is aware of
+      val probablyClosedShortIds = loadGraph diff sync.provenShortIds
+      store.removeMissingChannels(probablyClosedShortIds)
       updateLastResyncStamp(System.currentTimeMillis)
-      me process CMDLoad(pruneOld = true)
 
-    case (CMDLoad(pruneOld), OPERATIONAL | INIT_SYNC) =>
-      val currentChannelsMap = store.getCurrentRoutingMap
-      val graph = DirectedGraph.makeGraph(currentChannelsMap)
-      become(Data(channels = currentChannelsMap, graph), OPERATIONAL)
-      if (pruneOld) store.removeStaleChannels(data, getChainTip)
+    // We always accept and store disabled channels:
+    // - to reduce subsequent sync traffic if channel remains disabled
+    // - to account for the case when channel becomes ebabled but we don't know
+    // If we hit an updated channel while routing we save it to db and update in-memory graph
+    // If disabled channel stays disabled for a long time it will eventually be pruned from db
 
-    case (catchUp: CatchupSyncData, INIT_SYNC) =>
-      // Run in PathFinder thread to not interfere
-      // SyncMaster thread may be getting new gossip
-      store.processCatchup(catchUp)
+    case (cu: ChannelUpdate, OPERATIONAL) if cu.htlcMaximumMsat.isDefined =>
+      val saveUpdateToDb = data.channels.contains(cu.shortChannelId) && SyncMaster.isFresh(cu, data)
+      val chanDesc = Router.getDesc(cu, announcement = data.channels(cu.shortChannelId).ann)
+      val isEnabled = Announcements.isEnabled(cu.channelFlags)
 
-      // We accept and store disabled channels at sync phase:
-      // - to reduce subsequent sync traffic if channel remains disabled
-      // - to account for the case when channel becomes ebabled but we don't know
-      // If we hit an updated channel while routing we save it to db and update in-memory graph
-      // If disabled channel stays disabled for a long time it will eventually be pruned from db
-
-    case (cu: ChannelUpdate, OPERATIONAL)
-      if !SyncMaster.isBadChannelUpdate(cu, data)
-        && cu.htlcMaximumMsat.exists(_ >= SyncMaster.minCapacity)
-        && data.channels.contains(cu.shortChannelId) =>
-
-      val isChannelEnabled = Announcements.isEnabled(cu.channelFlags)
-      val desc = Router.getDesc(cu, data.channels(cu.shortChannelId).ann)
-      val g1 = if (isChannelEnabled) data.graph.addEdge(desc, cu, None) else data.graph.removeEdge(desc)
-      if (isChannelEnabled) store.addChannelUpdate(cu) // But do not remove disabled channels from db
+      // This update may belong to private channel, in this case we only update runtime graph, but not db
+      val g1 = if (isEnabled) data.graph.addEdge(chanDesc, cu) else data.graph.removeEdge(chanDesc)
+      if (saveUpdateToDb) store.addChannelUpdate(cu)
       become(data.copy(graph = g1), OPERATIONAL)
 
+    case (edge: GraphEdge, OPERATIONAL) =>
+      // We add remote private channels to graph as if they are normal
+      become(data.modify(_.graph).using(_ addEdge edge), OPERATIONAL)
+
     case _ =>
+  }
+
+  def loadGraph: ShortChanIdSet = {
+    val Tuple3(currentChannelsMap, localShortIds, avgFeeBase) = store.getRoutingData
+    val data = Data(currentChannelsMap, avgFeeBase, DirectedGraph makeGraph currentChannelsMap)
+    become(data, OPERATIONAL)
+    localShortIds
   }
 }

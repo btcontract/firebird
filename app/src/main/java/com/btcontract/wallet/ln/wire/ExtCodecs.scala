@@ -15,15 +15,7 @@ case class HostedState(channelId: ByteVector32,
                        nextRemoteUpdates: Vector[LightningMessage],
                        lastCrossSignedState: LastCrossSignedState)
 
-case class AESZygote(v: Int, iv: ByteVector, ciphertext: ByteVector)
-
 object ExtCodecs {
-  val aesZygoteCodec: Codec[AESZygote] = {
-    (uint16 withContext "v") ::
-      (variableSizeBytesLong(uint32, bytes) withContext "iv") ::
-      (variableSizeBytesLong(uint32, bytes) withContext "ciphertext")
-  }.as[AESZygote]
-
   val hostedStateCodec: Codec[HostedState] = {
     (bytes32 withContext "channelId") ::
       (vectorOfN(uint16, lightningMessageCodec) withContext "nextLocalUpdates") ::

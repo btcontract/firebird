@@ -30,10 +30,10 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(searchAttempts = 100, nodeFailTolerance = 10, requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelRangeChunkSize = 200,
-      channelQueryChunkSize = 100, searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(2016), firstPassMaxRouteLength = 6,
-      searchHeuristicsEnabled = true, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2,
-      searchRatioSuccessScore = 0.3, mppMinPartAmount = 25000000.msat, mppMaxParts = 10)
+    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelRangeChunkSize = 200, channelQueryChunkSize = 100,
+      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1,
+      searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
+      mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
@@ -45,10 +45,6 @@ object LNParams {
   )
 
   var keys: LightningNodeKeys = _
-
-  // Approximates how much a given number of payments and hops can take in off-chain fees
-  def maxAcceptableFee(msat: MilliSatoshi, shards: Int, hops: Int, conf: RouterConf): MilliSatoshi =
-    conf.searchMaxFeeBase * (hops + shards + 1) + msat * conf.searchMaxFeePct
 
   def makeLocalInitMessage: Init = {
     val networks = InitTlv.Networks(chainHash :: Nil)
@@ -151,19 +147,19 @@ case class LightningMessageExt(msg: LightningMessage) {
 
 
 trait NetworkDataStore {
-  def removeChannel(sid: ShortChannelId): Unit
-  def removeStaleChannels(data: Data, chainTip: Long): Unit
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit
   def listChannelAnnouncements: Iterable[ChannelAnnouncement]
 
-  def incrementScore(cu: ChannelUpdate): Unit
   def addChannelUpdate(cu: ChannelUpdate): Unit
   def listChannelUpdates: Iterable[ChannelUpdate]
-  def getCurrentRoutingMap: SortedMap[ShortChannelId, PublicChannel]
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit
   def listExcludedChannels(until: Long): ShortChanIdSet
-  def processCatchup(data: CatchupSyncData): Unit
+
+  def incrementChannelScore(cu: ChannelUpdate): Unit
+  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
+  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit
+  def processPureData(data: PureRoutingData): Unit
 }
 
 

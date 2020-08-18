@@ -2,24 +2,18 @@ package com.btcontract.wallet.lnutils
 
 import fr.acinq.eclair._
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.crypto.Tools.{bytes2VecView, random}
-import com.btcontract.wallet.ln.{CatchupSyncData, NetworkDataStore}
+import com.btcontract.wallet.ln.{NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
+import fr.acinq.eclair.router.Router.PublicChannel
 import scala.collection.immutable.SortedMap
-import fr.acinq.eclair.router.StaleChannels
 import fr.acinq.bitcoin.Crypto.PublicKey
 import scodec.bits.ByteVector
 
 
 class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
   val dummyPubKey: PublicKey = PublicKey(random getBytes 33)
-
-  def removeChannel(sid: ShortChannelId): Unit = {
-    db.change(ChannelAnnouncementTable.killSql, sid.toString)
-    db.change(ChannelUpdateTable.killSql, sid.toString)
-  }
 
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit =
     db.change(ChannelAnnouncementTable.newSql, params = Array.emptyByteArray,
@@ -54,12 +48,6 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
-  def incrementScore(cu: ChannelUpdate): Unit = {
-    val shortId = cu.shortChannelId.toLong: java.lang.Long
-    val position = { if (cu.isNode1) 1 else 2 }: java.lang.Integer
-    db.change(ChannelUpdateTable.updScoreSql, shortId, position)
-  }
-
   def listChannelUpdates: Iterable[ChannelUpdate] =
     db select ChannelUpdateTable.selectAllSql map { rc =>
       val channelFlags = rc int ChannelUpdateTable.channelFlags
@@ -79,29 +67,12 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def getCurrentRoutingMap: SortedMap[ShortChannelId, PublicChannel] = {
-    val updates = listChannelUpdates.toList.groupBy(_.shortChannelId)
-    val announcements = listChannelAnnouncements.toList
-
-    val res = announcements flatMap { ann =>
-      updates get ann.shortChannelId collect {
-        case update1 :: update2 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update1), Some(update2))
-        case update2 :: update1 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update2), Some(update1))
-        case update1 :: Nil if update1.isNode1 => ann.shortChannelId -> PublicChannel(ann, Some(update1), None)
-        case update2 :: Nil => ann.shortChannelId -> PublicChannel(ann, None, Some(update2))
-      }
-    }
-
-    SortedMap(res:_*)
-  }
-
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit = {
     val bannedUntil = System.currentTimeMillis + until: java.lang.Long
     val shortChannelId = sid.toLong: java.lang.Long
 
     db.change(ExcludedChannelTable.newSql, shortChannelId, bannedUntil)
     db.change(ExcludedChannelTable.updSql, bannedUntil, shortChannelId)
-    removeChannel(sid)
   }
 
   def listExcludedChannels(until: Long): ShortChanIdSet =
@@ -109,15 +80,48 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       .set(_ long ExcludedChannelTable.shortChannelId)
       .map(ShortChannelId.apply)
 
-  def processCatchup(data: CatchupSyncData): Unit = db txWrap {
-    val timestamp = System.currentTimeMillis + 60 * 24 * 3600 * 1000L
-    for (channelUpdate <- data.updates) addChannelUpdate(channelUpdate)
-    for (announcement <- data.announcements) addChannelAnnouncement(announcement)
-    for (shortChannelId <- data.excluded) addExcludedChannel(shortChannelId, timestamp)
+  def incrementChannelScore(cu: ChannelUpdate): Unit = {
+    val shortId = cu.shortChannelId.toLong: java.lang.Long
+    val position = { if (cu.isNode1) 1 else 2 }: java.lang.Integer
+    db.change(ChannelUpdateTable.updScoreSql, shortId, position)
   }
 
-  def removeStaleChannels(data: Data, chainTip: Long): Unit = db txWrap {
-    val staleChannels = StaleChannels.getStaleChannels(data.channels.values, chainTip)
-    for (channel <- staleChannels) removeChannel(channel.ann.shortChannelId)
+  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
+    val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
+    val groupedUpdates = updates.groupBy(_.shortChannelId)
+    val announcements = listChannelAnnouncements.toList
+
+    val tuples = announcements flatMap { ann =>
+      groupedUpdates get ann.shortChannelId collect {
+        case Vector(update1, update2) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
+        case Vector(update2, update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
+        case Vector(update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
+        case Vector(update2) => ann.shortChannelId -> PublicChannel(None, Some(update2), ann)
+      }
+    }
+
+    val outlierCutOff = updates.size / 10
+    val feeBases = updates.map(_.feeBaseMsat).sorted
+    val clearBases = feeBases.drop(outlierCutOff).dropRight(outlierCutOff)
+    (SortedMap(tuples:_*), groupedUpdates.keys.toSet, clearBases.sum / clearBases.size)
   }
+
+  // Transactional inserts for faster performance
+
+  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit =
+    db txWrap {
+      for (shortId <- shortIdsToRemove) {
+        val shortChannelId = shortId.toLong: java.lang.Long
+        db.change(ChannelUpdateTable.killSql, shortChannelId)
+        db.change(ChannelAnnouncementTable.killSql, shortChannelId)
+      }
+    }
+
+  def processPureData(pure: PureRoutingData): Unit =
+    db txWrap {
+      val timestamp = System.currentTimeMillis + 60 * 24 * 3600 * 1000L
+      for (shortChannelId <- pure.excluded) addExcludedChannel(shortChannelId, timestamp)
+      for (announcement <- pure.announces) addChannelAnnouncement(announcement)
+      for (channelUpdate <- pure.updates) addChannelUpdate(channelUpdate)
+    }
 }

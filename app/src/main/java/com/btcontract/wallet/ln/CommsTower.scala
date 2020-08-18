@@ -28,13 +28,8 @@ object CommsTower {
     listeners(pkap) ++= listeners1
 
     workers.get(pkap) match {
-      case Some(currentWorker) =>
-        for (init <- currentWorker.theirInit)
-          currentWorker.handleTheirInit(listeners1, init)
-
-      case None =>
-        // Initialize a new worker and connect
-        workers(pkap) = new Worker(pkap, ann)
+      case Some(worker) => for (init <- worker.theirInit) worker.handleTheirInit(listeners1, init) // Maybe inform
+      case None => workers(pkap) = new Worker(pkap, ann) // Create a new worker and connect right away
     }
   }
 

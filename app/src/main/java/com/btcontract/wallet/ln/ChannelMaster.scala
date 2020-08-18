@@ -6,10 +6,9 @@ import fr.acinq.eclair.channel._
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
-import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
+import com.btcontract.wallet.ln.ChannelListener.{Incoming, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
-import com.btcontract.wallet.ln.crypto.CMDAddImpossible
 import com.btcontract.wallet.helper.ThrottledWork
 import fr.acinq.eclair.router.Router.Route
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -21,7 +20,6 @@ import scodec.Attempt
 
 
 class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) extends ChannelListener { me =>
-  var activeOutgoingPayments: Map[ByteVector32, OutgoingPayment] = Map.empty
   var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
 
   var listeners = Set.empty[ChannelMasterListener]
@@ -109,17 +107,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
     val allFulfilledHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinialized
     for (paymentHash <- allFulfilledHashes diff allIncomingHashes) events.incomingAllShardsCleared(paymentHash) // Fulfilled, no unfinalized shards
-    for (data <- hc.localSpec.remoteMalformed) activeOutgoingPayments(data.ourAdd.paymentHash) process data
-    for (data <- hc.localSpec.remoteFailed) activeOutgoingPayments(data.ourAdd.paymentHash) process data
     processIncoming
-  }
-
-  override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit =
-    activeOutgoingPayments(fulfill.paymentHash) process fulfill
-
-  override def onException: PartialFunction[Malfunction, Unit] = {
-    // Payment was initially added by MPP state machine so it must exist at this point, inform it
-    case (_, error: CMDAddImpossible) => activeOutgoingPayments(error.cmd.paymentHash) process error
   }
 
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
@@ -156,26 +144,26 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
 
   // Sending
 
-  val estimateCanSend: Vector[HostedChannel] => MilliSatoshi = channels => {
-    val mppSendable: MilliSatoshi = channels.filter(isOperational).map(_.localBalance).sum
-    val approxFees = LNParams.maxAcceptableFee(mppSendable, shards = 5, hops = 4, LNParams.routerConf)
-    0.msat.max(mppSendable - approxFees)
+  def maxSendable(avgFeeBase: MilliSatoshi)(chan: HostedChannel): MilliSatoshi = {
+    // We assume a payment could be split to `maxPaymentsInFlight` parts each taking `firstPassMaxRouteLength` routes
+    val cumulativeMaxFeeBase = avgFeeBase * chan.maxPaymentsInFlight * LNParams.routerConf.firstPassMaxRouteLength
+    val feePctOfTheRest = (chan.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
+    0.msat.max(chan.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
   }
 
-  def estimateCanSendInPrinciple: MilliSatoshi = estimateCanSend(all filter isOperational)
-  def estimateCanSendNow: MilliSatoshi = estimateCanSend(all filter isOperationalAndOpen)
+  def estimateCanSendInPrinciple(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperational).map(me maxSendable avgFeeBase).sum
+  def estimateCanSendNow(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperationalAndOpen).map(me maxSendable avgFeeBase).sum
 
-  // Must be called in channel context to avoid race conditions
-  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Future[Int] = Future {
-    val chanCurrentlyInFlight = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
-    val dbStatus = payBag.getPaymentInfo(paymentHash).map(_.status)
+  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi, avgFeeBase: MilliSatoshi): Int = {
+    val chanCurrentlyInFlight: Boolean = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val dbStatus: Option[Int] = payBag.getPaymentInfo(paymentHash).map(_.status)
 
     if (chanCurrentlyInFlight) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    else if (estimateCanSendInPrinciple(avgFeeBase) < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (dbStatus contains PaymentInfo.WAITING) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (dbStatus contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
-  } (channelContext)
+  }
 }
 
 trait ChannelMasterListener {

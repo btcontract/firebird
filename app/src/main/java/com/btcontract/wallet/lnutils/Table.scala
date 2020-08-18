@@ -1,7 +1,7 @@
 package com.btcontract.wallet.lnutils
 
-import com.btcontract.wallet.ln.PaymentInfo.{SUCCESS, WAITING, FAILURE}
 import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
+import com.btcontract.wallet.ln.PaymentInfo.SUCCESS
 import com.btcontract.wallet.ln.crypto.Tools.runAnd
 import com.btcontract.wallet.helper.RichCursor
 import android.content.Context
@@ -54,6 +54,7 @@ object ChannelUpdateTable extends Table {
       $messageFlags INTEGER NOT NULL, $channelFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,
       $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL, $score INTEGER NOT NULL
     );
+    /* we are interested in compund UNIQUE index because there are two updates per channel */
     CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId, $position);
     COMMIT"""
 }
@@ -61,13 +62,18 @@ object ChannelUpdateTable extends Table {
 object ExcludedChannelTable extends Table {
   val Tuple3(table, shortChannelId, until) = ("chan_excluded", "short_channel_id", "until")
   val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $until) VALUES (?, ?)"
-  val selectAllSql = s"SELECT * FROM $table WHERE $shortChannelId > 0 AND $until < ?"
   val updSql = s"UPDATE $table SET $until = ? WHERE $shortChannelId = ?"
   val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
+  val selectAllSql = s"SELECT * FROM $table WHERE $until < ?"
 
   val createSql = s"""
-    CREATE TABLE IF NOT EXISTS $table ($id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL, $until INTEGER NOT NULL);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId, $until);
+    CREATE TABLE IF NOT EXISTS $table (
+      $id INTEGER PRIMARY KEY AUTOINCREMENT,
+      $shortChannelId INTEGER NOT NULL UNIQUE,
+      $until INTEGER NOT NULL
+    );
+    /* shortChannelId index is created automatically because UNIQUE */
+    CREATE INDEX IF NOT EXISTS idx1$table ON $table ($until);
     COMMIT"""
 }
 
