@@ -1,6 +1,5 @@
 package com.btcontract.wallet.ln
 
-import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
@@ -37,7 +36,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
-      val dataWithAugmentedGraph = data.modify(_.graph).using(_ addEdge routeRequest.localEdge)
+      val dataWithAugmentedGraph = data.copy(graph = data.graph addEdge routeRequest.localEdge)
+      // Instruct graph to search through the single determined local channel which was pre-selected for this shard
       val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, routeRequest)
       sender process routesTry
 
@@ -66,7 +66,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     // - to reduce subsequent sync traffic if channel remains disabled
     // - to account for the case when channel becomes ebabled but we don't know
     // If we hit an updated channel while routing we save it to db and update in-memory graph
-    // If disabled channel stays disabled for a long time it will eventually be pruned from db
+    // If disabled channel stays disabled for a long time it will be pruned by peers and then us
 
     case (cu: ChannelUpdate, OPERATIONAL) if cu.htlcMaximumMsat.isDefined =>
       val saveUpdateToDb = data.channels.contains(cu.shortChannelId) && SyncMaster.isFresh(cu, data)
@@ -80,7 +80,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     case (edge: GraphEdge, OPERATIONAL) =>
       // We add remote private channels to graph as if they are normal
-      become(data.modify(_.graph).using(_ addEdge edge), OPERATIONAL)
+      become(data.copy(graph = data.graph addEdge edge), OPERATIONAL)
 
     case _ =>
   }
