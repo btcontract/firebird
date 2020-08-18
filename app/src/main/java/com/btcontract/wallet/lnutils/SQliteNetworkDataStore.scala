@@ -101,9 +101,9 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     }
 
     val outlierCutOff = updates.size / 10
-    val feeBases = updates.map(_.feeBaseMsat).sorted
-    val clearBases = feeBases.drop(outlierCutOff).dropRight(outlierCutOff)
-    (SortedMap(tuples:_*), groupedUpdates.keys.toSet, clearBases.sum / clearBases.size)
+    val clearBases = updates.map(_.feeBaseMsat).sorted.drop(outlierCutOff).dropRight(outlierCutOff)
+    val averageBaseFee = if (clearBases.isEmpty) MilliSatoshi(5000L) else clearBases.sum / clearBases.size
+    (SortedMap(tuples:_*), groupedUpdates.keys.toSet, averageBaseFee)
   }
 
   // Transactional inserts for faster performance
