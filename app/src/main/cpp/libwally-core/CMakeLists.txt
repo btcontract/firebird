@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.4.1)
 
-add_library(libwally-core SHARED
+add_library(wallycore SHARED
     src/aes.c
     src/base58.c
     src/bip32.c
@@ -21,7 +21,7 @@ add_library(libwally-core SHARED
     src/ccan/ccan/str/hex/hex.c
 )
 
-target_include_directories(libwally-core
+target_include_directories(wallycore
     PUBLIC
         .
         src
@@ -31,8 +31,8 @@ target_include_directories(libwally-core
         src/secp256k1/include
 )
 
-target_link_libraries(libwally-core PUBLIC secp256k1)
-target_compile_definitions(libwally-core PRIVATE SECP256K1_BUILD)
+target_link_libraries(wallycore PUBLIC secp256k1)
+target_compile_definitions(wallycore PRIVATE SECP256K1_BUILD)
 
 add_library(secp256k1 SHARED
     src/secp256k1/src/secp256k1.c
