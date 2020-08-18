@@ -1,6 +1,6 @@
-cmake_minimum_required (VERSION 3.1)
+cmake_minimum_required (VERSION 3.4.1)
 
-add_library(libwally-core
+add_library(libwally-core SHARED
     src/aes.c
     src/base58.c
     src/bip32.c
@@ -33,7 +33,7 @@ target_include_directories(libwally-core
 target_link_libraries(libwally-core PUBLIC secp256k1)
 target_compile_definitions(libwally-core PRIVATE SECP256K1_BUILD)
 
-add_library(secp256k1
+add_library(secp256k1 SHARED
     src/secp256k1/src/secp256k1.c
 )
 
@@ -47,6 +47,8 @@ target_include_directories(secp256k1
 target_compile_options(secp256k1
     PRIVATE
         -std=c89
+    PUBLIC
+        -DHAVE_CONFIG_H
 )
 
 target_compile_definitions(secp256k1
@@ -57,3 +59,5 @@ target_compile_definitions(secp256k1
           -DENABLE_MODULE_ECDH -DENABLE_MODULE_GENERATOR -DENABLE_MODULE_RECOVERY
           -DENABLE_MODULE_RECOVERY
 )
+
+target_link_libraries(secp256k1 ${log-lib})
