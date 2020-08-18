@@ -13,7 +13,6 @@ import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.crypto.Tools
-import scala.collection.immutable.SortedMap
 import java.io.ByteArrayInputStream
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
@@ -30,9 +29,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelRangeChunkSize = 200, channelQueryChunkSize = 100,
-      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1,
-      searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
+    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelQueryChunkSize = 100,
+      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6,
+      searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
       mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
@@ -157,7 +156,7 @@ trait NetworkDataStore {
   def listExcludedChannels(until: Long): ShortChanIdSet
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
-  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
   def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit
   def processPureData(data: PureRoutingData): Unit
 }

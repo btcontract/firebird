@@ -22,9 +22,9 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire.ChannelUpdate
+
 import scala.collection.JavaConversions._
 import scala.annotation.tailrec
-import scala.collection.immutable.SortedMap
 import scala.collection.mutable
 
 object Graph {
@@ -519,7 +519,7 @@ object Graph {
        *
        * @param channels map of all known public channels in the network.
        */
-      def makeGraph(channels: SortedMap[ShortChannelId, PublicChannel]): DirectedGraph = {
+      def makeGraph(channels: Map[ShortChannelId, PublicChannel]): DirectedGraph = {
         // initialize the map with the appropriate size to avoid resizing during the graph initialization
         val mutableMap = new java.util.HashMap[PublicKey, List[GraphEdge]](channels.size + 1)
 

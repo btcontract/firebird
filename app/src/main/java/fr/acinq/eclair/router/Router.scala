@@ -16,21 +16,19 @@
 
 package fr.acinq.eclair.router
 
+import fr.acinq.eclair._
+import fr.acinq.eclair.wire._
+import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
+import fr.acinq.eclair.router.Graph.WeightRatios
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.Satoshi
-import fr.acinq.eclair._
-import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Graph.WeightRatios
-import fr.acinq.eclair.wire._
 import scodec.bits.ByteVector
 
-import scala.collection.immutable.SortedMap
 
 object Router {
   case class RouterConf(requestNodeAnnouncements: Boolean,
                         encodingType: EncodingType,
-                        channelRangeChunkSize: Int,
                         channelQueryChunkSize: Int,
                         searchMaxFeeBase: Satoshi,
                         searchMaxFeePct: Double,
@@ -137,7 +135,7 @@ object Router {
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 
-  case class Data(channels: SortedMap[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, graph: DirectedGraph)
+  case class Data(channels: Map[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2

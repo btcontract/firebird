@@ -7,7 +7,6 @@ import com.btcontract.wallet.ln.crypto.Tools.{bytes2VecView, random}
 import com.btcontract.wallet.ln.{NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
-import scala.collection.immutable.SortedMap
 import fr.acinq.bitcoin.Crypto.PublicKey
 import scodec.bits.ByteVector
 
@@ -86,10 +85,10 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     db.change(ChannelUpdateTable.updScoreSql, shortId, position)
   }
 
-  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
     val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
     val groupedUpdates = updates.groupBy(_.shortChannelId)
-    val announcements = listChannelAnnouncements.toList
+    val announcements = listChannelAnnouncements
 
     val tuples = announcements flatMap { ann =>
       groupedUpdates get ann.shortChannelId collect {
@@ -103,7 +102,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     val outlierCutOff = updates.size / 10
     val clearBases = updates.map(_.feeBaseMsat).sorted.drop(outlierCutOff).dropRight(outlierCutOff)
     val averageBaseFee = if (clearBases.isEmpty) MilliSatoshi(5000L) else clearBases.sum / clearBases.size
-    (SortedMap(tuples:_*), groupedUpdates.keys.toSet, averageBaseFee)
+    (tuples.toMap, groupedUpdates.keys.toSet, averageBaseFee)
   }
 
   // Transactional inserts for faster performance
