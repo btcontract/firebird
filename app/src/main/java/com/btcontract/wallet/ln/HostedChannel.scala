@@ -50,7 +50,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
       channelUpdate <- channelData.updateOpt
       // We use a separate NodeId for each peer, but for local graph we use a ChannelDesc with a stable NodeId
       channelDesc = ChannelDesc(channelUpdate.shortChannelId, LNParams.keys.ourRoutingSourceNodeId, data.announce.na.nodeId)
-    } yield GraphEdge(balanceOpt = Some(channelData.nextLocalSpec.toLocal), desc = channelDesc, update = channelUpdate)
+      // Update is (peer -> us) while desc is (us -> peer), but this is irrelevant for graph search
+    } yield GraphEdge(channelDesc, channelUpdate)
 
   def currentBlockDay: Long
   def SEND(msg: LightningMessage *): Unit

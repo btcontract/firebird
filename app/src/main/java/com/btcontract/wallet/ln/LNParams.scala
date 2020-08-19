@@ -5,9 +5,9 @@ import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
 import fr.acinq.bitcoin.DeterministicWallet._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouterConf}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
@@ -71,7 +71,7 @@ class LightningNodeKeys(seed: Bytes) {
     (DeterministicWallet.encode(pub, DeterministicWallet.zpub), derivationPath.toString)
   }
 
-  // User for separate key per domain
+  // Used for separate key per domain
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)

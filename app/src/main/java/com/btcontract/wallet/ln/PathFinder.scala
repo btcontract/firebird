@@ -36,9 +36,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
-      val dataWithAugmentedGraph = data.copy(graph = data.graph addEdge routeRequest.localEdge)
-      // Instruct graph to search through the single determined local channel which was pre-selected for this shard
-      val routesTry = RouteCalculation.handleRouteRequest(dataWithAugmentedGraph, routerConf, getChainTip, routeRequest)
+      // Instruct graph to search through the single pre-selected local channel + prohibit finding routes through other local channels
+      val routesTry = RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
       sender process routesTry
 
     case CMDResync \ OPERATIONAL =>
@@ -69,7 +68,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled
-    // - to account for the case when channel becomes ebabled but we don't know
+    // - to account for the case when channel becomes enabled but we don't know
     // If we hit an updated channel while routing we save it to db and update in-memory graph
     // If disabled channel stays disabled for a long time it will be pruned by peers and then us
 
@@ -96,7 +95,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     val isEnabled = Announcements.isEnabled(cu.channelFlags)
     val isOldChannel = !SyncMaster.isFresh(cu, data)
     val isNoCapacity = cu.htlcMaximumMsat.isEmpty
-    val edge = GraphEdge(desc, cu, None)
+    val edge = GraphEdge(desc, cu)
 
     if (isOldChannel) {
       // We have a newer one or this one is stale

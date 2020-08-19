@@ -97,10 +97,7 @@ object Router {
   }
 
   case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int) {
-    def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
-      // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both.
-      maxFeeBase.max(amount * maxFeePct)
-    }
+    def getMaxFee(amount: MilliSatoshi): MilliSatoshi = maxFeeBase.max(amount * maxFeePct) // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both
   }
 
   case class RouteRequest(partId: ByteVector,
@@ -113,13 +110,10 @@ object Router {
                           ignoreChannels: Set[ChannelDesc],
                           routeParams: RouteParams)
 
-  case class Route(hops: Seq[ChannelHop]) {
+  case class Route(amounts: Vector[MilliSatoshi], hops: Seq[ChannelHop]) {
     require(hops.nonEmpty, "route cannot be empty")
 
-    def fee(amount: MilliSatoshi): MilliSatoshi = {
-      val amountToSend = hops.drop(1).reverse.foldLeft(amount) { case (amount1, hop) => amount1 + hop.fee(amount1) }
-      amountToSend - amount
-    }
+    def fee(amount: MilliSatoshi): MilliSatoshi = amounts.head - amount
 
     /** This method retrieves the channel update that we used when we built the route. */
     def getChannelUpdateForNode(nodeId: PublicKey): Option[ChannelUpdate] = hops.find(_.nodeId == nodeId).map(_.lastUpdate)
@@ -129,7 +123,7 @@ object Router {
     def printChannels(): String = hops.map(_.lastUpdate.shortChannelId).mkString("->")
   }
 
-  case class RouteResponse(partId: ByteVector, amount: MilliSatoshi, routes: Seq[Route]) {
+  case class RouteResponse(partId: ByteVector, routes: Seq[Route]) {
     require(routes.nonEmpty, "routes cannot be empty")
   }
 
