@@ -1,23 +1,21 @@
 package com.btcontract.wallet
 
 import com.btcontract.wallet.R.string._
+import android.content.{Context, Intent}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import android.net.{ConnectivityManager, NetworkCapabilities}
+import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
 import org.ndeftools.util.activity.NfcReaderActivity
 import com.btcontract.wallet.WalletApp.app
-import android.content.Intent
 import org.ndeftools.Message
 import android.os.Bundle
 import android.view.View
+import scala.util.Try
 
 
-class MainActivity extends NfcReaderActivity with WalletActivity {
-  def INIT(state: Bundle): Unit = {
-    setContentView(R.layout.activity_main)
-  }
-
-  def callHauler(view: View): Unit = {
-    this goTo classOf[FloatActivityTest]
-  }
+class MainActivity extends NfcReaderActivity with WalletActivity { me =>
+  def INIT(state: Bundle): Unit = setContentView(R.layout.activity_main)
+  def callHauler(view: View): Unit = this goTo classOf[FloatActivityTest]
 
   // NFC AND SHARE
 
@@ -38,5 +36,46 @@ class MainActivity extends NfcReaderActivity with WalletActivity {
   def readNonNdefMessage: Unit = readFail(null)
 
   def proceedToWallet: Unit = {}
+
+  // Tor
+
+  def ensureTorWorking: Unit = {
+    val orbotHelper = OrbotHelper get app
+    lazy val orbotCallback = new StatusCallback {
+      def onEnabled(intent: Intent): Unit = if (isVPNOn) proceedToWallet else onStatusTimeout
+      def onStatusTimeout: Unit = showIssue(orbot_err_unclear, orbot_action_open, closeAppExitOrbot).run
+      def onNotYetInstalled: Unit = showIssue(orbot_err_not_installed, orbot_action_install, closeAppInstallOrbot).run
+      def onStopping: Unit = onStatusTimeout
+      def onDisabled: Unit = none
+      def onStarting: Unit = none
+    }
+
+    def closeAppExitOrbot: Unit = {
+      val pack = OrbotHelper.ORBOT_PACKAGE_NAME
+      val intent = getPackageManager getLaunchIntentForPackage pack
+      Option(intent) foreach startActivity
+      finishAffinity
+      System exit 0
+    }
+
+    def closeAppInstallOrbot: Unit = {
+      orbotHelper installOrbot me
+      finishAffinity
+      System exit 0
+    }
+
+    def showIssue(megRes: Int, btnRes: Int, whenTapped: => Unit) = UITask {
+      ???
+    }
+
+    orbotHelper.addStatusCallback(orbotCallback)
+    try timer.schedule(orbotCallback.onStatusTimeout, 20000) catch none
+    if (!orbotHelper.init) orbotCallback.onNotYetInstalled
+  }
+
+  def isVPNOn: Boolean = Try {
+    val cm = getSystemService(Context.CONNECTIVITY_SERVICE).asInstanceOf[ConnectivityManager]
+    cm.getAllNetworks.exists(cm getNetworkCapabilities _ hasTransport NetworkCapabilities.TRANSPORT_VPN)
+  } getOrElse false
 }
 

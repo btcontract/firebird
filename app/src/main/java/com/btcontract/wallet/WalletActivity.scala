@@ -1,15 +1,14 @@
 package com.btcontract.wallet
 
+import java.util.{Timer, TimerTask}
 import scala.util.{Failure, Success}
-import com.btcontract.wallet.ln.crypto.Tools.{runAnd, none}
+import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
-import com.btcontract.wallet.WalletApp.app
 import scala.language.implicitConversions
 import org.aviran.cookiebar2.CookieBar
 import scala.concurrent.Future
 import android.content.Intent
-import java.util.TimerTask
 import android.os.Bundle
 import android.view.View
 
@@ -21,6 +20,12 @@ trait WalletActivity extends AppCompatActivity { me =>
     INIT(savedActivityState)
   }
 
+  override def onDestroy: Unit = {
+    super.onDestroy
+    timer.cancel
+  }
+
+  val timer = new Timer
   val goTo: Class[_] => Any = target => {
     this startActivity new Intent(this, target)
     WalletApp.DoNotEraseValue
