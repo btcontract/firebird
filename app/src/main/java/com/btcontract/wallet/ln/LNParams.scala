@@ -176,5 +176,6 @@ trait ChainLinkListener {
 
 trait ChannelBag {
   def all: Vector[HostedCommits]
+  def delete(chanId: ByteVector32): Unit
   def put(chanId: ByteVector32, data: HostedCommits): HostedCommits
 }
