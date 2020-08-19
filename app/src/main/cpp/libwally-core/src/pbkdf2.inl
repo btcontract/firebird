@@ -9,13 +9,16 @@
  * copyright notice and this permission notice appear in all copies.
  */
 
+/* Extra bytes required at the end of salt for pbkdf2 functions */
+#define PBKDF2_HMAC_EXTRA_LEN 4
+
 int SHA_POST(wally_pbkdf2_hmac_)(const unsigned char *pass, size_t pass_len,
-                                 unsigned char *salt_in_out, size_t salt_len,
+                                 const unsigned char *salt, size_t salt_len,
                                  uint32_t flags, uint32_t cost,
                                  unsigned char *bytes_out, size_t len)
 {
     unsigned char *tmp_salt = NULL;
-    struct SHA_T d1, d2, *sha_cp = &d2;
+    struct SHA_T d1, d2, *sha_cp;
     size_t n, c, j;
 
     BUILD_ASSERT(sizeof(beint32_t) == PBKDF2_HMAC_EXTRA_LEN);
@@ -24,33 +27,29 @@ int SHA_POST(wally_pbkdf2_hmac_)(const unsigned char *pass, size_t pass_len,
     if (!bytes_out || !len)
         return WALLY_EINVAL;
 
-    if (flags & ~PBKDF2_HMAC_FLAG_BLOCK_RESERVED)
+    if (flags)
         return WALLY_EINVAL; /* Invalid flag */
-
-    if (flags & PBKDF2_HMAC_FLAG_BLOCK_RESERVED && salt_len < PBKDF2_HMAC_EXTRA_LEN)
-        return WALLY_EINVAL; /* No room for block appending */
 
     if (!len || len % PBKDF2_HMAC_SHA_LEN)
         return WALLY_EINVAL;
 
-    if (!(flags & PBKDF2_HMAC_FLAG_BLOCK_RESERVED)) {
-        tmp_salt = wally_malloc(salt_len + PBKDF2_HMAC_EXTRA_LEN);
-        if (!tmp_salt)
-            return WALLY_ENOMEM;
-        memcpy(tmp_salt, salt_in_out, salt_len);
-        salt_in_out = tmp_salt;
-        salt_len += PBKDF2_HMAC_EXTRA_LEN;
-    }
+    tmp_salt = wally_malloc(salt_len + PBKDF2_HMAC_EXTRA_LEN);
+    if (!tmp_salt)
+        return WALLY_ENOMEM;
+    memcpy(tmp_salt, salt, salt_len);
+    salt_len += PBKDF2_HMAC_EXTRA_LEN;
 
     /* If bytes out is suitably aligned, we can work on it directly */
     if (alignment_ok(bytes_out, sizeof(SHA_ALIGN_T)))
         sha_cp = (struct SHA_T *)bytes_out;
+    else
+        sha_cp = &d2;
 
     for (n = 0; n < len / PBKDF2_HMAC_SHA_LEN; ++n) {
         beint32_t block = cpu_to_be32(n + 1); /* Block number */
 
-        memcpy(salt_in_out + salt_len - sizeof(block), &block, sizeof(block));
-        SHA_POST_IMPL(hmac_)(&d1, pass, pass_len, salt_in_out, salt_len);
+        memcpy(tmp_salt + salt_len - sizeof(block), &block, sizeof(block));
+        SHA_POST_IMPL(hmac_)(&d1, pass, pass_len, tmp_salt, salt_len);
         memcpy(sha_cp, &d1, sizeof(d1));
 
         for (c = 0; cost && c < cost - 1; ++c) {

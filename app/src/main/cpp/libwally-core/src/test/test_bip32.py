@@ -9,6 +9,7 @@ VER_TEST_PRIVATE = 0x04358394
 FLAG_KEY_PRIVATE, FLAG_KEY_PUBLIC, FLAG_SKIP_HASH, = 0x0, 0x1, 0x2
 ALL_DEFINED_FLAGS = FLAG_KEY_PRIVATE | FLAG_KEY_PUBLIC | FLAG_SKIP_HASH
 BIP32_SERIALIZED_LEN = 78
+BIP32_FLAG_SKIP_HASH = 0x2
 
 # These vectors are expressed in binary rather than base 58. The spec base 58
 # representation just obfuscates the data we are validating. For example, the
@@ -184,7 +185,7 @@ class BIP32Tests(unittest.TestCase):
             self.assertEqual(b32(key.parent160), b32(expected.parent160))
 
 
-    def test_serialisation(self):
+    def test_serialization(self):
 
         # Try short, correct, long lengths. Trimming 8 chars is the correct
         # length because the vector value contains 4 check bytes at the end.
@@ -357,6 +358,54 @@ class BIP32Tests(unittest.TestCase):
 
     def test_free_invalid(self):
         self.assertEqual(WALLY_EINVAL, bip32_key_free(None))
+
+    def test_base58(self):
+        key = self.create_master_pub_priv()[2]
+        buf, buf_len = make_cbuffer('00' * 78)
+
+        for flag in [FLAG_KEY_PRIVATE, FLAG_KEY_PUBLIC]:
+            self.assertEqual(bip32_key_serialize(key, flag, buf, buf_len), WALLY_OK)
+            exp_hex = h(buf).upper()
+
+            ret, out = bip32_key_to_base58(key, flag)
+            self.assertEqual(ret, WALLY_OK)
+
+            key_out = ext_key()
+            self.assertEqual(bip32_key_from_base58(utf8(out), byref(key_out)), WALLY_OK)
+            self.assertEqual(bip32_key_serialize(key_out, flag, buf, buf_len), WALLY_OK)
+            self.assertEqual(h(buf).upper(), exp_hex)
+
+    def test_strip_private_key(self):
+        self.assertEqual(bip32_key_strip_private_key(None), WALLY_EINVAL)
+
+        _, pub, priv = self.create_master_pub_priv()
+
+        self.assertEqual(priv.priv_key[0], FLAG_KEY_PRIVATE)
+        self.assertEqual(bip32_key_strip_private_key(priv), WALLY_OK)
+        self.assertEqual(priv.priv_key[0], FLAG_KEY_PUBLIC)
+        self.assertEqual(priv.priv_key[1:], [0] * 32)
+
+        self.assertEqual(bip32_key_strip_private_key(pub), WALLY_OK)
+        self.assertEqual(pub.priv_key[0], FLAG_KEY_PUBLIC)
+        self.assertEqual(pub.priv_key[1:], [0] * 32)
+
+    def test_get_fingerprint(self):
+        key = self.create_master_pub_priv()[2]
+        buf, buf_len = make_cbuffer('00' * 4)
+
+        self.assertEqual(bip32_key_get_fingerprint(key, buf, buf_len), WALLY_OK)
+        self.assertEqual(h(buf), b'bbe06d6a')
+
+        # As a sanity check, derive a child and ask for its parent fingerprint
+        child = self.derive_key(key, 0, FLAG_KEY_PUBLIC)
+        b32 = lambda k: h(k)[0:8]
+        self.assertEqual(b32(child.parent160), b'bbe06d6a')
+
+        # Check fingerprint when hash calculation was skipped during derivation
+        child = self.derive_key(key, 0, FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH)
+        self.assertEqual(bip32_key_get_fingerprint(child, buf, buf_len), WALLY_OK)
+        self.assertEqual(h(buf), b'f09cb160')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,5 @@
 AC_PREREQ([2.60])
-AC_INIT([libwallycore],[0.4.0])
+AC_INIT([libwallycore],[0.7.8])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_MACRO_DIR([tools/build-aux/m4])
 AC_CONFIG_SRCDIR([src/mnemonic.h])
@@ -9,10 +9,6 @@ AH_TOP([#ifndef LIBWALLYCORE_CONFIG_H
 #define LIBWALLYCORE_CONFIG_H])
 AH_BOTTOM([#include "ccan_config.h"
 #endif /*LIBWALLYCORE_CONFIG_H*/])
-
-# Remove any optimisation/debug flags from CFLAGS, these are controlled
-# only by --enable-debug, in order to only use tested configurations
-CFLAGS=`echo $CFLAGS | sed 's/-[Og][0-9]*[ $$]*//'`
 
 LDPATH_VAR=LD_LIBRARY_PATH
 case $host_os in
@@ -31,20 +27,24 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_PROG_CC
 
-# Prefer the compilers native ar/ranlib if available (to better handle lto)
+# Prefer the compilers native ar/ranlib if available
 # We have to manually loop to test these as autoconf inexplicably does
 # not provide an AC_PATH_TOOLS macro for this purpose.
 candidate_ars="ar"
 candidate_ranlibs="ranlib"
+# gcc bugs cause memory clearing to fail randomly. clang exhibits much more
+# consistent and sane behaviour so should be preferred going forward.
+enable_clear_tests="no"
 case $CC in
 *gcc*)
     candidate_ars="gcc-ar ar"
     candidate_ranlibs="gcc-ranlib ranlib"
     ;;
 *clang*)
-    ver=$($CC --version | head -n 1 | cut -d' '  -f3 | cut -d'.' -f1,2)
+    ver=$($CC --version | head -n 1 | cut -d' '  -f3 | cut -d'.' -f1)
     candidate_ars="llvm-ar-$ver llvm-ar ar"
     candidate_ranlibs="llvm-ranlib-$ver llvm-ranlib ranlib"
+    enable_clear_tests="yes"
     ;;
 esac
 
@@ -107,9 +107,17 @@ AC_ARG_ENABLE(debug,
 AC_ARG_ENABLE(coverage,
     AS_HELP_STRING([--enable-coverage],[enable code coverage (default: no)]),
     [coverage=$enableval], [coverage=no])
-AC_ARG_ENABLE(lto,
-    AS_HELP_STRING([--enable-lto],[enable link time optimisation (default: yes if not debugging)]),
-    [lto=$enableval], [lto=yes])
+AC_ARG_ENABLE(tests,
+    AS_HELP_STRING([--enable-tests],[enable code tests (default: yes)]),
+    [tests=$enableval], [tests=yes])
+AC_ARG_ENABLE(elements,
+    AS_HELP_STRING([--enable-elements],[enable elements tx code (default: no)]),
+    [elements=$enableval], [elements=no])
+AC_ARG_ENABLE(builtin-memset,
+    AS_HELP_STRING([--enable-builtin-memset],[disable to add -fno-builtin-memset to compiler flags. helps with explicit_bzero/memset being elided on Linux clang 7.0.1 and up (default: yes)]),
+    [builtin_memset=$enableval], [builtin_memset=yes])
+AM_CONDITIONAL([RUN_TESTS], [test "x$tests" == "xyes"])
+AM_CONDITIONAL([BUILD_ELEMENTS], [test "x$elements" == "xyes"])
 
 AC_C_BIGENDIAN()
 AC_C_INLINE
@@ -132,16 +140,23 @@ if test "x$debug" == "xyes"; then
     fi
 else
     # Optimise and harden if we can
-    AX_CHECK_COMPILE_FLAG([-O3], [AM_CFLAGS="$AM_CFLAGS -O3"])
-    AX_CHECK_COMPILE_FLAG([-D_FORTIFY_SOURCE=1], [AM_CFLAGS="$AM_CFLAGS -D_FORTIFY_SOURCE=1"])
+    AX_CHECK_COMPILE_FLAG([-O2], [AM_CFLAGS="-O2 $AM_CFLAGS"])
+    AC_CHECK_DEFINE([_FORTIFY_SOURCE], [], [
+      AX_CHECK_COMPILE_FLAG([-D_FORTIFY_SOURCE=2],
+        [CPPFLAGS="$CPPFLAGS -D_FORTIFY_SOURCE=2"])
+    ])
     AX_CHECK_COMPILE_FLAG([-fstack-protector-strong], [AM_CFLAGS="$AM_CFLAGS -fstack-protector-strong"])
     AX_CHECK_COMPILE_FLAG([-DNDEBUG=1], [AM_CFLAGS="$AM_CFLAGS -DNDEBUG=1"])
-    AX_CHECK_LINK_FLAG([-O3], [LDFLAGS="$LDFLAGS -O3"])
-    if test "x$lto" == "xyes"; then
-        AX_CHECK_LINK_FLAG([-flto], [LDFLAGS="$LDFLAGS -flto"])
-        AX_CHECK_LINK_FLAG([-flto], [AM_CFLAGS="$AM_CFLAGS -flto"])
-    fi
+    AX_CHECK_LINK_FLAG([-O2], [LDFLAGS="-O2 $LDFLAGS"])
     AX_CHECK_LINK_FLAG([-Wl,-z,relro], [LDFLAGS="$LDFLAGS -Wl,-z,relro"])
+fi
+
+if test "x$elements" == "xyes"; then
+    AX_CHECK_COMPILE_FLAG([-DBUILD_ELEMENTS=1], [AM_CFLAGS="$AM_CFLAGS -DBUILD_ELEMENTS=1"])
+fi
+
+if test "x$builtin_memset" == "xno"; then
+    AX_CHECK_COMPILE_FLAG([-fno-builtin-memset], [AM_CFLAGS="$AM_CFLAGS -fno-builtin"])
 fi
 
 # -flax-vector-conversions is needed for our arm assembly
@@ -211,13 +226,24 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <sys/mman.h>]],[[mmap(0,0,0,0,0,0)]])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdlib.h>]],[[return posix_memalign(NULL,0,0)]])],
                [AC_DEFINE(HAVE_POSIX_MEMALIGN, 1, [Define if we have posix_memalign])])
 
-AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <string.h>]],[[int x[1]; memset_s(x, 1, 0, 1)]])],
-               [AC_DEFINE(HAVE_MEMSET_S, 1, [Define if we have memset_s])])
+AC_CHECK_FUNCS([memset_s explicit_bzero explicit_memset])
+
+AC_MSG_CHECKING(whether we can use inline asm code)
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+]], [[
+int a = 42;
+int *pnt = &a;
+__asm__ __volatile__ ("" : : "r"(pnt) : "memory");
+]])],
+  [AC_MSG_RESULT(yes)
+   AC_DEFINE([HAVE_INLINE_ASM], [1], [inline asm code can be used])],
+  [AC_MSG_RESULT(no)]
+)
 
 AC_CHECK_HEADERS([byteswap.h, sys/mman.h])
 
 AX_PTHREAD([ac_have_pthread=yes], [ac_have_pthread=no])
-AM_CONDITIONAL([USE_PTHREAD], [test "x$ac_have_pthread" == "xyes"])
+AM_CONDITIONAL([USE_PTHREAD], [test "x$ac_have_pthread" == "xyes" -a "x$enable_clear_tests" == "xyes"])
 if test "x$ac_have_pthread" == "xyes"; then
     AC_DEFINE([HAVE_PTHREAD], 1, [Define if we have pthread support])
     AC_CHECK_HEADERS([asm/page.h])
@@ -285,15 +311,14 @@ if test "x$js_wrappers" == "xyes"; then
         SWIG_PYTHON
     fi
     AX_CHECK_COMPILE_FLAG([-DSWIG_JAVASCRIPT_BUILD=1], [AM_CFLAGS="$AM_CFLAGS -DSWIG_JAVASCRIPT_BUILD=1"])
-    AC_CHECK_PROG(HAVE_NPM,npm,yes,no)
-    if test "x$HAVE_NPM" != "xyes"; then
-        AC_MSG_FAILURE([ERROR: No usable npm was found, please install npm before re-running])
+    AC_CHECK_PROG(HAVE_YARN,yarn,yes,no)
+    if test "x$HAVE_YARN" != "xyes"; then
+        AC_MSG_FAILURE([ERROR: No usable yarn was found, please install yarn before re-running])
     fi
-    npm install --prefix ./src/wrap_js node-gyp nan tape big-integer
 fi
 
 # Set node-gyp flags regardless of  JS enablement; they are used for wrapper
-# generation which can be usefully run without enabling JS/requiring npm
+# generation which can be usefully run without enabling JS/requiring yarn
 NODE_GYP_DIR="Release"
 if test "x$debug" == "xyes"; then
     NODE_GYP_FLAGS="--debug"
@@ -384,7 +409,7 @@ export ARFLAGS
 export AR_FLAGS
 export LD
 export LDFLAGS
-ac_configure_args="${ac_configure_args} --disable-shared ${secp_jni} --with-pic --with-bignum=no --enable-experimental --enable-module-ecdh --enable-module-rangeproof --enable-module-surjectionproof --enable-module-whitelist --enable-module-generator --enable-openssl-tests=no --enable-tests=no --enable-exhaustive-tests=no --disable-dependency-tracking"
+ac_configure_args="${ac_configure_args} --disable-shared ${secp_jni} --with-pic --with-bignum=no --enable-experimental --enable-module-ecdh --enable-module-recovery --enable-module-rangeproof --enable-module-surjectionproof --enable-module-whitelist --enable-module-generator --enable-openssl-tests=no --enable-tests=no --enable-exhaustive-tests=no --enable-benchmark=no --disable-dependency-tracking"
 AC_CONFIG_SUBDIRS([src/secp256k1])
 
 

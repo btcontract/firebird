@@ -2,8 +2,8 @@ import unittest
 from util import *
 from hashlib import sha256
 
-FLAG_ECDSA, FLAG_SCHNORR = 1, 2
-EX_PRIV_KEY_LEN, EC_PUBIC_KEY_LEN, EC_PUBIC_KEY_UNCOMPRESSED_LEN = 32, 33, 65
+FLAG_ECDSA, FLAG_SCHNORR, FLAG_GRIND_R, FLAG_RECOVERABLE = 1, 2, 4, 8
+EX_PRIV_KEY_LEN, EC_PUBLIC_KEY_LEN, EC_PUBLIC_KEY_UNCOMPRESSED_LEN = 32, 33, 65
 EC_SIGNATURE_LEN, EC_SIGNATURE_DER_MAX_LEN = 64, 72
 BITCOIN_MESSAGE_HASH_FLAG = 1
 
@@ -30,7 +30,7 @@ class SignTests(unittest.TestCase):
 
 
     def test_sign_and_verify(self):
-        sig, sig2 = self.cbufferize(['00' * EC_SIGNATURE_LEN] * 2)
+        sig, sig2, sig_low_r = self.cbufferize(['00' * EC_SIGNATURE_LEN] * 3)
         der, der_len = make_cbuffer('00' * EC_SIGNATURE_DER_MAX_LEN)
 
         for case in self.get_sign_cases():
@@ -48,6 +48,11 @@ class SignTests(unittest.TestCase):
             self.assertEqual(h(r), h(sig[0:32]))
             self.assertEqual(h(s), h(sig[32:64]))
 
+            # Also sign with low-R grinding
+            set_fake_ec_nonce(None)
+            ret = self.sign(priv_key, msg, FLAG_ECDSA|FLAG_GRIND_R, sig_low_r)
+            self.assertEqual(ret, WALLY_OK)
+
             # Check signature conversions
             ret, written = wally_ec_sig_to_der(sig, len(sig), der, der_len)
             self.assertEqual(ret, WALLY_OK)
@@ -61,10 +66,17 @@ class SignTests(unittest.TestCase):
             ret = wally_ec_public_key_from_private_key(priv_key, len(priv_key),
                                                        pub_key, len(pub_key))
             self.assertEqual(ret, WALLY_OK)
-            ret = wally_ec_sig_verify(pub_key, len(pub_key), msg, len(msg),
-                                      FLAG_ECDSA, sig, len(sig))
-            self.assertEqual(ret, WALLY_OK)
+            for s in [sig, sig_low_r]:
+                ret = wally_ec_sig_verify(pub_key, len(pub_key), msg, len(msg),
+                                          FLAG_ECDSA, s, len(s))
+                self.assertEqual(ret, WALLY_OK)
 
+            # Validate public key
+            pub_unc, _ = make_cbuffer('00' * 65)
+            ret = wally_ec_public_key_decompress(pub_key, len(pub_key), pub_unc, len(pub_unc))
+            self.assertEqual(ret, WALLY_OK)
+            self.assertEqual(wally_ec_public_key_verify(pub_key, len(pub_key)), WALLY_OK)
+            self.assertEqual(wally_ec_public_key_verify(pub_unc, len(pub_unc)), WALLY_OK)
 
         set_fake_ec_nonce(None)
 
@@ -100,18 +112,26 @@ class SignTests(unittest.TestCase):
                             (priv_bad, len(priv_key))]: # Bad private key
             self.assertEqual(wally_ec_private_key_verify(pk, pk_len), WALLY_EINVAL)
 
+        # wally_ec_public_key_verify
+        pub_key, _ = make_cbuffer('02' + '22' * 32)
+        pub_bad, _ = make_cbuffer('02' + '00' * 32)
+        for pub, pub_len in [(None, len(pub_key)),     # Null pub_key
+                             (pub_key, 32),            # Wrong pub_key len
+                             (pub_bad, len(pub_key))]: # Bad public key
+            self.assertEqual(wally_ec_public_key_verify(pub, pub_len), WALLY_EINVAL)
+
         # wally_ec_public_key_decompress
-        sig, _ = make_cbuffer('13' * EC_SIGNATURE_LEN)
-        out_buf, out_len = make_cbuffer('00' * EC_PUBIC_KEY_UNCOMPRESSED_LEN)
+        pub, _ = make_cbuffer('02' + '22' * 32)
+        out_buf, out_len = make_cbuffer('00' * EC_PUBLIC_KEY_UNCOMPRESSED_LEN)
 
-        cases = [(None, len(sig), out_buf, out_len), # Null sig
-                 (sig,  15,       out_buf, out_len), # Wrong sig len
-                 (sig,  len(sig), None, out_len),    # Null out
-                 (sig,  len(sig), out_buf, 15)]      # Wrong out len
+        cases = [(None, len(pub), out_buf, out_len), # Null pub
+                 (pub,  32,       out_buf, out_len), # Wrong pub len
+                 (pub,  len(pub), None, out_len),    # Null out
+                 (pub,  len(pub), out_buf, 64)]      # Wrong out len
 
-        for s, s_len, o, o_len in cases:
-            ret, written = wally_ec_sig_to_der(s, s_len, o, o_len)
-            self.assertEqual((ret, written), (WALLY_EINVAL, 0))
+        for p, p_len, o, o_len in cases:
+            ret = wally_ec_public_key_decompress(p, p_len, o, o_len)
+            self.assertEqual(ret, WALLY_EINVAL)
 
         # wally_ec_sig_to_der
         sig, _ = make_cbuffer('13' * EC_SIGNATURE_LEN)
@@ -127,7 +147,7 @@ class SignTests(unittest.TestCase):
             self.assertEqual((ret, written), (WALLY_EINVAL, 0))
 
         # wally_ec_public_key_from_private_key
-        out_buf, out_len = make_cbuffer('00' * EC_PUBIC_KEY_LEN)
+        out_buf, out_len = make_cbuffer('00' * EC_PUBLIC_KEY_LEN)
         cases = [(None,     len(priv_key),   out_buf, len(out_buf)), # Null priv_key
                  (priv_key, 10,              out_buf, len(out_buf)), # Wrong priv_key len
                  (priv_bad, len(priv_key),   out_buf, len(out_buf)), # Bad private key
@@ -177,6 +197,51 @@ class SignTests(unittest.TestCase):
         for msg, msg_len, flags, o, o_len in cases:
             ret, written = wally_format_bitcoin_message(msg, msg_len, flags, o, o_len)
             self.assertEqual(ret, WALLY_EINVAL)
+
+
+    def test_recoverable_sig(self):
+        priv_key, msg, out1, out2, pub_key, pub_key_rec = self.cbufferize(
+            ['11' * 32, '22' * 32, '00' * 65, '00' * 64, '00' * 32, '00' * 32])
+
+        flags = FLAG_ECDSA | FLAG_RECOVERABLE
+        self.assertEqual(WALLY_OK, self.sign(priv_key, msg, flags, out1))
+
+        self.assertEqual(WALLY_OK, wally_ec_public_key_from_private_key(
+            priv_key, 32, pub_key, 33))
+        i = 1 if h(pub_key[:1]) == '02' else 0
+        self.assertEqual(27 + i + 4, int(h(out1[:1]), 16))
+
+        flags = FLAG_ECDSA
+        self.assertEqual(WALLY_OK, self.sign(priv_key, msg, flags, out2))
+
+        self.assertEqual(out1[1:], out2)
+
+        self.assertEqual(WALLY_OK, wally_ec_sig_to_public_key(msg, 32, out1, 65, pub_key_rec, 33))
+        self.assertEqual(pub_key, pub_key_rec)
+
+        self.assertEqual(WALLY_OK, wally_ec_sig_verify(pub_key, 33, msg, 32, FLAG_ECDSA, out2, 64))
+        self.assertEqual(WALLY_EINVAL, wally_ec_sig_verify(pub_key, 33, msg, 32, FLAG_ECDSA, out1, 65))
+        self.assertEqual(WALLY_OK, wally_ec_sig_verify(pub_key, 33, msg, 32, FLAG_ECDSA, out1[1:], 64))
+
+        # Invalid cases
+        for args in [
+            (priv_key, msg, FLAG_RECOVERABLE, out1, 65),                 # Singing algorithm not specified
+            (priv_key, msg, FLAG_ECDSA, out1, 65),                       # Incorrect length
+            (priv_key, msg, FLAG_ECDSA | FLAG_RECOVERABLE, out1, 64),    # Incorrect length
+            (priv_key, msg, FLAG_SCHNORR | FLAG_RECOVERABLE, out1, 65),  # Mutually exclusive
+            ]:
+            self.assertEqual(WALLY_EINVAL, self.sign(*args))
+
+        for args in [
+            (None, 32, out1, 65, pub_key, 33),      # Missing message
+            (msg, 31, out1, 65, pub_key, 33),       # Incorrect messsage length
+            (msg, 32, None, 65, pub_key, 33),       # Missing signature
+            (msg, 32, out1, 64, pub_key, 33),       # Incorrect signature length
+            (msg, 32, out1, 65, None, 33),          # Missing pubkey
+            (msg, 32, out1, 65, pub_key, 32),       # Incorrect pubkey length
+            (priv_key, 32, out1, 65, pub_key, 32),  # Incorrect signature
+            ]:
+            self.assertEqual(WALLY_EINVAL, wally_ec_sig_to_public_key(*args))
 
 
 if __name__ == '__main__':

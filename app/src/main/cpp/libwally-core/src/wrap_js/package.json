@@ -4,15 +4,15 @@
   "description": "",
   "main": "wally.js",
   "scripts": {
-    "install": "node-gyp rebuild"
+    "install": "node-gyp configure && node-gyp build"
   },
   "author": "",
   "license": "MIT",
   "gypfile": true,
   "dependencies": {
-    "big-integer": "^1.6.23",
-    "nan": "^2.6.2",
-    "node-gyp": "^3.6.2",
-    "tape": "^4.8.0"
+    "big-integer": "1.6.45",
+    "nan": "2.14.0",
+    "node-gyp": "5.0.3",
+    "tape": "4.11.0"
   }
 }

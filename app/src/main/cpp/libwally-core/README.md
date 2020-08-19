@@ -3,8 +3,9 @@
 Wally is a cross-platform, cross-language collection of useful primitives
 for cryptocurrency wallets.
 
-Note that the library is currently pre-release and so the API may change
-without notice.
+Read the API documentation at https://wally.readthedocs.io.
+
+Note that library interfaces may change slightly while the library design matures. Please see the [CHANGES](./CHANGES.md) file to determine if the API has changed when upgrading.
 
 Please report bugs and submit patches to https://github.com/ElementsProject/libwally-core.
 
@@ -15,12 +16,13 @@ Please report bugs and submit patches to https://github.com/ElementsProject/libw
 Wally can currently be built for:
 - Linux
 - Android
-- OS X
+- macOS
 - iOS
 - Windows
 
 And can be used from:
-- C/C++ (and compatible languages)
+- C and compatible languages which can call C interfaces
+- C++ (see include/wally.hpp for C++ container support)
 - Python 2.7+ or 3.x
 - Java
 - Javascript via node.js or Cordova
@@ -34,6 +36,20 @@ $ make
 $ make check
 ```
 
+### Building on macOS
+
+Using homebrew,
+```
+$ brew install gnu-sed
+```
+
+If you wish to enable the SWIG interface, you
+will need install the Java JDK 8 or newer, and install SWIG:
+
+```
+$ brew install swig
+```
+
 ### configure options
 
 - `--enable-debug`. Enables debugging information and disables compiler
@@ -44,10 +60,12 @@ $ make check
    to submit patches.
 - `--enable-swig-python`. Enable the [SWIG](http://www.swig.org/) Python
    interface. The resulting shared library can be imported from Python using
-   the generated interface file `src/swig_python/wallycore/wallycore.py`. (default: no).
+   the generated interface file `src/swig_python/wallycore/__init__.py`. (default: no).
 - `--enable-swig-java`. Enable the [SWIG](http://www.swig.org/) Java (JNI)
    interface. After building, see `src/swig_java/src/com/blockstream/libwally/Wally.java`
    for the Java interface definition (default: no).
+- `--enable-elements`. Enables support for [Elements](https://elementsproject.org/)
+   features, including [Liquid](https://blockstream.com/liquid/) support.
 - `--enable-js-wrappers`. Enable the Node.js and Cordova Javascript wrappers.
    This currently requires python to be available at build time (default: no).
 - `--enable-coverage`. Enables code coverage (default: no) Note that you will
@@ -59,7 +77,7 @@ $ make check
 ### Recommended development configure options
 
 ```
-$ ./configure --enable-debug --enable-export-all --enable-swig-python --enable-coverage
+$ ./configure --enable-debug --enable-export-all --enable-swig-python --enable-swig-java --enable-coverage
 ```
 
 ### Compiler options
@@ -72,7 +90,7 @@ installed.
 For python development, you can build and install wally using:
 
 ```
-$ python setup.py install
+$ pip install .
 ```
 
 It is suggested you only install this way into a virtualenv while the library
@@ -82,49 +100,41 @@ If you wish to explicitly choose the python version to use, set the
 `PYTHON_VERSION` environment variable (to e.g. `2`, `2.7`, `3` etc) before
 running `setup.py` or (when compiling manually) `./configure`.
 
-You can also install the binary wally releases using the released egg or
-wheel files without having to compile the library.
+Before running pip.
 
-For wheel releases you can install directly using the released wheel files
-and pip install, e.g.:
-
-```
-pip install wallycore-0.4.0-cp27-cp27mu-linux_x86_64.whl
-```
-
-For egg releases, untar the tarball which will create a directory of the
-form `wallcore-<platform>-<python version>`. You can install using:
+You can also install the binary wally releases using the released
+wheel files without having to compile the library, e.g.:
 
 ```
-python <dir>/setup.py easy_install <dir>/*.egg
+pip install wallycore-0.7.8-cp37-cp37m-linux_x86_64.whl
 ```
 
-The script `tools/build_python_eggs.sh` builds the release files and can be
+The script `tools/build_python_wheels.sh` builds the release files and can be
 used as an example for your own python projects.
 
 ### Android
 
 Android builds are currently supported for all Android binary targets using
-a toolchain directory created with the Android NDK tool
-`make_standalone_toolchain.py`. The script `tools/android_helpers.sh` can be
-sourced from the shell or scripts to make it easier to produce builds:
+the Android NDK. The script `tools/android_helpers.sh` can be sourced from
+the shell or scripts to make it easier to produce builds:
 
 ```
 $ export ANDROID_HOME=/opt/android-sdk
 $ . ./tools/android_helpers.sh
 
 $ android_get_arch_list
-armeabi armeabi-v7a arm64-v8a mips mips64 x86 x86_64
+armeabi-v7a arm64-v8a x86 x86_64
 
-# Optional, uses gcc instead of clang (needed e.g. for NDK r15 with mips64)
-$ export WALLY_USE_GCC=1
+# Prepare to build
+$ ./tools/cleanup.sh
+$ ./tools/autogen.sh
 
 # See the comments in tools/android_helpers.sh for arguments
-$ android_build_wally armeabi-v7a $PWD/toolchain-armeabi-v7a 14 "--enable-swig-java"
+$ android_build_wally armeabi-v7a $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64 19 "--enable-swig-java"
 ```
 
 The script `tools/build_android_libraries.sh` builds the Android release files and
-can be used as and example for your own Android projects.
+can be used as an example for your own Android projects.
 
 ## Cleaning
 
@@ -139,25 +149,12 @@ should format your changes using [uncrustify](https://github.com/uncrustify/uncr
 version 0.60 or later. The script `./tools/uncrustify` will reformat all C
 sources in the library as needed, with the currently chosen uncrustify options.
 
-The version of uncrustify in Debian is unfortunately out of date and buggy. If
-you are using Debian this means you will need to download and build uncrustify
-from source using something like:
-
-```
-$ git clone --depth 1 https://github.com/uncrustify/uncrustify.git
-$ cd uncrustify
-$ ./autogen.sh
-$ ./configure
-$ make
-$ sudo make install
-```
-
 You should also make sure the existing tests pass and if possible write tests
 covering any new functionality, following the existing style.
 
 ## Generating a coverage report
 
-To generate an HTML coverage report, use:
+To generate an HTML coverage report, install `lcov` and use:
 
 ```
 $ ./tools/cleanup.sh
@@ -171,3 +168,22 @@ $ ./tools/coverage.sh
 
 The coverage report can then be viewed at `src/lcov/index.html`. Patches to
 increase the test coverage are welcome.
+
+## Users of libwally-core
+
+Projects and products that are known to depend on or use `libwally`:
+* [Blockstream Green Command Line Wallet](https://github.com/Blockstream/green_cli)
+* [Blockstream Green Development Kit](https://github.com/Blockstream/gdk)
+* [Blockstream Green Wallet for Android](https://github.com/Blockstream/green_android)
+* [Blockstream Green Wallet for iOS](https://github.com/Blockstream/green_ios)
+* [Blockstream/liquid-melt](https://github.com/Blockstream/liquid-melt)
+* [Blockstream/liquid_multisig_issuance](https://github.com/Blockstream/liquid_multisig_issuance)
+* [c-lightning](https://github.com/ElementsProject/lightning)
+* [gdk_rpc for bitcoind/liquidd](https://github.com/Blockstream/gdk_rpc)
+* [GreenAddress Recovery Tool](https://github.com/greenaddress/garecovery)
+* [GreenAddress Wallet for Windows/Mac/Linux](https://github.com/greenaddress/WalletElectron)
+* [GreenAddress Web Files](https://github.com/greenaddress/GreenAddressWebFiles)
+* [LibWally Swift](https://github.com/blockchain/libwally-swift)
+* [Multy-Core](https://github.com/Multy-io/Multy-Core)
+
+Please note that some of listed projects may be experimental or superseded.

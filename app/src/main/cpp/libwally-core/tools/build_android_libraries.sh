@@ -25,24 +25,33 @@ if [ -n "$1" ]; then
 fi
 
 for arch in $ARCH_LIST; do
-    # Use API level 14 for non-64 bit targets for better device coverage
-    api="14"
+    # Use API level 19 for non-64 bit targets for better device coverage
+    api="19"
     if [[ $arch == *"64"* ]]; then
         api="21"
     fi
 
     # Location of the NDK tools to build with
-    toolsdir="$PWD/toolchain-$arch"
+    toolsdir=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64
+    if [ "$(uname)" == "Darwin" ]; then
+        toolsdir=$ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64
+    fi
 
     # What we want built
-    useropts="--enable-swig-java"
+    useropts="--enable-swig-java --disable-swig-python --enable-elements --enable-ecmult-static-precomputation"
 
     # Configure and build with the above options
     android_build_wally $arch $toolsdir $api $useropts
 
     # Copy the build result
     mkdir -p $PWD/release/lib/$arch
-    $toolsdir/bin/*-strip -o $PWD/release/lib/$arch/libwallycore.so $PWD/src/.libs/libwallycore.so
+    archfilename=$arch
+    case $arch in
+        armeabi-v7a) archfilename=arm;;
+        arm64-v8a) archfilename=aarch64;;
+        x86) archfilename=i686;;
+    esac
+    $toolsdir/bin/$archfilename-linux-android*-strip -o $PWD/release/lib/$arch/libwallycore.so $PWD/src/.libs/libwallycore.so
 done
 
 mkdir -p $PWD/release/include $PWD/release/src/swig_java/src/com/blockstream/libwally

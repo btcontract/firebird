@@ -1,6 +1,7 @@
 TEMPLATE='''#include <nan.h>
 #include <ccan/ccan/endian/endian.h>
 
+#include "../include/wally_address.h"
 #include "../include/wally_core.h"
 #include "../include/wally_bip32.h"
 #include "bip32_int.h"
@@ -8,8 +9,8 @@ TEMPLATE='''#include <nan.h>
 #include "../include/wally_bip39.h"
 #include "../include/wally_crypto.h"
 #include "../include/wally_elements.h"
+#include "../include/wally_script.h"
 #include <vector>
-
 namespace {
 
 static struct wally_operations w_ops;
@@ -47,7 +48,7 @@ struct LocalBuffer {
             if (!node::Buffer::HasInstance(obj))
                 ret = WALLY_EINVAL;
             else {
-                mBuffer = obj->ToObject();
+                mBuffer = obj->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
                 if (IsValid(mBuffer)) {
                     mData = (unsigned char*) node::Buffer::Data(mBuffer);
                     mLength = node::Buffer::Length(mBuffer);
@@ -61,7 +62,7 @@ struct LocalBuffer {
     {
         if (ret != WALLY_OK)
             return; // Do nothing, caller will already throw
-        const v8::MaybeLocal<v8::Object> local = Nan::NewBuffer(len);
+        const Nan::MaybeLocal<v8::Object> local = Nan::NewBuffer(len);
         if (local.ToLocal(&mBuffer)) {
             mData = (unsigned char*) node::Buffer::Data(mBuffer);
             mLength = len;
@@ -85,7 +86,7 @@ struct LocalArray {
         if (!IsValid(obj) || !obj->IsArray())
             ret = WALLY_EINVAL;
         else {
-            mArray = obj->ToObject();
+            mArray = obj->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
             if (!IsValid(mArray))
                 ret = WALLY_EINVAL;
         }
@@ -114,6 +115,23 @@ static uint32_t GetUInt32(Nan::NAN_METHOD_ARGS_TYPE info, int n, int& ret)
     return value;
 }
 
+static int32_t GetInt32(Nan::NAN_METHOD_ARGS_TYPE info, int n, int& ret)
+{
+    int value = 0;
+    if (ret == WALLY_OK) {
+        if (!IsValid(info[n]) || !info[n]->IsInt32())
+            ret = WALLY_EINVAL;
+        else {
+            Nan::Maybe<int32_t> m = Nan::To<int32_t>(info[n]);
+            if (IsValid(m))
+                value = m.FromJust();
+            else
+                ret = WALLY_EINVAL;
+        }
+    }
+    return value;
+}
+
 // uint64_t values are expected as an 8 byte buffer of big endian bytes
 struct LocalUInt64 : public LocalBuffer {
     LocalUInt64(Nan::NAN_METHOD_ARGS_TYPE info, int n, int& ret)
@@ -129,6 +147,7 @@ struct LocalUInt64 : public LocalBuffer {
     }
 
     void DerivedInit(int& ret) {
+        mValue = 0; /* Prevent invalid warnings about uninitialised use */
         if (mData || mLength) {
             if (mLength != sizeof(mValue))
                 ret = WALLY_EINVAL;
@@ -237,6 +256,9 @@ def _generate_nan(funcname, f):
         elif arg.startswith('uint32_t'):
             input_args.append('uint32_t arg%s = GetUInt32(info, %s, ret);' % (i, i))
             args.append('arg%s' % i)
+        elif arg.startswith('int'):
+            input_args.append('int32_t arg%s = GetInt32(info, %s, ret);' % (i, i))
+            args.append('arg%s' % i)
         elif arg.startswith('string'):
             args.append('*Nan::Utf8String(info[%s])' % i)
         elif arg.startswith('const_uint64s'):
@@ -247,7 +269,7 @@ def _generate_nan(funcname, f):
                 '    const size_t len = arr%s.get().Length();' % i,
                 '    be64array%s.reserve(len);' % i,
                 '    for (size_t i = 0; i < len && ret == WALLY_OK; ++i)',
-                '        be64array%s.push_back(LocalUInt64(arr%s.get().Get(i), ret).mValue);' % (i, i),
+                '        be64array%s.push_back(LocalUInt64(arr%s.get().Get(Nan::GetCurrentContext(), i).ToLocalChecked(), ret).mValue);' % (i, i),
                 '}',
             ])
             postprocessing.extend([
@@ -265,14 +287,14 @@ def _generate_nan(funcname, f):
             postprocessing.extend([
                 'v8::Local<v8::String> str_res;',
                 'if (ret == WALLY_OK) {',
-                '    str_res = v8::String::NewFromUtf8(v8::Isolate::GetCurrent(), result_ptr);',
+                '    str_res = v8::String::NewFromUtf8(v8::Isolate::GetCurrent(), result_ptr, v8::NewStringType::kNormal).ToLocalChecked();',
                 '    wally_free_string(result_ptr);',
                 '    if (!IsValid(str_res))',
                 '        ret = WALLY_ENOMEM;',
                 '}',
             ])
             result_wrap = 'str_res'
-        elif arg == 'out_bytes_sized':
+        elif arg.startswith('out_bytes_sized'):
             output_args.extend([
                 'const uint32_t res_size = GetUInt32(info, %s, ret);' % i,
                 'unsigned char *res_ptr = Allocate(res_size, ret);',
@@ -295,7 +317,8 @@ def _generate_nan(funcname, f):
             if num_outs > 1:
                 postprocessing.extend([
                     'if (ret == WALLY_OK)',
-                    '    res->Set(%s, res%s);' % (cur_out, i),
+                    '    if (!res->Set(Nan::GetCurrentContext(), %s, res%s).FromMaybe(false))' % (cur_out, i),
+                    '        ret = WALLY_ERROR;',
                 ])
                 cur_out += 1
             else:
@@ -311,21 +334,23 @@ def _generate_nan(funcname, f):
             postprocessing.extend([
                 'if (ret == WALLY_OK) {',
                 '    *be64%s = cpu_to_be64(*be64%s);' % (i, i),
-                '    res->Set(%s, res%s);' % (cur_out, i),
+                '    if (!res->Set(Nan::GetCurrentContext(), %s, res%s).FromMaybe(false)) ' % (cur_out, i),
+                '        ret = WALLY_ERROR;',
                 '}',
             ])
             cur_out += 1
         elif arg == 'bip32_in':
             input_args.append((
-                'const ext_key* inkey;'
-                'unsigned char* inbuf = (unsigned char*) node::Buffer::Data(info[%s]->ToObject());'
-                'bip32_key_unserialize_alloc(inbuf, node::Buffer::Length(info[%s]->ToObject()), &inkey);'
-            ) % (i, i))
-            args.append('inkey');
+                'ext_key* inkey;'
+                'const LocalObject buf = info[%s]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();'
+                'unsigned char* inbuf = (unsigned char*) node::Buffer::Data(buf);'
+                'bip32_key_unserialize_alloc(inbuf, node::Buffer::Length(buf), &inkey);'
+            ) % (i))
+            args.append('inkey')
             postprocessing.append('bip32_key_free(inkey);')
         elif arg in ['bip32_pub_out', 'bip32_priv_out']:
             output_args.append(
-                'const ext_key *outkey;'
+                'ext_key *outkey;'
                 'LocalObject res = Nan::NewBuffer(BIP32_SERIALIZED_LEN).ToLocalChecked();'
                 'unsigned char *out = (unsigned char*) node::Buffer::Data(res);'
             )
@@ -334,6 +359,13 @@ def _generate_nan(funcname, f):
                     'bip32_priv_out': 'BIP32_FLAG_KEY_PRIVATE'}[arg]
             postprocessing.append('bip32_key_serialize(outkey, %s, out, BIP32_SERIALIZED_LEN);' % flag)
             postprocessing.append('bip32_key_free(outkey);')
+        elif arg in ['bip39_words_lang_in']:
+            input_args.append((
+                'struct words *wordlist;'
+                'if (ret == WALLY_OK)'
+                '    ret = bip39_get_wordlist(*Nan::Utf8String(info[%s]), &wordlist);'
+            ) % (i))
+            args.append('wordlist')
         else:
             assert False, 'unknown argument type'
 
@@ -362,6 +394,7 @@ NAN_METHOD(%s) {
 def generate(functions, build_type):
     nan_implementations = []
     nan_declarations = []
+    nan_declarations.append('using Nan::Export;')
     for i, (funcname, f) in enumerate(functions):
         nan_implementations.append(_generate_nan(funcname, f))
         nan_declarations.append('NAN_EXPORT(target, %s);' % funcname)

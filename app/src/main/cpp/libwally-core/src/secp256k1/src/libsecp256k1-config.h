@@ -11,18 +11,30 @@
 /* Define this symbol to compile out all VERIFY code */
 /* #undef COVERAGE */
 
+/* Set ecmult gen precision bits */
+#define ECMULT_GEN_PREC_BITS 4
+
+/* Set window size for ecmult precomputation */
+#define ECMULT_WINDOW_SIZE 15
+
 /* Define this symbol to enable the ECDH module */
 #define ENABLE_MODULE_ECDH 1
 
 /* Define this symbol to enable the NUMS generator module */
 #define ENABLE_MODULE_GENERATOR 1
 
+/* Define this symbol to enable the MuSig module */
+/* #undef ENABLE_MODULE_MUSIG */
+
 /* Define this symbol to enable the Pedersen / zero knowledge range proof
    module */
 #define ENABLE_MODULE_RANGEPROOF 1
 
 /* Define this symbol to enable the ECDSA pubkey recovery module */
-/* #undef ENABLE_MODULE_RECOVERY */
+#define ENABLE_MODULE_RECOVERY 1
+
+/* Define this symbol to enable the schnorrsig module */
+/* #undef ENABLE_MODULE_SCHNORRSIG */
 
 /* Define this symbol to enable the surjection proof module */
 #define ENABLE_MODULE_SURJECTIONPROOF 1
@@ -35,9 +47,6 @@
 
 /* Define this symbol if __builtin_clzll is available */
 #define HAVE_BUILTIN_CLZLL 1
-
-/* Define this symbol if __builtin_expect is available */
-#define HAVE_BUILTIN_EXPECT 1
 
 /* Define this symbol if __builtin_popcount is available */
 #define HAVE_BUILTIN_POPCOUNT 1
@@ -79,7 +88,7 @@
 #define HAVE_UNISTD_H 1
 
 /* Define to 1 if the system has the type `__int128'. */
-/* #undef HAVE___INT128 */
+/* #define HAVE___INT128 1 */
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
@@ -109,10 +118,10 @@
 #define STDC_HEADERS 1
 
 /* Define this symbol to enable x86_64 assembly optimizations */
-/* #undef USE_ASM_X86_64 */
+#define USE_ASM_X86_64 1
 
 /* Define this symbol to use a statically generated ecmult table */
-/* #undef USE_ECMULT_STATIC_PRECOMPUTATION */
+/* #define USE_ECMULT_STATIC_PRECOMPUTATION 1 */
 
 /* Define this symbol to use endomorphism optimization */
 /* #undef USE_ENDOMORPHISM */
@@ -121,11 +130,15 @@
    used */
 /* #undef USE_EXTERNAL_ASM */
 
+/* Define this symbol if an external implementation of the default callbacks
+   is used */
+/* #undef USE_EXTERNAL_DEFAULT_CALLBACKS */
+
 /* Define this symbol to use the FIELD_10X26 implementation */
-#define USE_FIELD_10X26 1
+#define USE_FIELD_10X26
 
 /* Define this symbol to use the FIELD_5X52 implementation */
-/* #undef USE_FIELD_5X52 */
+/* #define USE_FIELD_5X52 1 */
 
 /* Define this symbol to use the native field inverse implementation */
 #define USE_FIELD_INV_BUILTIN 1
@@ -139,11 +152,15 @@
 /* Define this symbol to use no num implementation */
 #define USE_NUM_NONE 1
 
+/* Define this symbol to reduce SECP256K1_SURJECTIONPROOF_MAX_N_INPUTS to 16,
+   disabling parsing and verification */
+/* #undef USE_REDUCED_SURJECTION_PROOF_SIZE */
+
 /* Define this symbol to use the 4x64 scalar implementation */
-/* #undef USE_SCALAR_4X64 */
+/* #define USE_SCALAR_4X64 1 */
 
 /* Define this symbol to use the 8x32 scalar implementation */
-#define USE_SCALAR_8X32 1
+#define USE_SCALAR_8X32
 
 /* Define this symbol to use the native scalar inverse implementation */
 #define USE_SCALAR_INV_BUILTIN 1

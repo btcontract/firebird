@@ -31,7 +31,7 @@ target_include_directories(wallycore
         src/secp256k1/include
 )
 
-target_link_libraries(wallycore PUBLIC secp256k1)
+target_link_libraries(wallycore PUBLIC secp256k1 c)
 target_compile_definitions(wallycore PRIVATE SECP256K1_BUILD)
 
 add_library(secp256k1 SHARED
@@ -61,4 +61,4 @@ target_compile_definitions(secp256k1
           -DENABLE_MODULE_RECOVERY
 )
 
-target_link_libraries(secp256k1 ${log-lib})
+target_link_libraries(secp256k1 c ${log-lib})

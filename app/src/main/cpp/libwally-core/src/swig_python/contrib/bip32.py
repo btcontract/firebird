@@ -30,7 +30,7 @@ class BIP32Tests(unittest.TestCase):
                    bip32_key_get_child_num]:
             self.assertEqual(fn(key), fn(expected))
         self.assertEqual(bip32_key_get_version(key), BIP32_VER_MAIN_PRIVATE)
-        if flags & BIP32_FLAG_KEY_PRIVATE:
+        if flags == BIP32_FLAG_KEY_PRIVATE:
             self.assertEqual(bip32_key_get_priv_key(key),
                              bip32_key_get_priv_key(expected))
 
@@ -39,9 +39,9 @@ class BIP32Tests(unittest.TestCase):
         master = bip32_key_from_seed(seed_data, BIP32_VER_MAIN_PRIVATE, 0)
 
         for flags in [BIP32_FLAG_KEY_PUBLIC, BIP32_FLAG_KEY_PRIVATE]:
-            serialised_data = hex_to_bytes(vec_1['m'][flags])
-            serialised_data = serialised_data[:BIP32_SERIALIZED_LEN] # Trim checksum
-            expected_key = bip32_key_unserialize(serialised_data)
+            serialized_data = hex_to_bytes(vec_1['m'][flags])
+            serialized_data = serialized_data[:BIP32_SERIALIZED_LEN] # Trim checksum
+            expected_key = bip32_key_unserialize(serialized_data)
             self.compare_keys(master, expected_key, flags)
 
         # Test our SWIG integer conversions for overflow etc in path derivation

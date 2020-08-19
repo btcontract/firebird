@@ -1,12 +1,22 @@
 #include "internal.h"
+#include <include/wally_address.h>
+#include <include/wally_bip32.h>
 #include <include/wally_elements.h>
 #include <include/wally_crypto.h>
+#include <include/wally_symmetric.h>
 #include "secp256k1/include/secp256k1_generator.h"
 #include "secp256k1/include/secp256k1_rangeproof.h"
 #include "src/secp256k1/include/secp256k1_surjectionproof.h"
+#include "src/secp256k1/include/secp256k1_whitelist.h"
 #include "secp256k1/include/secp256k1_ecdh.h"
 #include "ccan/ccan/crypto/sha256/sha256.h"
 #include <stdbool.h>
+
+#ifdef BUILD_ELEMENTS
+
+static const unsigned char LABEL_STR[] = {
+    'S', 'L', 'I', 'P', '-', '0', '0', '7', '7'
+};
 
 static int get_generator(const secp256k1_context *ctx,
                          const unsigned char *generator, size_t generator_len,
@@ -25,6 +35,36 @@ static int get_commitment(const secp256k1_context *ctx,
         return WALLY_EINVAL;
     return WALLY_OK;
 }
+
+static int get_nonce_hash(const secp256k1_context *ctx,
+                          const unsigned char *pub_key, size_t pub_key_len,
+                          const unsigned char *priv_key, size_t priv_key_len,
+                          struct sha256 *dest) {
+    secp256k1_pubkey pub;
+    unsigned char nonce[32];
+    int ret = WALLY_EINVAL;
+
+    if (!pub_key || pub_key_len != EC_PUBLIC_KEY_LEN ||
+        !pubkey_parse(ctx, &pub, pub_key, pub_key_len) ||
+        wally_ec_private_key_verify(priv_key, priv_key_len) != WALLY_OK ||
+        !dest)
+        goto cleanup;
+
+    /* Create the nonce */
+    if (!secp256k1_ecdh(ctx, nonce, &pub, priv_key, NULL, NULL)) {
+        ret = WALLY_ERROR;
+        goto cleanup;
+    }
+    wally_sha256(nonce, sizeof(nonce), dest->u.u8, sizeof(*dest));
+
+    ret = WALLY_OK;
+
+cleanup:
+    wally_clear_2(&pub, sizeof(pub), nonce, sizeof(nonce));
+
+    return ret;
+}
+
 
 int wally_asset_generator_from_bytes(const unsigned char *asset, size_t asset_len,
                                      const unsigned char *abf, size_t abf_len,
@@ -62,6 +102,7 @@ int wally_asset_final_vbf(const uint64_t *values, size_t values_len, size_t num_
         return WALLY_ENOMEM;
 
     if (!values || values_len < 2u ||
+        num_inputs >= values_len ||
         !abf || abf_len != (values_len * ASSET_TAG_LEN) ||
         !vbf || vbf_len != ((values_len - 1) * ASSET_TAG_LEN) ||
         !bytes_out || len != ASSET_TAG_LEN)
@@ -117,24 +158,22 @@ int wally_asset_value_commitment(uint64_t value,
     return ok ? WALLY_OK : WALLY_EINVAL;
 }
 
-int wally_asset_rangeproof(uint64_t value,
-                           const unsigned char *pub_key, size_t pub_key_len,
-                           const unsigned char *priv_key, size_t priv_key_len,
-                           const unsigned char *asset, size_t asset_len,
-                           const unsigned char *abf, size_t abf_len,
-                           const unsigned char *vbf, size_t vbf_len,
-                           const unsigned char *commitment, size_t commitment_len,
-                           const unsigned char *extra_commit, size_t extra_commit_len,
-                           const unsigned char *generator, size_t generator_len,
-                           uint64_t min_value, unsigned char *bytes_out, size_t len,
-                           size_t *written)
+int wally_asset_rangeproof_with_nonce(uint64_t value,
+                                      const unsigned char *nonce_hash, size_t nonce_hash_len,
+                                      const unsigned char *asset, size_t asset_len,
+                                      const unsigned char *abf, size_t abf_len,
+                                      const unsigned char *vbf, size_t vbf_len,
+                                      const unsigned char *commitment, size_t commitment_len,
+                                      const unsigned char *extra, size_t extra_len,
+                                      const unsigned char *generator, size_t generator_len,
+                                      uint64_t min_value, int exp, int min_bits,
+                                      unsigned char *bytes_out, size_t len,
+                                      size_t *written)
 {
     const secp256k1_context *ctx = secp_ctx();
     secp256k1_generator gen;
-    secp256k1_pubkey pub;
     secp256k1_pedersen_commitment commit;
-    unsigned char nonce[32], message[ASSET_TAG_LEN * 2];
-    struct sha256 nonce_sha;
+    unsigned char message[ASSET_TAG_LEN * 2];
     int ret = WALLY_EINVAL;
 
     if (written)
@@ -143,41 +182,29 @@ int wally_asset_rangeproof(uint64_t value,
     if (!ctx)
         return WALLY_ENOMEM;
 
-    if (!pub_key || pub_key_len != EC_PUBLIC_KEY_LEN ||
-        !pubkey_parse(ctx, &pub, pub_key, pub_key_len) ||
+    if (!nonce_hash || nonce_hash_len != SHA256_LEN ||
         !asset || asset_len != ASSET_TAG_LEN ||
         !abf || abf_len != ASSET_TAG_LEN ||
         !vbf || vbf_len != ASSET_TAG_LEN ||
         !bytes_out || len < ASSET_RANGEPROOF_MAX_LEN || !written ||
-        wally_ec_private_key_verify(priv_key, priv_key_len) != WALLY_OK ||
         get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK ||
         /* FIXME: Is there an upper size limit on the extra commitment? */
-        (extra_commit_len && !extra_commit) ||
+        (extra_len && !extra) ||
         min_value > 0x7ffffffffffffffful ||
+        exp < -1 || exp > 18 ||
+        min_bits < 0 || min_bits > 64 ||
         get_generator(ctx, generator, generator_len, &gen) != WALLY_OK)
         goto cleanup;
-
-    /* Create the rangeproof nonce */
-    if (!secp256k1_ecdh(ctx, nonce, &pub, priv_key)) {
-        /* FIXME: Only return WALLY_ERROR if this can fail while priv_key
-         * passes wally_ec_private_key_verify(), otherwise return WALLY_EINVAL
-         */
-        ret = WALLY_ERROR;
-        goto cleanup;
-    }
-    wally_sha256(nonce, sizeof(nonce), nonce_sha.u.u8, sizeof(nonce_sha));
 
     /* Create the rangeproof message */
     memcpy(message, asset, ASSET_TAG_LEN);
     memcpy(message + ASSET_TAG_LEN, abf, ASSET_TAG_LEN);
 
     *written = ASSET_RANGEPROOF_MAX_LEN;
-    /* FIXME: This only allows 32 bit values. The caller should be able to
-     * pass in the maximum value allowed */
     if (secp256k1_rangeproof_sign(ctx, bytes_out, written, min_value, &commit,
-                                  vbf, nonce_sha.u.u8, 0, 32, value,
+                                  vbf, nonce_hash, exp, min_bits, value,
                                   message, sizeof(message),
-                                  extra_commit, extra_commit_len,
+                                  extra, extra_len,
                                   &gen))
         ret = WALLY_OK;
     else {
@@ -186,29 +213,66 @@ int wally_asset_rangeproof(uint64_t value,
     }
 
 cleanup:
-    wally_clear_6(&gen, sizeof(gen), &pub, sizeof(pub),
-                  &commit, sizeof(commit),  nonce, sizeof(nonce),
-                  &nonce_sha, sizeof(nonce_sha), message, sizeof(message));
+    wally_clear_3(&gen, sizeof(gen), &commit, sizeof(commit),
+                  message, sizeof(message));
     return ret;
 }
 
-int wally_asset_unblind(const unsigned char *pub_key, size_t pub_key_len,
-                        const unsigned char *priv_key, size_t priv_key_len,
-                        const unsigned char *proof, size_t proof_len,
-                        const unsigned char *commitment, size_t commitment_len,
-                        const unsigned char *extra_commit, size_t extra_commit_len,
-                        const unsigned char *generator, size_t generator_len,
-                        unsigned char *asset_out, size_t asset_out_len,
-                        unsigned char *abf_out, size_t abf_out_len,
-                        unsigned char *vbf_out, size_t vbf_out_len,
-                        uint64_t *value_out)
+int wally_asset_rangeproof(uint64_t value,
+                           const unsigned char *pub_key, size_t pub_key_len,
+                           const unsigned char *priv_key, size_t priv_key_len,
+                           const unsigned char *asset, size_t asset_len,
+                           const unsigned char *abf, size_t abf_len,
+                           const unsigned char *vbf, size_t vbf_len,
+                           const unsigned char *commitment, size_t commitment_len,
+                           const unsigned char *extra, size_t extra_len,
+                           const unsigned char *generator, size_t generator_len,
+                           uint64_t min_value, int exp, int min_bits,
+                           unsigned char *bytes_out, size_t len,
+                           size_t *written)
+{
+    const secp256k1_context *ctx = secp_ctx();
+    struct sha256 nonce_hash;
+    int ret = WALLY_EINVAL;
+
+    if (!ctx)
+        return WALLY_ENOMEM;
+
+    ret = get_nonce_hash(ctx, pub_key, pub_key_len, priv_key, priv_key_len, &nonce_hash);
+    if (ret != WALLY_OK)
+        goto cleanup;
+
+    ret = wally_asset_rangeproof_with_nonce(value,
+                                            nonce_hash.u.u8, SHA256_LEN,
+                                            asset, asset_len,
+                                            abf, abf_len,
+                                            vbf, vbf_len,
+                                            commitment, commitment_len,
+                                            extra, extra_len,
+                                            generator, generator_len,
+                                            min_value, exp, min_bits,
+                                            bytes_out, len, written);
+
+cleanup:
+    wally_clear(&nonce_hash, sizeof(nonce_hash));
+
+    return ret;
+}
+
+int wally_asset_unblind_with_nonce(const unsigned char *nonce_hash, size_t nonce_hash_len,
+                                   const unsigned char *proof, size_t proof_len,
+                                   const unsigned char *commitment, size_t commitment_len,
+                                   const unsigned char *extra, size_t extra_len,
+                                   const unsigned char *generator, size_t generator_len,
+                                   unsigned char *asset_out, size_t asset_out_len,
+                                   unsigned char *abf_out, size_t abf_out_len,
+                                   unsigned char *vbf_out, size_t vbf_out_len,
+                                   uint64_t *value_out)
 {
     const secp256k1_context *ctx = secp_ctx();
     secp256k1_generator gen;
-    secp256k1_pubkey pub;
     secp256k1_pedersen_commitment commit;
-    unsigned char nonce[32], message[ASSET_TAG_LEN * 2];
-    struct sha256 nonce_sha;
+    unsigned char message[ASSET_TAG_LEN * 2];
     size_t message_len = sizeof(message);
     uint64_t min_value, max_value;
     int ret = WALLY_EINVAL;
@@ -216,29 +280,22 @@ int wally_asset_unblind(const unsigned char *pub_key, size_t pub_key_len,
     if (!ctx)
         return WALLY_ENOMEM;
 
-    if (!pub_key || pub_key_len != EC_PUBLIC_KEY_LEN ||
-        !pubkey_parse(ctx, &pub, pub_key, pub_key_len) ||
-        wally_ec_private_key_verify(priv_key, priv_key_len) != WALLY_OK ||
+    if (!nonce_hash || nonce_hash_len != SHA256_LEN ||
         !proof || !proof_len ||
         get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK ||
-        (extra_commit_len && !extra_commit) ||
+        (extra_len && !extra) ||
         get_generator(ctx, generator, generator_len, &gen) != WALLY_OK ||
         !asset_out || asset_out_len != ASSET_TAG_LEN ||
         !abf_out || abf_out_len != ASSET_TAG_LEN ||
         !vbf_out || vbf_out_len != ASSET_TAG_LEN || !value_out)
         goto cleanup;
 
-    /* Create the rangeproof nonce */
-    if (!secp256k1_ecdh(ctx, nonce, &pub, priv_key))
-        goto cleanup;
-    wally_sha256(nonce, sizeof(nonce), nonce_sha.u.u8, sizeof(nonce_sha));
-
     /* Extract the value blinding factor, value and message from the rangeproof */
     if (!secp256k1_rangeproof_rewind(ctx, vbf_out, value_out,
                                      message, &message_len,
-                                     nonce_sha.u.u8, &min_value, &max_value,
+                                     nonce_hash, &min_value, &max_value,
                                      &commit, proof, proof_len,
-                                     extra_commit, extra_commit_len,
+                                     extra, extra_len,
                                      &gen))
         goto cleanup;
 
@@ -250,9 +307,46 @@ int wally_asset_unblind(const unsigned char *pub_key, size_t pub_key_len,
     ret = WALLY_OK;
 
 cleanup:
-    wally_clear_6(&gen, sizeof(gen), &pub, sizeof(pub),
-                  &commit, sizeof(commit),  nonce, sizeof(nonce),
-                  &nonce_sha, sizeof(nonce_sha), message, sizeof(message));
+    wally_clear_3(&gen, sizeof(gen), &commit, sizeof(commit),
+                  message, sizeof(message));
+    return ret;
+}
+
+int wally_asset_unblind(const unsigned char *pub_key, size_t pub_key_len,
+                        const unsigned char *priv_key, size_t priv_key_len,
+                        const unsigned char *proof, size_t proof_len,
+                        const unsigned char *commitment, size_t commitment_len,
+                        const unsigned char *extra, size_t extra_len,
+                        const unsigned char *generator, size_t generator_len,
+                        unsigned char *asset_out, size_t asset_out_len,
+                        unsigned char *abf_out, size_t abf_out_len,
+                        unsigned char *vbf_out, size_t vbf_out_len,
+                        uint64_t *value_out)
+{
+    const secp256k1_context *ctx = secp_ctx();
+    struct sha256 nonce_hash;
+    int ret = WALLY_EINVAL;
+
+    if (!ctx)
+        return WALLY_ENOMEM;
+
+    ret = get_nonce_hash(ctx, pub_key, pub_key_len, priv_key, priv_key_len, &nonce_hash);
+    if (ret != WALLY_OK)
+        goto cleanup;
+
+    ret = wally_asset_unblind_with_nonce(nonce_hash.u.u8, SHA256_LEN,
+                                         proof, proof_len,
+                                         commitment, commitment_len,
+                                         extra, extra_len,
+                                         generator, generator_len,
+                                         asset_out, asset_out_len,
+                                         abf_out, abf_out_len,
+                                         vbf_out, vbf_out_len,
+                                         value_out);
+
+cleanup:
+    wally_clear(&nonce_hash, sizeof(nonce_hash));
+
     return ret;
 }
 
@@ -270,7 +364,7 @@ int wally_asset_surjectionproof_size(size_t num_inputs, size_t *written)
 int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output_asset_len,
                                 const unsigned char *output_abf, size_t output_abf_len,
                                 const unsigned char *output_generator, size_t output_generator_len,
-                                const unsigned char *bytes_in, size_t len_in,
+                                const unsigned char *bytes, size_t bytes_len,
                                 const unsigned char *asset, size_t asset_len,
                                 const unsigned char *abf, size_t abf_len,
                                 const unsigned char *generator, size_t generator_len,
@@ -295,7 +389,7 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
     if (!output_asset || output_asset_len != ASSET_TAG_LEN ||
         !output_abf || output_abf_len != ASSET_TAG_LEN ||
         get_generator(ctx, output_generator, output_generator_len, &gen) != WALLY_OK ||
-        !bytes_in || len_in != 32u ||
+        !bytes || bytes_len != 32u ||
         !asset || !num_inputs || (asset_len % ASSET_TAG_LEN != 0) ||
         !abf || abf_len != num_inputs * ASSET_TAG_LEN ||
         !generator || generator_len != num_inputs * ASSET_GENERATOR_LEN ||
@@ -305,10 +399,10 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
 
     /* Build the array of input generator pointers required by secp */
     /* FIXME: This is horribly painful. Since parsed representations dont
-     * currently differ from serialised, if this function took a pointer
+     * currently differ from serialized, if this function took a pointer
      * to an array, all this is actually just a very convoluted cast.
      */
-    if (!(generators = wally_malloc(num_inputs * ASSET_GENERATOR_LEN))) {
+    if (!(generators = wally_malloc(num_inputs * sizeof(secp256k1_generator)))) {
         ret = WALLY_ENOMEM;
         goto cleanup;
     }
@@ -322,7 +416,7 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
                                               (const secp256k1_fixed_asset_tag *)asset,
                                               num_inputs, num_used,
                                               (const secp256k1_fixed_asset_tag *)output_asset,
-                                              100, bytes_in)) {
+                                              100, bytes)) {
         ret = WALLY_ERROR; /* Caller must retry with different entropy/outputs */
         goto cleanup;
     }
@@ -342,7 +436,217 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
 cleanup:
     wally_clear_2(&gen, sizeof(gen), &proof, sizeof(proof));
     if (generators)
-        wally_clear(generators, generator_len);
+        wally_clear(generators, num_inputs * sizeof(secp256k1_generator));
     wally_free(generators);
     return ret;
 }
+
+int wally_confidential_addr_to_addr(
+    const char *address,
+    uint32_t prefix,
+    char **output)
+{
+    unsigned char buf[2 + EC_PUBLIC_KEY_LEN + HASH160_LEN + BASE58_CHECKSUM_LEN];
+    unsigned char *addr_bytes_p = &buf[EC_PUBLIC_KEY_LEN + 1];
+    size_t written;
+    int ret;
+
+    if (output)
+        *output = NULL;
+
+    if (!address || !output)
+        return WALLY_EINVAL;
+
+    ret = wally_base58_to_bytes(address, BASE58_FLAG_CHECKSUM, buf, sizeof(buf), &written);
+    if (ret == WALLY_OK) {
+        if (written != sizeof(buf) - BASE58_CHECKSUM_LEN || buf[0] != prefix)
+            ret = WALLY_EINVAL;
+        else {
+            /* Move the version in front of the address hash and encode it */
+            addr_bytes_p[0] = buf[1];
+            ret = wally_base58_from_bytes(addr_bytes_p, HASH160_LEN + 1,
+                                          BASE58_FLAG_CHECKSUM, output);
+        }
+    }
+
+    wally_clear(buf, sizeof(buf));
+    return ret;
+}
+
+int wally_confidential_addr_to_ec_public_key(
+    const char *address,
+    uint32_t prefix,
+    unsigned char *bytes_out,
+    size_t len)
+{
+    unsigned char buf[2 + EC_PUBLIC_KEY_LEN + HASH160_LEN + BASE58_CHECKSUM_LEN];
+    size_t written;
+    int ret;
+
+    if (!address || !bytes_out || len != EC_PUBLIC_KEY_LEN)
+        return WALLY_EINVAL;
+
+    ret = wally_base58_to_bytes(address, BASE58_FLAG_CHECKSUM, buf, sizeof(buf), &written);
+    if (ret == WALLY_OK) {
+        if (written != sizeof(buf) - BASE58_CHECKSUM_LEN || buf[0] != prefix)
+            ret = WALLY_EINVAL;
+        else {
+            /* Return the embedded public key */
+            memcpy(bytes_out, buf + 2, EC_PUBLIC_KEY_LEN);
+        }
+    }
+
+    wally_clear(buf, sizeof(buf));
+    return ret;
+}
+
+int wally_confidential_addr_from_addr(
+    const char *address,
+    uint32_t prefix,
+    const unsigned char *pub_key,
+    size_t pub_key_len,
+    char **output)
+{
+    unsigned char buf[2 + EC_PUBLIC_KEY_LEN + HASH160_LEN + BASE58_CHECKSUM_LEN];
+    unsigned char *addr_bytes_p = &buf[EC_PUBLIC_KEY_LEN + 1];
+    size_t written;
+    int ret;
+
+    if (output)
+        *output = NULL;
+
+    if (!address || (prefix & 0xffffff00) || !pub_key || pub_key_len != EC_PUBLIC_KEY_LEN || !output)
+        return WALLY_EINVAL;
+
+    /* Decode the passed address */
+    ret = wally_base58_to_bytes(address, BASE58_FLAG_CHECKSUM,
+                                addr_bytes_p, 1 + HASH160_LEN + BASE58_CHECKSUM_LEN, &written);
+    if (ret == WALLY_OK) {
+        if (written != HASH160_LEN + 1)
+            ret = WALLY_EINVAL;
+        else {
+            /* Copy the prefix/version/pubkey and encode the address to return */
+            buf[0] = prefix & 0xff;
+            buf[1] = addr_bytes_p[0];
+            memcpy(buf + 2, pub_key, pub_key_len);
+            ret = wally_base58_from_bytes(buf, sizeof(buf) - BASE58_CHECKSUM_LEN,
+                                          BASE58_FLAG_CHECKSUM, output);
+        }
+    }
+
+    wally_clear(buf, sizeof(buf));
+    return ret;
+}
+
+int wally_asset_blinding_key_from_seed(
+    const unsigned char *bytes,
+    size_t bytes_len,
+    unsigned char *bytes_out,
+    size_t len)
+{
+    unsigned char root[HMAC_SHA512_LEN];
+    int ret = WALLY_OK;
+
+    if (!bytes || !bytes_out || len != HMAC_SHA512_LEN)
+        return WALLY_EINVAL;
+
+    if ((ret = wally_symmetric_key_from_seed(bytes, bytes_len, root, sizeof(root))) != WALLY_OK)
+        return ret;
+
+    if ((ret = wally_symmetric_key_from_parent(root, sizeof(root), 0, LABEL_STR, sizeof(LABEL_STR),
+                                               bytes_out, len)) != WALLY_OK)
+        goto cleanup;
+
+cleanup:
+    wally_clear(root, sizeof(root));
+
+    return ret;
+}
+
+int wally_asset_blinding_key_to_ec_private_key(
+    const unsigned char *bytes,
+    size_t bytes_len,
+    const unsigned char *script,
+    size_t script_len,
+    unsigned char *bytes_out,
+    size_t len)
+{
+    int ret = WALLY_OK;
+
+    if (!bytes || bytes_len != HMAC_SHA512_LEN || !script || !script_len || !bytes_out || len != EC_PRIVATE_KEY_LEN)
+        return WALLY_EINVAL;
+
+    if ((ret = wally_hmac_sha256(bytes + SYMMETRIC_KEY_LEN, SYMMETRIC_KEY_LEN, script, script_len, bytes_out, len)) != WALLY_OK)
+        return ret;
+
+    return wally_ec_private_key_verify(bytes_out, EC_PRIVATE_KEY_LEN);
+}
+
+int wally_asset_pak_whitelistproof_size(
+    size_t num_keys,
+    size_t *written)
+{
+    if (!written)
+        return WALLY_EINVAL;
+
+    *written = 1 + 32 * (1 + num_keys);
+
+    return WALLY_OK;
+}
+
+int wally_asset_pak_whitelistproof(
+    const unsigned char *online_keys,
+    size_t online_keys_len,
+    const unsigned char *offline_keys,
+    size_t offline_keys_len,
+    size_t key_index,
+    const unsigned char *sub_pubkey,
+    size_t sub_pubkey_len,
+    const unsigned char *online_priv_key,
+    size_t online_priv_key_len,
+    const unsigned char *summed_key,
+    size_t summed_key_len,
+    unsigned char *bytes_out,
+    size_t len,
+    size_t *written)
+{
+    secp256k1_pubkey online_secp_keys[SECP256K1_WHITELIST_MAX_N_KEYS];
+    secp256k1_pubkey offline_secp_keys[SECP256K1_WHITELIST_MAX_N_KEYS];
+    const secp256k1_context *ctx = secp_ctx();
+    secp256k1_pubkey pubkey;
+    secp256k1_whitelist_signature sig;
+    const size_t num_keys = offline_keys_len / EC_PUBLIC_KEY_LEN;
+    size_t expected_sig_size = (1 + 32 * (1 + num_keys));
+    size_t i;
+
+    if (!online_keys || online_keys_len != offline_keys_len || !offline_keys || !offline_keys_len ||
+        offline_keys_len % EC_PUBLIC_KEY_LEN || key_index >= num_keys || num_keys > SECP256K1_WHITELIST_MAX_N_KEYS ||
+        !sub_pubkey || sub_pubkey_len != EC_PUBLIC_KEY_LEN ||
+        !online_priv_key || online_priv_key_len != EC_PRIVATE_KEY_LEN ||
+        !summed_key || summed_key_len != EC_PRIVATE_KEY_LEN ||
+        !pubkey_parse(ctx, &pubkey, sub_pubkey, sub_pubkey_len) ||
+        len < expected_sig_size || !written)
+        return WALLY_EINVAL;
+
+    for (i = 0; i < num_keys; ++i) {
+        if (!pubkey_parse(ctx, &online_secp_keys[i], online_keys + i * EC_PUBLIC_KEY_LEN, EC_PUBLIC_KEY_LEN) ||
+            !pubkey_parse(ctx, &offline_secp_keys[i], offline_keys + i * EC_PUBLIC_KEY_LEN, EC_PUBLIC_KEY_LEN))
+            return WALLY_ERROR;
+    }
+
+    if (!secp256k1_whitelist_sign(ctx, &sig, online_secp_keys, offline_secp_keys, num_keys,
+                                  &pubkey, online_priv_key, summed_key, key_index, NULL, NULL))
+        return WALLY_ERROR;
+
+    if (!secp256k1_whitelist_verify(ctx, &sig, online_secp_keys, offline_secp_keys, num_keys, &pubkey))
+        return WALLY_ERROR;
+
+    if (!secp256k1_whitelist_signature_serialize(ctx, bytes_out, &expected_sig_size, &sig))
+        return WALLY_ERROR;
+
+    *written = expected_sig_size;
+
+    return WALLY_OK;
+}
+
+#endif /* BUILD_ELEMENTS */
