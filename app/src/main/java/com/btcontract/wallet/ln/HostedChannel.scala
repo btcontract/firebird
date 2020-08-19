@@ -8,11 +8,12 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
 import com.btcontract.wallet.ln.ChanErrorCodes._
 import com.btcontract.wallet.ln.ChannelListener._
-import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, StateMachine}
+import fr.acinq.eclair.router.{Announcements, RouteCalculation}
+import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, StateMachine, Tools}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.router.Router.ChannelDesc
-import fr.acinq.eclair.router.Announcements
 import java.util.concurrent.Executors
 import fr.acinq.bitcoin.ByteVector64
 import scala.concurrent.Future
@@ -44,14 +45,15 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def localBalance: MilliSatoshi = data match { case hc: HostedCommits => hc.nextLocalSpec.toLocal case _ => 0.msat }
   def getCommits: Option[HostedCommits] = data match { case hc: HostedCommits => Some(hc) case _ => None }
 
-  def getEdge: Option[GraphEdge] =
-    for {
-      channelData <- getCommits
-      channelUpdate <- channelData.updateOpt
-      // We use a separate NodeId for each peer, but for local graph we use a ChannelDesc with a stable NodeId
-      channelDesc = ChannelDesc(channelUpdate.shortChannelId, LNParams.keys.ourRoutingSourceNodeId, data.announce.na.nodeId)
-      // Update is (peer -> us) while desc is (us -> peer), but this is irrelevant for graph search
-    } yield GraphEdge(channelDesc, channelUpdate)
+  lazy val fakeEdge: GraphEdge = {
+    val zeroCltvDelta = CltvExpiryDelta(0)
+    val randomShortChannelId = ShortChannelId(Tools.random.nextLong)
+    // Parameters do not matter except that it must point from us to peer
+    val fakeHop = ExtraHop(LNParams.keys.routingPubKey, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
+    val fakeDesc = ChannelDesc(randomShortChannelId, LNParams.keys.routingPubKey, data.announce.na.nodeId)
+    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop, htlcMaximum = Long.MaxValue.msat)
+    GraphEdge(fakeDesc, fakeUpdate)
+  }
 
   def currentBlockDay: Long
   def SEND(msg: LightningMessage *): Unit

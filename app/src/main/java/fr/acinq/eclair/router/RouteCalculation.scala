@@ -45,7 +45,7 @@ object RouteCalculation {
     ).toSet
   }
 
-  private def toFakeUpdate(extraHop: ExtraHop, htlcMaximum: MilliSatoshi): ChannelUpdate = {
+  def toFakeUpdate(extraHop: ExtraHop, htlcMaximum: MilliSatoshi): ChannelUpdate = {
     // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used
     // what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
     ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds, messageFlags = 1,

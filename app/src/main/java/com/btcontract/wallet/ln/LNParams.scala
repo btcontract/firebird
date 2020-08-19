@@ -55,7 +55,7 @@ class LightningNodeKeys(seed: Bytes) {
   private lazy val master: ExtendedPrivateKey = generate(ByteVector view seed)
   lazy val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
   lazy val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-  lazy val ourRoutingSourceNodeId: PublicKey = extendedNodeKey.publicKey
+  lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Compatible with Electrum/Phoenix/BLW
   def buildAddress(num: Long, chainHash: ByteVector32): String = {
