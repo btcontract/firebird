@@ -257,7 +257,7 @@ abstract class SyncMaster(extraNodes: NodeAnnouncements, excludedShortIds: Short
     val shortChannelIdAndFlag = for {
       shortChannelId \ stamps <- shortIdsWithTimestams
       if provenShortIds.contains(shortChannelId) && !excludedShortIds.contains(shortChannelId)
-      result <- Sync.computeShortIdAndFlag(routerData.channels, routerConf.requestNodeAnnouncements, shortChannelId, stamps)
+      result <- Sync.computeShortIdAndFlag(routerData.channels, shortChannelId, stamps)
     } yield result
 
     val queries = for {

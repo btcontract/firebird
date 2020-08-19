@@ -27,8 +27,7 @@ import scodec.bits.ByteVector
 
 
 object Router {
-  case class RouterConf(requestNodeAnnouncements: Boolean,
-                        channelQueryChunkSize: Int,
+  case class RouterConf(channelQueryChunkSize: Int,
                         searchMaxFeeBase: MilliSatoshi,
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
