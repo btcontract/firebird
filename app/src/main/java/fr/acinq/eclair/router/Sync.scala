@@ -19,7 +19,6 @@ package fr.acinq.eclair.router
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.ShortChannelId
-import scala.collection.immutable.SortedMap
 
 object Sync {
   def shouldRequestUpdate(ourTimestamp: Long, theirTimestamp: Long): Boolean = {

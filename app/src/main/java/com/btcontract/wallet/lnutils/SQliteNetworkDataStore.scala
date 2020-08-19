@@ -47,6 +47,11 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
+  def removeChannelUpdate(cu: ChannelUpdate): Unit = {
+    val shortId = cu.shortChannelId.toLong: java.lang.Long
+    db.change(ChannelUpdateTable.killSql, shortId)
+  }
+
   def listChannelUpdates: Iterable[ChannelUpdate] =
     db select ChannelUpdateTable.selectAllSql map { rc =>
       val channelFlags = rc int ChannelUpdateTable.channelFlags
@@ -66,9 +71,9 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def addExcludedChannel(sid: ShortChannelId, until: Long): Unit = {
+  def addExcludedChannel(shortId: ShortChannelId, until: Long): Unit = {
     val bannedUntil = System.currentTimeMillis + until: java.lang.Long
-    val shortChannelId = sid.toLong: java.lang.Long
+    val shortChannelId = shortId.toLong: java.lang.Long
 
     db.change(ExcludedChannelTable.newSql, shortChannelId, bannedUntil)
     db.change(ExcludedChannelTable.updSql, bannedUntil, shortChannelId)
@@ -87,11 +92,10 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
 
   def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
     val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
-    val groupedUpdates = updates.groupBy(_.shortChannelId)
-    val announcements = listChannelAnnouncements
+    val chanUpdatesByShortId = updates.groupBy(_.shortChannelId)
 
-    val tuples = announcements flatMap { ann =>
-      groupedUpdates get ann.shortChannelId collect {
+    val tuples = listChannelAnnouncements flatMap { ann =>
+      chanUpdatesByShortId get ann.shortChannelId collect {
         case Vector(update1, update2) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
         case Vector(update2, update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
         case Vector(update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
@@ -102,12 +106,12 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     val outlierCutOff = updates.size / 10
     val clearBases = updates.map(_.feeBaseMsat).sorted.drop(outlierCutOff).dropRight(outlierCutOff)
     val averageBaseFee = if (clearBases.isEmpty) MilliSatoshi(5000L) else clearBases.sum / clearBases.size
-    (tuples.toMap, groupedUpdates.keys.toSet, averageBaseFee)
+    (tuples.toMap, chanUpdatesByShortId.keys.toSet, averageBaseFee)
   }
 
   // Transactional inserts for faster performance
 
-  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit =
+  def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit =
     db txWrap {
       for (shortId <- shortIdsToRemove) {
         val shortChannelId = shortId.toLong: java.lang.Long

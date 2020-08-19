@@ -150,6 +150,7 @@ trait NetworkDataStore {
   def listChannelAnnouncements: Iterable[ChannelAnnouncement]
 
   def addChannelUpdate(cu: ChannelUpdate): Unit
+  def removeChannelUpdate(cu: ChannelUpdate): Unit
   def listChannelUpdates: Iterable[ChannelUpdate]
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit
@@ -157,7 +158,7 @@ trait NetworkDataStore {
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
   def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
-  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit
+  def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit
   def processPureData(data: PureRoutingData): Unit
 }
 

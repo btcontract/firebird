@@ -135,7 +135,7 @@ object Router {
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 
-  case class Data(channels: Map[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, graph: DirectedGraph)
+  case class Data(channels: Map[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2
