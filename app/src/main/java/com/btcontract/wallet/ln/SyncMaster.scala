@@ -59,8 +59,8 @@ case class SyncWorkerGossipData(routerData: Data, queries: Seq[QueryShortChannel
                                 updates: Set[ChannelUpdate] = Set.empty[ChannelUpdate], chanAnnounces: Set[ChannelAnnouncement] = Set.empty[ChannelAnnouncement],
                                 freshExcluded: ShortChanIdSet = Set.empty) extends SyncWorkerData {
 
-  def restarted: SyncWorkerGossipData = copy(queries = queries.tail, updates = Set.empty, chanAnnounces = Set.empty, currentExcluded = currentExcluded ++ freshExcluded, freshExcluded = Set.empty)
-  def notExcludedAndProven(shortChannelId: ShortChannelId): Boolean = !currentExcluded.contains(shortChannelId) && provenShortIds.contains(shortChannelId)
+  def restarted: SyncWorkerGossipData = copy(queries = queries.tail, updates = Set.empty, chanAnnounces = Set.empty, freshExcluded = Set.empty)
+  def notExcludedAndProven(shortId: ShortChannelId): Boolean = !currentExcluded.contains(shortId) && provenShortIds.contains(shortId)
 }
 
 case class CMDGossipComplete(sync: SyncWorker)
@@ -208,8 +208,11 @@ abstract class SyncMaster(extraNodes: NodeAnnouncements, excludedShortIds: Short
       for (update <- data1.updates) confirmedChanUpdates(update) += sync.pkap.pk
       freshExcludedShortIds ++= data1.freshExcluded
 
-      val goodAnnounces = confirmedChanAnnounces.filter { case _ \ confirmedBy => confirmedBy.size > gossip.threshold }.keys.toSet
-      val goodUpdates = confirmedChanUpdates.filter { case _ \ confirmedBy => confirmedBy.size > gossip.threshold }.keys.toSet
+      val goodAnnounces = confirmedChanAnnounces.filter { case _ \ confirmedByNodes => confirmedByNodes.size > gossip.threshold }.keys.toSet
+      val goodUpdates = confirmedChanUpdates.filter { case _ \ confirmedByNodes => confirmedByNodes.size > gossip.threshold }.keys.toSet
+      // It can happen that one peer says an update has low balance so we exclude it, but other two peers provide a good balance data
+      // so we need to make sure such a good update won't get into excluded db or else we won't be able to get updates for it
+      freshExcludedShortIds --= goodAnnounces.map(_.shortChannelId) ++ goodUpdates.map(_.shortChannelId)
 
       if (goodAnnounces.nonEmpty || goodUpdates.nonEmpty) {
         // Notify whoever is listening and free resources by removing useless data

@@ -41,7 +41,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     case CMDResync \ OPERATIONAL =>
       if (0L == getLastResyncStamp) become(data, INIT_SYNC)
-      new SyncMaster(getExtraNodes, store.listExcludedChannels(System.currentTimeMillis), data, routerConf) {
+      new SyncMaster(getExtraNodes, store.listExcludedChannels, data, routerConf) {
         def onTotalSyncComplete(syncMasterGossip: SyncMasterGossipData): Unit = me process syncMasterGossip
         def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
       }

@@ -71,18 +71,8 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def addExcludedChannel(shortId: ShortChannelId, until: Long): Unit = {
-    val bannedUntil = System.currentTimeMillis + until: java.lang.Long
-    val shortChannelId = shortId.toLong: java.lang.Long
-
-    db.change(ExcludedChannelTable.newSql, shortChannelId, bannedUntil)
-    db.change(ExcludedChannelTable.updSql, bannedUntil, shortChannelId)
-  }
-
-  def listExcludedChannels(until: Long): ShortChanIdSet =
-    db.select(ExcludedChannelTable.selectAllSql, until.toString)
-      .set(_ long ExcludedChannelTable.shortChannelId)
-      .map(ShortChannelId.apply)
+  def addExcludedChannel(shortId: ShortChannelId): Unit = db.change(ExcludedChannelTable.newSql, shortId.toLong: java.lang.Long)
+  def listExcludedChannels: ShortChanIdSet = db.select(ExcludedChannelTable.selectSql).set(_ long ExcludedChannelTable.shortChannelId).map(ShortChannelId.apply)
 
   def incrementChannelScore(cu: ChannelUpdate): Unit = {
     val shortId = cu.shortChannelId.toLong: java.lang.Long
@@ -119,9 +109,8 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
 
   def processPureData(pure: PureRoutingData): Unit =
     db txWrap {
-      val timestamp = System.currentTimeMillis + 60 * 24 * 3600 * 1000L // ~2 months
-      for (shortChannelId <- pure.excluded) addExcludedChannel(shortChannelId, timestamp)
       for (announcement <- pure.announces) addChannelAnnouncement(announcement)
       for (channelUpdate <- pure.updates) addChannelUpdate(channelUpdate)
+      for (shortId <- pure.excluded) addExcludedChannel(shortId)
     }
 }

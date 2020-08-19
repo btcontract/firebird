@@ -60,21 +60,15 @@ object ChannelUpdateTable extends Table {
 }
 
 object ExcludedChannelTable extends Table {
-  val Tuple3(table, shortChannelId, until) = ("chan_excluded", "short_channel_id", "until")
-  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $until) VALUES (?, ?)"
-  val updSql = s"UPDATE $table SET $until = ? WHERE $shortChannelId = ?"
-  val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
-  val selectAllSql = s"SELECT * FROM $table WHERE $until < ?"
+  val Tuple2(table, shortChannelId) = ("chan_excluded", "short_channel_id")
+  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId) VALUES (?)"
+  val selectSql = s"SELECT * FROM $table ORDER BY $id DESC LIMIT 500000"
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
       $id INTEGER PRIMARY KEY AUTOINCREMENT,
       $shortChannelId INTEGER NOT NULL UNIQUE,
-      $until INTEGER NOT NULL
-    );
-    /* shortChannelId index is created automatically because UNIQUE */
-    CREATE INDEX IF NOT EXISTS idx1$table ON $table ($until);
-    COMMIT"""
+    );"""
 }
 
 object PaymentTable extends Table {
