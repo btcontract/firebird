@@ -65,14 +65,13 @@ object RouteCalculation {
   /** https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md#clarifications */
   val ROUTE_MAX_LENGTH = 20
 
-  /** Max allowed CLTV for a route (one week) */
-  val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(1008)
+  /** Max allowed CLTV for a route (two weeks) */
+  val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
 
   def getDefaultRouteParams(routerConf: RouterConf): RouteParams = RouteParams(
-    maxFeeBase = routerConf.searchMaxFeeBase.toMilliSatoshi,
     maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength,
-    routeMaxCltv = routerConf.searchMaxCltv,
+    routeMaxCltv = routerConf.firstPassMaxCltv,
     ratios = WeightRatios(
       cltvDeltaFactor = routerConf.searchRatioCltv,
       ageFactor = routerConf.searchRatioChannelAge,

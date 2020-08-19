@@ -30,10 +30,9 @@ object Router {
   case class RouterConf(requestNodeAnnouncements: Boolean,
                         encodingType: EncodingType,
                         channelQueryChunkSize: Int,
-                        searchMaxFeeBase: Satoshi,
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
-                        searchMaxCltv: CltvExpiryDelta,
+                        firstPassMaxCltv: CltvExpiryDelta,
                         searchRatioCltv: Double,
                         searchRatioChannelAge: Double,
                         searchRatioChannelCapacity: Double,
@@ -96,9 +95,7 @@ object Router {
     override def fee(amount: MilliSatoshi): MilliSatoshi = fee
   }
 
-  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int) {
-    def getMaxFee(amount: MilliSatoshi): MilliSatoshi = maxFeeBase.max(amount * maxFeePct) // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both
-  }
+  case class RouteParams(maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int)
 
   case class RouteRequest(partId: ByteVector,
                           source: PublicKey,

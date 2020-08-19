@@ -26,7 +26,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
 
   // We don't load routing data on every startup but when user (or system) actually needs it
-  become(Data(channels = Map.empty, MilliSatoshi(5000L), extraEdges = Map.empty, DirectedGraph.apply), WAITING)
+  become(Data(channels = Map.empty, MilliSatoshi(21000L), extraEdges = Map.empty, DirectedGraph.apply), WAITING)
   RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24).subscribe(none)
 
   def getLastResyncStamp: Long

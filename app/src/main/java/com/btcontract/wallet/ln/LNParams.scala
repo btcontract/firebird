@@ -29,10 +29,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelQueryChunkSize = 100,
-      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6,
-      searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
-      mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
+    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelQueryChunkSize = 100, searchMaxFeePct = 0.01,
+      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2,
+      searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
