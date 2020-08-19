@@ -31,9 +31,9 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object RouteCalculation {
-  def handleRouteRequest(d: Data, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): Try[RouteResponse] =
-    findRouteInternal(d.graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight)
-      .map(_.map(paths => Route(paths.path.map(graphEdgeToHop)))).map(RouteResponse(r.partId, r.amount, _))
+  def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): Try[RouteResponse] =
+    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight)
+      .map(_.map(paths => Route(paths.weight.costs, paths.path.map(graphEdgeToHop)))).map(RouteResponse(r.partId, _))
 
   def makeExtraEdges(assistedRoutes: Seq[Seq[ExtraHop]], source: PublicKey, target: PublicKey): Set[GraphEdge] = {
     // we convert extra routing info provided in the payment request to fake channel_update
@@ -41,11 +41,11 @@ object RouteCalculation {
       .filterNot { case (_, ac) => ac.extraHop.nodeId == source } // we ignore routing hints for our own channels, we have more accurate information
       .toMap
     assistedChannels.values.map(ac =>
-      GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop, ac.htlcMaximum), None)
+      GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop, ac.htlcMaximum))
     ).toSet
   }
 
-  private def toFakeUpdate(extraHop: ExtraHop, htlcMaximum: MilliSatoshi): ChannelUpdate = {
+  def toFakeUpdate(extraHop: ExtraHop, htlcMaximum: MilliSatoshi): ChannelUpdate = {
     // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used
     // what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
     ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds, messageFlags = 1,
@@ -65,14 +65,14 @@ object RouteCalculation {
   /** https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md#clarifications */
   val ROUTE_MAX_LENGTH = 20
 
-  /** Max allowed CLTV for a route (one week) */
-  val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(1008)
+  /** Max allowed CLTV for a route (two weeks) */
+  val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
 
   def getDefaultRouteParams(routerConf: RouterConf): RouteParams = RouteParams(
-    maxFeeBase = routerConf.searchMaxFeeBase.toMilliSatoshi,
+    maxFeeBase = routerConf.searchMaxFeeBase,
     maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength,
-    routeMaxCltv = routerConf.searchMaxCltv,
+    routeMaxCltv = routerConf.firstPassMaxCltv,
     ratios = WeightRatios(
       cltvDeltaFactor = routerConf.searchRatioCltv,
       ageFactor = routerConf.searchRatioChannelAge,
@@ -101,7 +101,7 @@ object RouteCalculation {
 
     def cltvOk(cltv: CltvExpiryDelta): Boolean = cltv <= routeParams.routeMaxCltv
 
-    val boundaries: RichWeight => Boolean = { weight => feeOk(weight.cost - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
+    val boundaries: RichWeight => Boolean = { weight => feeOk(weight.costs.head - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
 
     val numRoutes = routeParams.maxRoutesPerPart.max(g.getEdgesBetween(localNodeId, targetNodeId).length) // if we have direct channels to the target, we can use them all
 

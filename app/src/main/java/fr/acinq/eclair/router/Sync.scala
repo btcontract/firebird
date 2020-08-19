@@ -19,7 +19,6 @@ package fr.acinq.eclair.router
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.ShortChannelId
-import scala.collection.immutable.SortedMap
 
 object Sync {
   def shouldRequestUpdate(ourTimestamp: Long, theirTimestamp: Long): Boolean = {
@@ -28,7 +27,7 @@ object Sync {
     theirsIsMoreRecent && !theirsIsStale
   }
 
-  def computeShortIdAndFlag(channels: SortedMap[ShortChannelId, PublicChannel],
+  def computeShortIdAndFlag(channels: Map[ShortChannelId, PublicChannel],
                             includeNodeAnnouncements: Boolean,
                             shortChannelId: ShortChannelId,
                             theirTimestamps: ReplyChannelRangeTlv.Timestamps): Option[ShortChannelIdAndFlag] = {
@@ -54,7 +53,7 @@ object Sync {
     if (flags == 0) None else Some(ShortChannelIdAndFlag(shortChannelId, flags | flagsNodes))
   }
 
-  def getChannelDigestInfo(channels: SortedMap[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): ReplyChannelRangeTlv.Timestamps = {
+  def getChannelDigestInfo(channels: Map[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): ReplyChannelRangeTlv.Timestamps = {
     val c = channels(shortChannelId)
     val timestamp1 = c.update_1_opt.map(_.timestamp).getOrElse(0L)
     val timestamp2 = c.update_2_opt.map(_.timestamp).getOrElse(0L)

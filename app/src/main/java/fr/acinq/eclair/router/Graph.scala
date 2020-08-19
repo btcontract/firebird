@@ -22,9 +22,9 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire.ChannelUpdate
+
 import scala.collection.JavaConversions._
 import scala.annotation.tailrec
-import scala.collection.immutable.SortedMap
 import scala.collection.mutable
 
 object Graph {
@@ -33,12 +33,12 @@ object Graph {
   /**
    * The cumulative weight of a set of edges (path in the graph).
    *
-   * @param cost   amount to send to the recipient + each edge's fees
+   * @param costs   amount to send to the recipient + each edge's fees per hop
    * @param length number of edges in the path
    * @param cltv   sum of each edge's cltv
    * @param weight cost multiplied by a factor based on heuristics (see [[WeightRatios]]).
    */
-  case class RichWeight(cost: MilliSatoshi, length: Int, cltv: CltvExpiryDelta, weight: Double) extends Ordered[RichWeight] {
+  case class RichWeight(costs: Vector[MilliSatoshi], length: Int, cltv: CltvExpiryDelta, weight: Double) extends Ordered[RichWeight] {
     override def compare(that: RichWeight): Int = this.weight.compareTo(that.weight)
   }
   /**
@@ -93,7 +93,7 @@ object Graph {
                         currentBlockHeight: Long,
                         boundaries: RichWeight => Boolean): Seq[WeightedPath] = {
     // find the shortest path (k = 0)
-    val targetWeight = RichWeight(amount, 0, CltvExpiryDelta(0), 0)
+    val targetWeight = RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)
     val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight, wr)
     if (shortestPath.isEmpty) {
       return Seq.empty // if we can't even find a single path, avoid returning a Seq(Seq.empty)
@@ -212,12 +212,13 @@ object Graph {
           // NB: this contains the amount (including fees) that will need to be sent to `neighbor`, but the amount that
           // will be relayed through that edge is the one in `currentWeight`.
           val neighborWeight = addEdgeWeight(sender, edge, currentWeight, currentBlockHeight, wr)
-          val canRelayAmount = currentWeight.cost <= edge.capacity &&
-            edge.balanceOpt.forall(currentWeight.cost <= _) &&
-            edge.update.htlcMaximumMsat.forall(currentWeight.cost <= _) &&
-            currentWeight.cost >= edge.update.htlcMinimumMsat
+
+          val currentCost = currentWeight.costs.head
+
+          val canRelayAmount = currentCost <= edge.capacity && edge.update.htlcMaximumMsat.forall(currentCost <= _) && currentCost >= edge.update.htlcMinimumMsat
+
           if (canRelayAmount && boundaries(neighborWeight) && !ignoredEdges.contains(edge.desc) && !ignoredVertices.contains(neighbor)) {
-            val previousNeighborWeight = bestWeights.getOrDefault(neighbor, RichWeight(MilliSatoshi(Long.MaxValue), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue))
+            val previousNeighborWeight = bestWeights.getOrDefault(neighbor, RichWeight(Vector(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue))
             // if this path between neighbor and the target has a shorter distance than previously known, we select it
             if (neighborWeight.weight < previousNeighborWeight.weight) {
               // update the best edge for this vertex
@@ -270,11 +271,11 @@ object Graph {
       // Every edge is weighted by its routing success score, higher score adds less weight
     val successFactor = 1 - normalize(edge.update.score, SCORE_LOW, SCORE_HIGH)
 
-    val totalCost = if (edge.desc.a == sender) prev.cost else addEdgeFees(edge, prev.cost)
+    val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
     val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.update.cltvExpiryDelta
       // NB we're guaranteed to have weightRatios and factors > 0
     val factor = (cltvFactor * wr.cltvDeltaFactor) + (ageFactor * wr.ageFactor) + (capFactor * wr.capacityFactor) + (successFactor * wr.successScoreFactor)
-    val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.toLong * factor
+    val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.head.toLong * factor
 
     RichWeight(totalCost, prev.length + 1, totalCltv, totalWeight)
   }
@@ -304,7 +305,6 @@ object Graph {
     case None => true
     case Some(edge) =>
       val canRelayAmount = amount <= edge.capacity &&
-        edge.balanceOpt.forall(amount <= _) &&
         edge.update.htlcMaximumMsat.forall(amount <= _) &&
         edge.update.htlcMinimumMsat <= amount
       if (canRelayAmount) validateReversePath(path.tail, addEdgeFees(edge, amount)) else false
@@ -321,7 +321,7 @@ object Graph {
    * @param wr                 ratios used to 'weight' edges when searching for the shortest path
    */
   def pathWeight(sender: PublicKey, path: Seq[GraphEdge], amount: MilliSatoshi, currentBlockHeight: Long, wr: WeightRatios): RichWeight = {
-    path.foldRight(RichWeight(amount, 0, CltvExpiryDelta(0), 0)) { (edge, prev) =>
+    path.foldRight(RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)) { (edge, prev) =>
       addEdgeWeight(sender, edge, prev, currentBlockHeight, wr)
     }
   }
@@ -361,9 +361,8 @@ object Graph {
      *
      * @param desc        channel description
      * @param update      channel info
-     * @param balanceOpt (optional) available balance that can be sent through this edge
      */
-    case class GraphEdge(desc: ChannelDesc, update: ChannelUpdate, balanceOpt: Option[MilliSatoshi] = None) {
+    case class GraphEdge(desc: ChannelDesc, update: ChannelUpdate) {
 
       lazy val capacity: MilliSatoshi = update.htlcMaximumMsat.get // All updates MUST have htlcMaximumMsat
 
@@ -373,7 +372,7 @@ object Graph {
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
     case class DirectedGraph(private val vertices: Map[PublicKey, List[GraphEdge]]) {
 
-      def addEdge(d: ChannelDesc, u: ChannelUpdate): DirectedGraph = addEdge(GraphEdge(d, u, None))
+      def addEdge(d: ChannelDesc, u: ChannelUpdate): DirectedGraph = addEdge(GraphEdge(d, u))
 
       def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)((acc, edge) => acc.addEdge(edge))
 
@@ -519,7 +518,7 @@ object Graph {
        *
        * @param channels map of all known public channels in the network.
        */
-      def makeGraph(channels: SortedMap[ShortChannelId, PublicChannel]): DirectedGraph = {
+      def makeGraph(channels: Map[ShortChannelId, PublicChannel]): DirectedGraph = {
         // initialize the map with the appropriate size to avoid resizing during the graph initialization
         val mutableMap = new java.util.HashMap[PublicKey, List[GraphEdge]](channels.size + 1)
 
@@ -536,7 +535,7 @@ object Graph {
         }
 
         def addDescToMap(desc: ChannelDesc, u: ChannelUpdate): Unit = {
-          mutableMap.put(desc.b, GraphEdge(desc, u, None) +: mutableMap.getOrDefault(desc.b, List.empty[GraphEdge]))
+          mutableMap.put(desc.b, GraphEdge(desc, u) +: mutableMap.getOrDefault(desc.b, List.empty[GraphEdge]))
           mutableMap.get(desc.a) match {
             case null => mutableMap.put(desc.a, List.empty[GraphEdge])
             case _ =>

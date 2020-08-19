@@ -33,6 +33,7 @@ object SyncMaster {
   type NodeAnnouncements = List[NodeAnnouncement]
 
   val zap: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "027cd974e47086291bb8a5b0160a889c738f2712a703b8ea939985fd16f3aae67e"), NodeAddress.fromParts("335.237.192.216", 9735), "Zap")
+  val bitMex: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0395033b252c6f40e3756984162d68174e2bd8060a129c0d3462a9370471c6d28f"), NodeAddress.fromParts("35.184.216.240", 9735), "BitMEX")
   val lnMarkets: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03271338633d2d37b285dae4df40b413d8c6c791fbee7797bc5dc70812196d7d5c"), NodeAddress.fromParts("3.95.117.200", 9735), "LNMarkets")
   val bitstamp: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "02a04446caa81636d60d63b066f2814cbd3a6b5c258e3172cbdded7a16e2cfff4c"), NodeAddress.fromParts("3.122.40.122", 9735), "Bitstamp")
   val openNode: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03abf6f44c355dec0d5aa155bdbdd6e0c8fefe318eff402de65c6eb2e1be55dc3e"), NodeAddress.fromParts("18.221.23.28", 9735), "OpenNode")
@@ -42,7 +43,7 @@ object SyncMaster {
   val liteGo: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "029aee02904d4e419770b93c1b07aae2814a79032e23cafb4024cbea6fb71be106"), NodeAddress.fromParts("195.154.169.49", 9735), "LiteGo")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.fromParts("34.239.230.56", 9735), "ACINQ")
   val fold: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "02816caed43171d3c9854e3b0ab2cf0c42be086ff1bd4005acc2a5f7db70d83774"), NodeAddress.fromParts("35.238.153.25", 9735), "Fold")
-  val syncNodeVec: NodeAnnouncements = List(zap, lnMarkets, bitstamp, openNode, bitrefill, bitrefillTor, coinGate, liteGo, acinq, fold)
+  val syncNodeVec: NodeAnnouncements = List(zap, lnMarkets, bitstamp, openNode, bitrefill, bitrefillTor, coinGate, liteGo, acinq, fold, bitMex)
   val minCapacity = MilliSatoshi(1000000000L) // We are not interested in channels with capacity less than this
 
   def isFresh(cu: ChannelUpdate, routerData: Data): Boolean = {

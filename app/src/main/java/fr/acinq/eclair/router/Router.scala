@@ -16,26 +16,23 @@
 
 package fr.acinq.eclair.router
 
+import fr.acinq.eclair._
+import fr.acinq.eclair.wire._
+import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
+import fr.acinq.eclair.router.Graph.WeightRatios
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.Satoshi
-import fr.acinq.eclair._
-import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Graph.WeightRatios
-import fr.acinq.eclair.wire._
 import scodec.bits.ByteVector
 
-import scala.collection.immutable.SortedMap
 
 object Router {
   case class RouterConf(requestNodeAnnouncements: Boolean,
-                        encodingType: EncodingType,
-                        channelRangeChunkSize: Int,
                         channelQueryChunkSize: Int,
-                        searchMaxFeeBase: Satoshi,
+                        searchMaxFeeBase: MilliSatoshi,
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
-                        searchMaxCltv: CltvExpiryDelta,
+                        firstPassMaxCltv: CltvExpiryDelta,
                         searchRatioCltv: Double,
                         searchRatioChannelAge: Double,
                         searchRatioChannelCapacity: Double,
@@ -115,13 +112,10 @@ object Router {
                           ignoreChannels: Set[ChannelDesc],
                           routeParams: RouteParams)
 
-  case class Route(hops: Seq[ChannelHop]) {
+  case class Route(amounts: Vector[MilliSatoshi], hops: Seq[ChannelHop]) {
     require(hops.nonEmpty, "route cannot be empty")
 
-    def fee(amount: MilliSatoshi): MilliSatoshi = {
-      val amountToSend = hops.drop(1).reverse.foldLeft(amount) { case (amount1, hop) => amount1 + hop.fee(amount1) }
-      amountToSend - amount
-    }
+    def fee(amount: MilliSatoshi): MilliSatoshi = amounts.head - amount
 
     /** This method retrieves the channel update that we used when we built the route. */
     def getChannelUpdateForNode(nodeId: PublicKey): Option[ChannelUpdate] = hops.find(_.nodeId == nodeId).map(_.lastUpdate)
@@ -131,13 +125,13 @@ object Router {
     def printChannels(): String = hops.map(_.lastUpdate.shortChannelId).mkString("->")
   }
 
-  case class RouteResponse(partId: ByteVector, amount: MilliSatoshi, routes: Seq[Route]) {
+  case class RouteResponse(partId: ByteVector, routes: Seq[Route]) {
     require(routes.nonEmpty, "routes cannot be empty")
   }
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 
-  case class Data(channels: SortedMap[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, graph: DirectedGraph)
+  case class Data(channels: Map[ShortChannelId, PublicChannel], extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2

@@ -144,22 +144,22 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
 
   // Sending
 
-  def maxSendable(avgFeeBase: MilliSatoshi)(chan: HostedChannel): MilliSatoshi = {
-    // We assume a payment could be split to `maxPaymentsInFlight` parts each taking `firstPassMaxRouteLength` routes
-    val cumulativeMaxFeeBase = avgFeeBase * chan.maxPaymentsInFlight * LNParams.routerConf.firstPassMaxRouteLength
+  def maxSendable(chan: HostedChannel): MilliSatoshi = {
+    // We assume a payment could be split to `maxPaymentsInFlight` parts
+    val cumulativeMaxFeeBase = LNParams.routerConf.searchMaxFeeBase * chan.maxPaymentsInFlight
     val feePctOfTheRest = (chan.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
     0.msat.max(chan.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
   }
 
-  def estimateCanSendInPrinciple(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperational).map(me maxSendable avgFeeBase).sum
-  def estimateCanSendNow(avgFeeBase: MilliSatoshi): MilliSatoshi = all.filter(isOperationalAndOpen).map(me maxSendable avgFeeBase).sum
+  def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).map(maxSendable).sum
+  def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).map(maxSendable).sum
 
-  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi, avgFeeBase: MilliSatoshi): Int = {
-    val chanCurrentlyInFlight: Boolean = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
-    val dbStatus: Option[Int] = payBag.getPaymentInfo(paymentHash).map(_.status)
+  def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
+    val inFlightNow = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val dbStatus = payBag.getPaymentInfo(paymentHash).map(_.status)
 
-    if (chanCurrentlyInFlight) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (estimateCanSendInPrinciple(avgFeeBase) < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    if (inFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (dbStatus contains PaymentInfo.WAITING) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (dbStatus contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE

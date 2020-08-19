@@ -7,7 +7,6 @@ import com.btcontract.wallet.ln.crypto.Tools.{bytes2VecView, random}
 import com.btcontract.wallet.ln.{NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
-import scala.collection.immutable.SortedMap
 import fr.acinq.bitcoin.Crypto.PublicKey
 import scodec.bits.ByteVector
 
@@ -48,6 +47,11 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
+  def removeChannelUpdate(cu: ChannelUpdate): Unit = {
+    val shortId = cu.shortChannelId.toLong: java.lang.Long
+    db.change(ChannelUpdateTable.killSql, shortId)
+  }
+
   def listChannelUpdates: Iterable[ChannelUpdate] =
     db select ChannelUpdateTable.selectAllSql map { rc =>
       val channelFlags = rc int ChannelUpdateTable.channelFlags
@@ -67,9 +71,9 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def addExcludedChannel(sid: ShortChannelId, until: Long): Unit = {
+  def addExcludedChannel(shortId: ShortChannelId, until: Long): Unit = {
     val bannedUntil = System.currentTimeMillis + until: java.lang.Long
-    val shortChannelId = sid.toLong: java.lang.Long
+    val shortChannelId = shortId.toLong: java.lang.Long
 
     db.change(ExcludedChannelTable.newSql, shortChannelId, bannedUntil)
     db.change(ExcludedChannelTable.updSql, bannedUntil, shortChannelId)
@@ -86,13 +90,12 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     db.change(ChannelUpdateTable.updScoreSql, shortId, position)
   }
 
-  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet) = {
     val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
-    val groupedUpdates = updates.groupBy(_.shortChannelId)
-    val announcements = listChannelAnnouncements.toList
+    val chanUpdatesByShortId = updates.groupBy(_.shortChannelId)
 
-    val tuples = announcements flatMap { ann =>
-      groupedUpdates get ann.shortChannelId collect {
+    val tuples = listChannelAnnouncements flatMap { ann =>
+      chanUpdatesByShortId get ann.shortChannelId collect {
         case Vector(update1, update2) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
         case Vector(update2, update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
         case Vector(update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
@@ -100,15 +103,12 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       }
     }
 
-    val outlierCutOff = updates.size / 10
-    val feeBases = updates.map(_.feeBaseMsat).sorted
-    val clearBases = feeBases.drop(outlierCutOff).dropRight(outlierCutOff)
-    (SortedMap(tuples:_*), groupedUpdates.keys.toSet, clearBases.sum / clearBases.size)
+    (tuples.toMap, chanUpdatesByShortId.keys.toSet)
   }
 
   // Transactional inserts for faster performance
 
-  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit =
+  def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit =
     db txWrap {
       for (shortId <- shortIdsToRemove) {
         val shortChannelId = shortId.toLong: java.lang.Long
@@ -119,7 +119,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
 
   def processPureData(pure: PureRoutingData): Unit =
     db txWrap {
-      val timestamp = System.currentTimeMillis + 60 * 24 * 3600 * 1000L
+      val timestamp = System.currentTimeMillis + 60 * 24 * 3600 * 1000L // ~2 months
       for (shortChannelId <- pure.excluded) addExcludedChannel(shortChannelId, timestamp)
       for (announcement <- pure.announces) addChannelAnnouncement(announcement)
       for (channelUpdate <- pure.updates) addChannelUpdate(channelUpdate)

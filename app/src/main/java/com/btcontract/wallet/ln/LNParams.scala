@@ -5,15 +5,14 @@ import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
 import fr.acinq.bitcoin.DeterministicWallet._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouterConf}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.crypto.Tools
-import scala.collection.immutable.SortedMap
 import java.io.ByteArrayInputStream
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
@@ -30,10 +29,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelRangeChunkSize = 200, channelQueryChunkSize = 100,
-      searchMaxFeeBase = 21.sat, searchMaxFeePct = 0.01, searchMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1,
-      searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3,
-      mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
+    RouterConf(requestNodeAnnouncements = false, channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
+      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2,
+      searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(50000000L), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
@@ -57,7 +55,7 @@ class LightningNodeKeys(seed: Bytes) {
   private lazy val master: ExtendedPrivateKey = generate(ByteVector view seed)
   lazy val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
   lazy val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-  lazy val ourRoutingSourceNodeId: PublicKey = extendedNodeKey.publicKey
+  lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Compatible with Electrum/Phoenix/BLW
   def buildAddress(num: Long, chainHash: ByteVector32): String = {
@@ -72,7 +70,7 @@ class LightningNodeKeys(seed: Bytes) {
     (DeterministicWallet.encode(pub, DeterministicWallet.zpub), derivationPath.toString)
   }
 
-  // User for separate key per domain
+  // Used for separate key per domain
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
@@ -151,14 +149,15 @@ trait NetworkDataStore {
   def listChannelAnnouncements: Iterable[ChannelAnnouncement]
 
   def addChannelUpdate(cu: ChannelUpdate): Unit
+  def removeChannelUpdate(cu: ChannelUpdate): Unit
   def listChannelUpdates: Iterable[ChannelUpdate]
 
   def addExcludedChannel(sid: ShortChannelId, until: Long): Unit
   def listExcludedChannels(until: Long): ShortChanIdSet
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
-  def getRoutingData: (SortedMap[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
-  def removeMissingChannels(shortIdsToRemove: ShortChanIdSet): Unit
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet)
+  def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit
   def processPureData(data: PureRoutingData): Unit
 }
 
