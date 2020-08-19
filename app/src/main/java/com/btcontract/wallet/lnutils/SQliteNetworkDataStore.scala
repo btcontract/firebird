@@ -90,7 +90,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     db.change(ChannelUpdateTable.updScoreSql, shortId, position)
   }
 
-  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi) = {
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet) = {
     val updates: Vector[ChannelUpdate] = listChannelUpdates.toVector
     val chanUpdatesByShortId = updates.groupBy(_.shortChannelId)
 
@@ -103,10 +103,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       }
     }
 
-    val outlierCutOff = updates.size / 10
-    val clearBases = updates.map(_.feeBaseMsat).sorted.drop(outlierCutOff).dropRight(outlierCutOff)
-    val averageBaseFee = if (clearBases.isEmpty) MilliSatoshi(21000L) else clearBases.sum / clearBases.size
-    (tuples.toMap, chanUpdatesByShortId.keys.toSet, averageBaseFee)
+    (tuples.toMap, chanUpdatesByShortId.keys.toSet)
   }
 
   // Transactional inserts for faster performance

@@ -28,8 +28,8 @@ import scodec.bits.ByteVector
 
 object Router {
   case class RouterConf(requestNodeAnnouncements: Boolean,
-                        encodingType: EncodingType,
                         channelQueryChunkSize: Int,
+                        searchMaxFeeBase: MilliSatoshi,
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
                         firstPassMaxCltv: CltvExpiryDelta,
@@ -95,7 +95,12 @@ object Router {
     override def fee(amount: MilliSatoshi): MilliSatoshi = fee
   }
 
-  case class RouteParams(maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int)
+  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int) {
+    def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
+      // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both.
+      maxFeeBase.max(amount * maxFeePct)
+    }
+  }
 
   case class RouteRequest(partId: ByteVector,
                           source: PublicKey,
@@ -126,7 +131,7 @@ object Router {
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 
-  case class Data(channels: Map[ShortChannelId, PublicChannel], avgFeeBase: MilliSatoshi, extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
+  case class Data(channels: Map[ShortChannelId, PublicChannel], extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2

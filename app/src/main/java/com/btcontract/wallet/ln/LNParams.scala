@@ -29,9 +29,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(requestNodeAnnouncements = false, encodingType = EncodingType.UNCOMPRESSED, channelQueryChunkSize = 100, searchMaxFeePct = 0.01,
+    RouterConf(requestNodeAnnouncements = false, channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4, searchRatioChannelCapacity = 0.2,
-      searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(50000000), maxRoutesPerPart = 12)
+      searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(50000000L), maxRoutesPerPart = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
@@ -156,7 +156,7 @@ trait NetworkDataStore {
   def listExcludedChannels(until: Long): ShortChanIdSet
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
-  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet, MilliSatoshi)
+  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet)
   def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit
   def processPureData(data: PureRoutingData): Unit
 }

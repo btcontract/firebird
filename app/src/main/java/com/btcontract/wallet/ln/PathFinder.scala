@@ -10,7 +10,6 @@ import com.btcontract.wallet.ln.SyncMaster.{NodeAnnouncements, ShortChanIdSet}
 import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
 import fr.acinq.eclair.wire.ChannelUpdate
 import java.util.concurrent.Executors
-import fr.acinq.eclair.MilliSatoshi
 
 
 object PathFinder {
@@ -26,7 +25,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
 
   // We don't load routing data on every startup but when user (or system) actually needs it
-  become(Data(channels = Map.empty, MilliSatoshi(21000L), extraEdges = Map.empty, DirectedGraph.apply), WAITING)
+  become(freshData = Data(channels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.apply), WAITING)
   RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24).subscribe(none)
 
   def getLastResyncStamp: Long
@@ -124,9 +123,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
   }
 
   def loadGraphBecomeOperational: ShortChanIdSet = {
-    val Tuple3(channelMap, localShortIds, avgFeeBase) = store.getRoutingData
+    val channelMap \ localShortIds = store.getRoutingData
     val graph = DirectedGraph.makeGraph(channelMap).addEdges(data.extraEdges.values)
-    val data1 = Data(channelMap, avgFeeBase, data.extraEdges, graph)
+    val data1 = Data(channels = channelMap, extraEdges = data.extraEdges, graph)
     become(data1, OPERATIONAL)
     localShortIds
   }

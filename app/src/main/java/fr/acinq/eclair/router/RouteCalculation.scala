@@ -69,6 +69,7 @@ object RouteCalculation {
   val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
 
   def getDefaultRouteParams(routerConf: RouterConf): RouteParams = RouteParams(
+    maxFeeBase = routerConf.searchMaxFeeBase,
     maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength,
     routeMaxCltv = routerConf.firstPassMaxCltv,
