@@ -12,7 +12,7 @@ public class Wally {
 
     private static boolean loadLibrary() {
         try {
-            System.loadLibrary("wallycore");
+            System.loadLibrary("scrypt");
             return true;
         } catch (final UnsatisfiedLinkError e) {
             System.err.println("Native code library failed to load.\n" + e);
