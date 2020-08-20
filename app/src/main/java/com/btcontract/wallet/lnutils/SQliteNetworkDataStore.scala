@@ -72,6 +72,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     }
 
   def addExcludedChannel(shortId: ShortChannelId): Unit = db.change(ExcludedChannelTable.newSql, shortId.toLong: java.lang.Long)
+
   def listExcludedChannels: ShortChanIdSet = db.select(ExcludedChannelTable.selectSql).set(_ long ExcludedChannelTable.shortChannelId).map(ShortChannelId.apply)
 
   def incrementChannelScore(cu: ChannelUpdate): Unit = {

@@ -84,7 +84,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     case (edge: GraphEdge, OPERATIONAL) =>
       // We add assisted routes to graph as if they are normal channels
       val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
-      data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
+      val data1 = data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
+      become(data1, OPERATIONAL)
 
     case _ =>
   }
