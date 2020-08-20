@@ -17,8 +17,7 @@ class SQliteChannelBag(db: LNOpenHelper) extends ChannelBag {
     data
   }
 
-  def all: Vector[HostedCommits] = {
-    val rc = db.select(ChannelTable.selectAllSql)
-    rc.vec(_ string ChannelTable.data) map to[HostedCommits]
-  }
+  def delete(chanId: ByteVector32): Unit = db.change(ChannelTable.killSql, chanId.toHex)
+
+  def all: Vector[HostedCommits] = db.select(ChannelTable.selectAllSql).vec(_ string ChannelTable.data) map to[HostedCommits]
 }

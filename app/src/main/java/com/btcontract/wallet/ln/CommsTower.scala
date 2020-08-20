@@ -29,11 +29,11 @@ object CommsTower {
 
     workers.get(pkap) match {
       case Some(worker) => for (init <- worker.theirInit) worker.handleTheirInit(listeners1, init) // Maybe inform
-      case None => workers(pkap) = new Worker(pkap, ann) // Create a new worker and connect right away
+      case None => workers(pkap) = new Worker(pkap, ann, new Bytes(1024), new Socket) // Create and connect right away
     }
   }
 
-  class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, buffer: Bytes = new Bytes(1024), sock: Socket = new Socket) { me =>
+  class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, buffer: Bytes, sock: Socket) { me =>
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
 
     var ourLastPing = Option.empty[Ping]
@@ -44,9 +44,15 @@ object CommsTower {
     def lsts: Set[ConnectionListener] = listeners(pkap)
 
     def handleTheirInit(listeners1: Set[ConnectionListener], theirInitMsg: Init): Unit = {
-      // Use a separate variable for listeners because a set of listeners provided to this method may be different
-      if (Features areSupported theirInitMsg.features) for (lst <- listeners1) lst.onOperational(me) else disconnect
+      // Use a separate variable for listeners here because a set of listeners provided to this method may be different
+      // Account for a case where they disconnect while we are deciding on their features (do nothing in this case)
       theirInit = Some(theirInitMsg)
+
+      (Features areSupported theirInitMsg.features, thread.isCompleted) match {
+        case true \ false => for (lst <- listeners1) lst.onOperational(me) // They have not disconnected yet
+        case false \ false => disconnect // Their features are not supported and they have not disconnected yet
+        case _ \ true => // They have disconnected at this point, all callacks are already called, do nothing
+      }
     }
 
     val handler: TransportHandler = new TransportHandler(pkap.keyPair, ann.nodeId.value) {

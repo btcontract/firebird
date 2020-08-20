@@ -28,12 +28,9 @@ object Sync {
   }
 
   def computeShortIdAndFlag(channels: Map[ShortChannelId, PublicChannel],
-                            includeNodeAnnouncements: Boolean,
                             shortChannelId: ShortChannelId,
                             theirTimestamps: ReplyChannelRangeTlv.Timestamps): Option[ShortChannelIdAndFlag] = {
     import QueryShortChannelIdsTlv.QueryFlagType._
-
-    val flagsNodes = if (includeNodeAnnouncements) INCLUDE_NODE_ANNOUNCEMENT_1 | INCLUDE_NODE_ANNOUNCEMENT_2 else 0
 
     val flags = if (!channels.contains(shortChannelId)) {
       INCLUDE_CHANNEL_ANNOUNCEMENT | INCLUDE_CHANNEL_UPDATE_1 | INCLUDE_CHANNEL_UPDATE_2
@@ -50,7 +47,7 @@ object Sync {
       flagUpdate1 | flagUpdate2
     }
 
-    if (flags == 0) None else Some(ShortChannelIdAndFlag(shortChannelId, flags | flagsNodes))
+    if (flags == 0) None else Some(ShortChannelIdAndFlag(shortChannelId, flags))
   }
 
   def getChannelDigestInfo(channels: Map[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): ReplyChannelRangeTlv.Timestamps = {

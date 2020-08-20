@@ -198,10 +198,20 @@ object NodeAddress {
     else if (host.endsWith(onionSuffix) && host.length == V3Len + onionSuffix.length) Tor3(host.dropRight(onionSuffix.length), port)
     else orElse(host, port)
 
-  def resolveIp(host: String, port: Int): NodeAddress = InetAddress getByName host match {
-    case inetV4Address: Inet4Address => IPv4(inetV4Address, port)
-    case inetV6Address: Inet6Address => IPv6(inetV6Address, port)
+  def resolveIp(host: String, port: Int): NodeAddress = {
+    // Tries to resolve an IP from domain if given, should not be used on main thread
+    // the rationale is that user may get a node address with domain instead of IP
+    InetAddress getByName host match {
+      case inetV4Address: Inet4Address => IPv4(inetV4Address, port)
+      case inetV6Address: Inet6Address => IPv6(inetV6Address, port)
+    }
   }
+
+  def unresolved(port: Int, host: Int *): NodeAddress =
+    InetAddress getByAddress host.toArray.map(_.toByte) match {
+      case inetV4Address: Inet4Address => IPv4(inetV4Address, port)
+      case inetV6Address: Inet6Address => IPv6(inetV6Address, port)
+    }
 }
 
 case class IPv4(ipv4: Inet4Address, port: Int) extends NodeAddress {

@@ -40,6 +40,7 @@ object WalletApp {
   final val FIAT_TYPE = "fiatType"
   final val FIAT_RATES_DATA = "fiatRatesData"
   final val LAST_GOSSIP_SYNC = "lastGossipSync"
+  final val ENSURE_TOR = "ensureTor"
   final val DENOM_TYPE = "denomType"
 
   private[this] val prefixes = PaymentRequest.prefixes.values mkString "|"
