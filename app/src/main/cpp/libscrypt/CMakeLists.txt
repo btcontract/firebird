@@ -30,6 +30,9 @@ target_compile_definitions(scrypt PRIVATE SECP256K1_BUILD)
 
 add_library(secp256k1 SHARED
     src/secp256k1/secp256k1.c
+
+    src/secp256k1/org_bitcoin_NativeSecp256k1.c
+    src/secp256k1/org_bitcoin_Secp256k1Context.c
 )
 
 target_include_directories(secp256k1
