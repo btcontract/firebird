@@ -6,6 +6,7 @@ android {
     buildToolsVersion "30.0.1"
 
     defaultConfig {
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         applicationId "com.btcontract.wallet"
         multiDexEnabled true
         targetSdkVersion 29
@@ -70,4 +71,8 @@ dependencies {
     implementation group: 'com.squareup.okio', name: 'okio', version: '1.15.0'
     implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
     implementation 'info.guardianproject.netcipher:netcipher:2.1.0'
+
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 }
