@@ -19,4 +19,6 @@ elseif(ANDROID_ABI STREQUAL "arm64-v8a")
     set(CMAKE_C_FLAGS "${ANDROID_CXX_FLAGS} ${CMAKE_C_FLAGS} -flax-vector-conversions")
 endif()
 
-add_subdirectory("src/main/cpp/libscrypt")
+#add_subdirectory("src/main/cpp/libscrypt")
+add_subdirectory("src/main/cpp/secp256k1")
+add_subdirectory("src/main/cpp/libwally-core")
