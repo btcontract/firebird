@@ -215,6 +215,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, paymentPreimage = preimage)
         STORESENDBECOME(hc.addProposal(updateFulfill.asLocal), state, updateFulfill)
 
+
       // This will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
       case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if pendingIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, failureCode = code)

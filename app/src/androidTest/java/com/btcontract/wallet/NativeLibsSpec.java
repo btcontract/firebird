@@ -15,4 +15,9 @@ public class NativeLibsSpec {
         assertTrue(Secp256k1Context.isEnabled());
         assertTrue(Wally.isEnabled());
     }
+
+    @Test(timeout = 5000)
+    public void scryptWorksFast() {
+        WalletApp.scryptDerive("hello@email.com", "password123");
+    }
 }

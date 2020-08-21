@@ -52,6 +52,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.2.0'
     implementation 'com.github.medyo:fancybuttons:1.9.1'
     implementation 'com.thefuntasty.hauler:core:3.1.0'
+    implementation 'com.github.perfomer:blitz:1.0.6'
 
     implementation 'com.google.code.ndef-tools-for-android:ndeftools:1.2.4'
     implementation 'com.softwaremill.quicklens:quicklens_2.11:1.4.11'

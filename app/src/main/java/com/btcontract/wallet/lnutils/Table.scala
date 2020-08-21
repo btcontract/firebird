@@ -72,15 +72,15 @@ object ExcludedChannelTable extends Table {
 }
 
 object PaymentTable extends Table {
-  private[this] val paymentTableFieldStrings = ("search", "payment", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap")
-  val (search, table, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnap, fiatRateSnap) = paymentTableFieldStrings
-  val insert12 = s"$pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnap, $fiatRateSnap"
-  val newSql = s"INSERT OR IGNORE INTO $table ($insert12) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?)"
+  private[this] val paymentTableFieldStrings = ("search", "payment", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "ext")
+  val (search, table, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnap, fiatRateSnap, ext) = paymentTableFieldStrings
+  val insert12 = s"$pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnap, $fiatRateSnap, $ext"
+  val newSql = s"INSERT OR IGNORE INTO $table ($insert12) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?)"
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
 
   // Selecting
   val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?"
-  val selectBetweenSql = s"SELECT * FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ? LIMIT ?"
+  val selectBetweenSql = s"SELECT * FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ? LIMIT 4"
   val selectBetweenSummarySql = s"SELECT sum($feeMsat), sum($receivedMsat), sum($sentMsat), count($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ?"
   val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 50)"
 
@@ -94,10 +94,10 @@ object PaymentTable extends Table {
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $pr STRING NOT NULL, $preimage STRING NOT NULL, $status INTEGER NOT NULL,
-      $stamp INTEGER NOT NULL, $description STRING NOT NULL, $action STRING NOT NULL, $hash STRING NOT NULL UNIQUE,
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $pr STRING NOT NULL, $preimage BLOB NOT NULL, $status INTEGER NOT NULL,
+      $stamp INTEGER NOT NULL, $description STRING NOT NULL, $action STRING NOT NULL, $hash BLOB NOT NULL UNIQUE,
       $receivedMsat INTEGER NOT NULL, $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL,
-      $balanceSnap INTEGER NOT NULL, $fiatRateSnap STRING NOT NULL
+      $balanceSnap INTEGER NOT NULL, $fiatRateSnap STRING NOT NULL, $ext BLOB NOT NULL
     );
     /* hash index is created automatically because this field is UNIQUE */
     CREATE INDEX IF NOT EXISTS idx1$table ON $table ($stamp, $status);
