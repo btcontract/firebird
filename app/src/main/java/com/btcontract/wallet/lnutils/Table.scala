@@ -74,8 +74,8 @@ object ExcludedChannelTable extends Table {
 object PaymentTable extends Table {
   private[this] val paymentTableFieldStrings = ("search", "payment", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "ext")
   val (search, table, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnap, fiatRateSnap, ext) = paymentTableFieldStrings
-  val insert12 = s"$pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnap, $fiatRateSnap, $ext"
-  val newSql = s"INSERT OR IGNORE INTO $table ($insert12) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?)"
+  val inserts = s"$pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnap, $fiatRateSnap, $ext"
+  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?)"
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
 
   // Selecting

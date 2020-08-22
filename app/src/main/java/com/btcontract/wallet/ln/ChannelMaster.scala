@@ -3,28 +3,30 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.channel._
+
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
-import com.btcontract.wallet.ln.ChannelListener.{Incoming, Transition}
+import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
 import com.btcontract.wallet.helper.ThrottledWork
-import fr.acinq.eclair.router.Router.Route
+import com.btcontract.wallet.ln.crypto.CMDAddImpossible
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import rx.lang.scala.Observable
+
 import scala.concurrent.Future
 import scodec.bits.ByteVector
 import scodec.Attempt
 
 
-class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) extends ChannelListener { me =>
+class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
   var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
+  val paymentSender = new PaymentSender(me)
 
   var listeners = Set.empty[ChannelMasterListener]
   val events: ChannelMasterListener = new ChannelMasterListener {
-    override def incomingShardsAssembled(amount: MilliSatoshi, info: PaymentInfo): Unit = for (lst <- listeners) lst.incomingShardsAssembled(amount, info)
     override def incomingAllShardsCleared(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.incomingAllShardsCleared(paymentHash)
     override def outgoingSucceeded(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentHash)
     override def outgoingFailed(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingFailed(paymentHash)
@@ -65,12 +67,11 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
   def failHtlc(packet: DecryptedPacket, fail: FailureMessage, add: UpdateAddHtlc): CMD_FAIL_HTLC = CMD_FAIL_HTLC(FailurePacket.create(packet.sharedSecret, fail), add)
 
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
-  def findForRoute(route: Route): Option[HostedChannel] = all.filter(isOperational).find(_.data.announce.na.nodeId == route.hops.head.nextNodeId)
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(realConnectionListener), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
 
   def processIncoming: Unit = {
-    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.pendingIncoming).map(preliminaryResolveMemo)
+    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingIncoming).map(preliminaryResolveMemo)
     val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
     val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
 
@@ -83,11 +84,10 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
 
       case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount =>
         // We have collected enough incoming HTLCs to cover our requested amount, fulfill them all at once
-        // Also clear payment memo just in case if payment gets updated and we store an old copy
-
+        val result = for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+        // Also clear payment memo to get rid of old copy (see next case)
         getPaymentInfoMemo.clear
-        events.incomingShardsAssembled(payments.map(_.add.amountMsat).sum, info)
-        for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+        result
 
       // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN, silently fullfil these
       case payments \ Some(info) if info.isIncoming && info.status == PaymentInfo.SUCCESS => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
@@ -103,15 +103,26 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
   }
 
   override def stateUpdated(hc: HostedCommits): Unit = {
-    val allCommits: Vector[HostedCommits] = all.flatMap(_.getCommits)
-    val allFulfilledHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.localFulfilled) // Shards fulfilled on last state update
-    val allIncomingHashes: Vector[ByteVector32] = allCommits.flatMap(_.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinialized
-    for (paymentHash <- allFulfilledHashes diff allIncomingHashes) events.incomingAllShardsCleared(paymentHash) // Fulfilled, no unfinalized shards
+    val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
+    val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
+    val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
+    for (paymentHash <- allFulfilledHashes diff allIncomingHashes) events.incomingAllShardsCleared(paymentHash) // No pending payments left
+    for (data <- hc.localSpec.remoteMalformed) paymentSender process data
+    for (data <- hc.localSpec.remoteFailed) paymentSender process data
     processIncoming
   }
 
+  override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit =
+    // Sender debounces many fulfills, calls outgoingSucceeded once
+    paymentSender process fulfill
+
+  override def onException: PartialFunction[Malfunction, Unit] = {
+    // Correct sender since it currently thinks that payment is in-flight
+    case (_, error: CMDAddImpossible) => paymentSender process error
+  }
+
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
-    // Once an incoming payment arrives we prolong time-outed waiting for the rest of shards
+    // An incoming payment arrives so we prolong time-outed waiting for the rest of shards
     case (_, _, add: UpdateAddHtlc) => incomingTimeoutWorker replaceWork add.paymentHash
   }
 
@@ -135,39 +146,39 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, cl: ChainLink) 
       case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
     }
 
-  def chansAndMaxReceivable: Option[ChansAndMax] = {
-    val canReceive = all.filter(_.getCommits.flatMap(_.updateOpt).isDefined).sortBy(_.remoteBalance)
-    val canReceiveWithoutSmall = canReceive.dropWhile(_.remoteBalance * canReceive.size < canReceive.last.remoteBalance).takeRight(4) // To fit QR code
+  def chansAndMaxReceivable: Option[CommitsAndMax] = {
+    val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.remoteBalance)
+    val canReceiveWithoutSmall = canReceive.dropWhile(_.commits.remoteBalance * canReceive.size < canReceive.last.commits.remoteBalance).takeRight(4) // To fit QR code
     // Example: (5, 50, 60, 100) -> (50, 60, 100), receivalble = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
-    maxByOption[ChansAndMax, MilliSatoshi](canReceiveWithoutSmall.indices.map(canReceiveWithoutSmall.drop).map(cs => cs -> cs.head.remoteBalance * cs.size), _._2)
+    val candidates = for (cs <- canReceiveWithoutSmall.indices map canReceiveWithoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.remoteBalance * cs.size)
+    maxByOption[CommitsAndMax, MilliSatoshi](candidates, _.maxReceivable)
   }
 
   // Sending
 
-  def maxSendable(chan: HostedChannel): MilliSatoshi = {
+  def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
     // We assume a payment could be split to `maxPaymentsInFlight` parts
-    val cumulativeMaxFeeBase = LNParams.routerConf.searchMaxFeeBase * chan.maxPaymentsInFlight
-    val feePctOfTheRest = (chan.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
-    0.msat.max(chan.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
+    val cumulativeMaxFeeBase = LNParams.routerConf.searchMaxFeeBase * cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs
+    val feePctOfTheRest = (cnc.commits.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
+    0.msat.max(cnc.commits.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
   }
 
-  def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).map(maxSendable).sum
-  def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).map(maxSendable).sum
+  def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
+  def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
+  def canSendMoreOnceChanOpens: Boolean = estimateCanSendInPrinciple > estimateCanSendNow
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val inFlightNow = all.flatMap(_.pendingOutgoing).exists(_.paymentHash == paymentHash)
-    val dbStatus = payBag.getPaymentInfo(paymentHash).map(_.status)
+    val inFlightNow = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
+    val gettingReadyForFlightNow = paymentSender.data.payments.contains(paymentHash)
 
-    if (inFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (dbStatus contains PaymentInfo.WAITING) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (dbStatus contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
+    if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    else if (inFlightNow.exists(_.paymentHash == paymentHash) || gettingReadyForFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
   }
 }
 
 trait ChannelMasterListener {
-  def incomingShardsAssembled(amount: MilliSatoshi, info: PaymentInfo): Unit = none
   def incomingAllShardsCleared(paymentHash: ByteVector32): Unit = none
   def outgoingSucceeded(paymentHash: ByteVector32): Unit = none
   def outgoingFailed(paymentHash: ByteVector32): Unit = none
