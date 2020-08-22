@@ -3,27 +3,24 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.channel._
-
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
-import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
+import com.btcontract.wallet.ln.ChannelListener.{Incoming, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
 import com.btcontract.wallet.helper.ThrottledWork
-import com.btcontract.wallet.ln.crypto.CMDAddImpossible
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import rx.lang.scala.Observable
-
 import scala.concurrent.Future
 import scodec.bits.ByteVector
 import scodec.Attempt
 
 
-class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
+class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
   var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
-  val paymentSender = new PaymentSender(me)
+  val paymentMaster = new PaymentMaster(me)
 
   var listeners = Set.empty[ChannelMasterListener]
   val events: ChannelMasterListener = new ChannelMasterListener {
@@ -58,7 +55,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder,
     def SEND(msg: LightningMessage *): Unit = for (work <- CommsTower.workers get data.announce.nodeSpecificPkap) msg foreach work.handler.process
     def STORE(channelData: HostedCommits): HostedCommits = chanBag.put(channelData.announce.nodeSpecificHostedChanId, channelData)
     def currentBlockDay: Long = cl.currentChainTip / LNParams.blocksPerDay
-    listeners = Set(me)
+    listeners = Set(me, paymentMaster)
     doProcess(cd)
   }
 
@@ -102,23 +99,15 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder,
     for (chan <- all) chan doProcess CMD_PROCEED
   }
 
+  // Executed in channelContext
   override def stateUpdated(hc: HostedCommits): Unit = {
     val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
     val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
-    for (paymentHash <- allFulfilledHashes diff allIncomingHashes) events.incomingAllShardsCleared(paymentHash) // No pending payments left
-    for (data <- hc.localSpec.remoteMalformed) paymentSender process data
-    for (data <- hc.localSpec.remoteFailed) paymentSender process data
+    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingAllShardsCleared) // No pending payments left
+    hc.localSpec.remoteMalformed.foreach(paymentMaster.process)
+    hc.localSpec.remoteFailed.foreach(paymentMaster.process)
     processIncoming
-  }
-
-  override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit =
-    // Sender debounces many fulfills, calls outgoingSucceeded once
-    paymentSender process fulfill
-
-  override def onException: PartialFunction[Malfunction, Unit] = {
-    // Correct sender since it currently thinks that payment is in-flight
-    case (_, error: CMDAddImpossible) => paymentSender process error
   }
 
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
@@ -156,11 +145,15 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder,
 
   // Sending
 
+  def maxSendableFor(cnc: ChanAndCommits, numHtlcs: Int): MilliSatoshi = {
+    val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * numHtlcs
+    val withoutPercentAndBaseFee = withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
+    0.msat.max(withoutPercentAndBaseFee)
+  }
+
   def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
-    // We assume a payment could be split to `maxPaymentsInFlight` parts
-    val cumulativeMaxFeeBase = LNParams.routerConf.searchMaxFeeBase * cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs
-    val feePctOfTheRest = (cnc.commits.localBalance - cumulativeMaxFeeBase) * LNParams.routerConf.searchMaxFeePct
-    0.msat.max(cnc.commits.localBalance - cumulativeMaxFeeBase - feePctOfTheRest)
+    // This estimates how large an amount a channel can handle if used to the max
+    maxSendableFor(cnc, cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs)
   }
 
   def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
@@ -169,7 +162,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder,
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
     val inFlightNow = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
-    val gettingReadyForFlightNow = paymentSender.data.payments.contains(paymentHash)
+    val gettingReadyForFlightNow = paymentMaster.data.payments.contains(paymentHash)
 
     if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (inFlightNow.exists(_.paymentHash == paymentHash) || gettingReadyForFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT

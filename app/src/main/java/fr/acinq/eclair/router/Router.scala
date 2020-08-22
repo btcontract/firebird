@@ -22,7 +22,7 @@ import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.router.Graph.WeightRatios
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.bitcoin.Satoshi
+import fr.acinq.bitcoin.{ByteVector32, Satoshi}
 import scodec.bits.ByteVector
 
 
@@ -101,7 +101,8 @@ object Router {
     }
   }
 
-  case class RouteRequest(partId: ByteVector,
+  case class RouteRequest(paymentHash: ByteVector32,
+                          partId: ByteVector,
                           source: PublicKey,
                           target: PublicKey,
                           amount: MilliSatoshi,
@@ -120,7 +121,9 @@ object Router {
     def getChannelUpdateForNode(nodeId: PublicKey): Option[ChannelUpdate] = hops.find(_.nodeId == nodeId).map(_.lastUpdate)
   }
 
-  case class RouteResponse(partId: ByteVector, route: Route)
+  sealed trait RouteResponse { def paymentHash: ByteVector32 }
+  case class RouteFound(paymentHash: ByteVector32, partId: ByteVector, route: Route) extends RouteResponse
+  case class NoRouteAvailable(paymentHash: ByteVector32, partId: ByteVector) extends RouteResponse
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 

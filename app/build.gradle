@@ -55,7 +55,7 @@ dependencies {
     implementation 'com.github.perfomer:blitz:1.0.6'
 
     implementation 'com.google.code.ndef-tools-for-android:ndeftools:1.2.4'
-    implementation 'com.softwaremill.quicklens:quicklens_2.11:1.4.11'
+    implementation 'com.softwaremill.quicklens:quicklens_2.11:1.6.1'
     implementation 'com.journeyapps:zxing-android-embedded:3.6.0'
     implementation 'org.scala-lang:scala-library:2.11.12'
     implementation 'org.scodec:scodec-core_2.11:1.11.3'

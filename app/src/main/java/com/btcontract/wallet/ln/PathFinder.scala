@@ -35,9 +35,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
-      // Instruct graph to search through the single pre-selected local channel + prohibit finding routes through other local channels
-      val routesTry = RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
-      sender process routesTry
+      // Instruct graph to search through the single pre-selected local channel, prohibit finding routes through other local channels
+      sender process RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
 
     case CMDResync \ OPERATIONAL =>
       if (0L == getLastResyncStamp) become(data, INIT_SYNC)
