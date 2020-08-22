@@ -29,8 +29,8 @@ case class RemoteFailure(route: Route, packet: Sphinx.DecryptedFailurePacket) ex
 case class UnreadableRemoteFailure(route: Route) extends PaymentFailure
 
 sealed trait PartStatus
-case class WaitForChannel(except: Set[ChanAndCommits], amount: MilliSatoshi) extends PartStatus
-case class WaitForRoute(cnc: ChanAndCommits, amount: MilliSatoshi) extends PartStatus
+case class WaitForChannel(exceptChanId: Set[ByteVector32], amount: MilliSatoshi) extends PartStatus
+case class WaitForRoute(forChan: HostedChannel, amount: MilliSatoshi) extends PartStatus
 case class InFlight(route: Route, failedChans: ShortChanIdSet) extends PartStatus
 
 case class PaymentSenderData(parts: Map[ByteVector, PartStatus], cmd: CMD_ADD_HTLC)
