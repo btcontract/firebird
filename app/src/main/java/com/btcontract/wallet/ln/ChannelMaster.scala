@@ -82,7 +82,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount =>
         // We have collected enough incoming HTLCs to cover our requested amount, fulfill them all at once
         val result = for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-        // Also clear payment memo to get rid of old copy (see next case)
+        // Also clear memos to get rid of old copies (see next case)
+        preliminaryResolveMemo.clear
         getPaymentInfoMemo.clear
         result
 
@@ -94,8 +95,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
     // Use `doProcess` to resolve all payments within this single call inside of channel executor
     // this whole method MUST itself be called within a channel executor to avoid concurrency issues
-    for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
-    for (cmd <- badRightAway) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
+    for (cmdResolution <- results.flatten) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
+    for (cmdResolution <- badRightAway) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
     for (chan <- all) chan doProcess CMD_PROCEED
   }
 
@@ -148,7 +149,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def maxSendableFor(cnc: ChanAndCommits, numHtlcs: Int): MilliSatoshi = {
     val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * numHtlcs
     val withoutPercentAndBaseFee = withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
-    0.msat.max(withoutPercentAndBaseFee)
+    0L.msat.max(withoutPercentAndBaseFee)
   }
 
   def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {

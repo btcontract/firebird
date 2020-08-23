@@ -306,7 +306,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
             .withLocalSigOfRemote(data.announce.nodeSpecificPrivKey)
 
         val nextLocalSU = restoredLCSS.stateUpdate(isTerminal = true)
-        if (localBalance < 0.msat) throw new LightningException("Provided updated local balance is larger than capacity")
+        if (localBalance < 0L.msat) throw new LightningException("Provided updated local balance is larger than capacity")
         if (remoteOverride.localUpdates < hc.lastCrossSignedState.remoteUpdates) throw new LightningException("Provided local update number from remote host is wrong")
         if (remoteOverride.remoteUpdates < hc.lastCrossSignedState.localUpdates) throw new LightningException("Provided remote update number from remote host is wrong")
         if (remoteOverride.blockDay < hc.lastCrossSignedState.blockDay) throw new LightningException("Provided override blockday from remote host is not acceptable")

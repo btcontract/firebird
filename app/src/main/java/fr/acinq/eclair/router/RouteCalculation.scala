@@ -51,7 +51,7 @@ object RouteCalculation {
     // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used
     // what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
     ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds, messageFlags = 1,
-      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0.msat, extraHop.feeBase, extraHop.feeProportionalMillionths, Some(htlcMaximum))
+      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0L.msat, extraHop.feeBase, extraHop.feeProportionalMillionths, Some(htlcMaximum))
   }
 
   private def toAssistedChannels(extraRoute: Seq[ExtraHop], targetNodeId: PublicKey): Map[ShortChannelId, AssistedChannel] = {
