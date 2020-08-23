@@ -31,9 +31,11 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object RouteCalculation {
-  def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): Try[RouteResponse] =
-    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight)
-      .map(_.map(paths => Route(paths.weight.costs, paths.path.map(graphEdgeToHop)))).map(RouteResponse(r.partId, _))
+  def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): RouteResponse =
+    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight) match {
+      case Some(path) => RouteFound(r.paymentHash, r.partId, Route(path.weight.costs, path.path.map(graphEdgeToHop)))
+      case _ => NoRouteAvailable(r.paymentHash, r.partId)
+    }
 
   def makeExtraEdges(assistedRoutes: Seq[Seq[ExtraHop]], source: PublicKey, target: PublicKey): Set[GraphEdge] = {
     // we convert extra routing info provided in the payment request to fake channel_update
@@ -78,8 +80,7 @@ object RouteCalculation {
       ageFactor = routerConf.searchRatioChannelAge,
       capacityFactor = routerConf.searchRatioChannelCapacity,
       successScoreFactor = routerConf.searchRatioSuccessScore
-    ),
-    routerConf.maxRoutesPerPart
+    )
   )
 
   @tailrec
@@ -91,9 +92,7 @@ object RouteCalculation {
                                 ignoredEdges: Set[ChannelDesc] = Set.empty,
                                 ignoredVertices: Set[PublicKey] = Set.empty,
                                 routeParams: RouteParams,
-                                currentBlockHeight: Long): Try[Seq[Graph.WeightedPath]] = {
-
-    if (localNodeId == targetNodeId) return Failure(CannotRouteToSelf)
+                                currentBlockHeight: Long): Option[Graph.WeightedPath] = {
 
     def feeOk(fee: MilliSatoshi): Boolean = fee <= maxFee
 
@@ -103,19 +102,14 @@ object RouteCalculation {
 
     val boundaries: RichWeight => Boolean = { weight => feeOk(weight.costs.head - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
 
-    val numRoutes = routeParams.maxRoutesPerPart.max(g.getEdgesBetween(localNodeId, targetNodeId).length) // if we have direct channels to the target, we can use them all
+    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, routeParams.ratios, currentBlockHeight, boundaries)
 
-    val foundRoutes: Seq[Graph.WeightedPath] = Graph.yenKshortestPaths(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, numRoutes, routeParams.ratios, currentBlockHeight, boundaries)
-
-    if (foundRoutes.nonEmpty) {
-      val (directRoutes, indirectRoutes) = foundRoutes.partition(_.path.length == 1)
-      Success(directRoutes ++ indirectRoutes)
-    } else if (routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
-      // if not found within the constraints we relax and repeat the search
+    if (res.isEmpty && routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
+      // if route not found within the constraints we relax and repeat the search
       val relaxedRouteParams = routeParams.copy(routeMaxLength = ROUTE_MAX_LENGTH, routeMaxCltv = DEFAULT_ROUTE_MAX_CLTV)
       findRouteInternal(g, localNodeId, targetNodeId, amount, maxFee, ignoredEdges, ignoredVertices, relaxedRouteParams, currentBlockHeight)
     } else {
-      Failure(RouteNotFound)
+      res
     }
   }
 }

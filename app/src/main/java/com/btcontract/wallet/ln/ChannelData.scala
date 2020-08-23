@@ -96,6 +96,10 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
 
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
   lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
+  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
+  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds ++ nextLocalSpec.outgoingAdds // Cross-signed + new payments offered by us
+  lazy val remoteBalance: MilliSatoshi = nextLocalSpec.toRemote // Includes unsigned updates
+  lazy val localBalance: MilliSatoshi = nextLocalSpec.toLocal // Includes unsigned updates
 
   def nextLocalUnsignedLCSS(blockDay: Long): LastCrossSignedState = {
     val incomingHtlcs \ outgoingHtlcs = nextLocalSpec.htlcs.toList.partition(_.incoming)

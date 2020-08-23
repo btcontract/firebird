@@ -68,89 +68,28 @@ object Graph {
   }
 
   /**
-   * Yen's algorithm to find the k-shortest (loop-less) paths in a graph, uses dijkstra as search algo. Is guaranteed to
-   * terminate finding at most @pathsToFind paths sorted by cost (the cheapest is in position 0).
-   *
    * @param graph              the graph on which will be performed the search
    * @param sourceNode         the starting node of the path we're looking for (payer)
    * @param targetNode         the destination node of the path (recipient)
    * @param amount             amount to send to the last node
    * @param ignoredEdges       channels that should be avoided
    * @param ignoredVertices    nodes that should be avoided
-   * @param pathsToFind        number of distinct paths to be returned
    * @param wr                 ratios used to 'weight' edges when searching for the shortest path
    * @param currentBlockHeight the height of the chain tip (latest block)
    * @param boundaries         a predicate function that can be used to impose limits on the outcome of the search
    */
-  def yenKshortestPaths(graph: DirectedGraph,
-                        sourceNode: PublicKey,
-                        targetNode: PublicKey,
-                        amount: MilliSatoshi,
-                        ignoredEdges: Set[ChannelDesc],
-                        ignoredVertices: Set[PublicKey],
-                        pathsToFind: Int,
-                        wr: WeightRatios,
-                        currentBlockHeight: Long,
-                        boundaries: RichWeight => Boolean): Seq[WeightedPath] = {
-    // find the shortest path (k = 0)
+  def bestPath(graph: DirectedGraph,
+               sourceNode: PublicKey,
+               targetNode: PublicKey,
+               amount: MilliSatoshi,
+               ignoredEdges: Set[ChannelDesc],
+               ignoredVertices: Set[PublicKey],
+               wr: WeightRatios,
+               currentBlockHeight: Long,
+               boundaries: RichWeight => Boolean): Option[WeightedPath] = {
     val targetWeight = RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)
     val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight, wr)
-    if (shortestPath.isEmpty) {
-      return Seq.empty // if we can't even find a single path, avoid returning a Seq(Seq.empty)
-    }
-
-    var allSpurPathsFound = false
-    val shortestPaths = new mutable.Queue[WeightedPath]
-    shortestPaths.enqueue(WeightedPath(shortestPath, pathWeight(sourceNode, shortestPath, amount, currentBlockHeight, wr)))
-    // stores the candidates for the k-th shortest path, sorted by path cost
-    val candidates = new mutable.PriorityQueue[WeightedPath]
-
-    // main loop
-    for (k <- 1 until pathsToFind) {
-      if (!allSpurPathsFound) {
-        val prevShortestPath = shortestPaths(k - 1).path
-        // for every edge in the path, we will try to find a different path after that edge
-        for (i <- prevShortestPath.indices) {
-          // select the spur node as the i-th element of the previous shortest path
-          val spurNode = prevShortestPath(i).desc.a
-          // select the sub-path from the source to the spur node
-          val rootPathEdges = prevShortestPath.take(i)
-          // we ignore all the paths that we have already fully explored in previous iterations
-          // if for example the spur node is B, and we already found shortest paths starting with A-B-C and A-B-D,
-          // we want to ignore the B-C and B-D edges
-          //          +-- C -- [...]
-          //          |
-          // A -- B --+-- D -- [...]
-          //          |
-          //          +-- E -- [...]
-          val alreadyExploredEdges = shortestPaths.collect { case p if p.path.take(i) == rootPathEdges => p.path(i).desc }.toSet
-          // we also want to ignore any link that can lead back to the previous node (we only want to go forward)
-          val returningEdges = rootPathEdges.lastOption.map(last => graph.getEdgesBetween(last.desc.b, last.desc.a).map(_.desc).toSet).getOrElse(Set.empty)
-          // find the "spur" path, a sub-path going from the spur node to the target avoiding previously found sub-paths
-          val spurPath = dijkstraShortestPath(graph, sourceNode, spurNode, targetNode, ignoredEdges ++ alreadyExploredEdges ++ returningEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight, wr)
-          if (spurPath.nonEmpty) {
-            // candidate k-shortest path is made of the root path and the new spur path, but the cost of the spur
-            // path is likely higher than previous shortest paths, so we need to validate that the root path can
-            // relay the increased amount.
-            val completePath = rootPathEdges ++ spurPath
-            val candidatePath = WeightedPath(completePath, pathWeight(sourceNode, completePath, amount, currentBlockHeight, wr))
-            if (boundaries(candidatePath.weight) && !shortestPaths.contains(candidatePath) && !candidates.contains(candidatePath) && validatePath(completePath, amount)) {
-              candidates.enqueue(candidatePath)
-            }
-          }
-        }
-      }
-
-      if (candidates.isEmpty) {
-        // handles the case of having exhausted all possible spur paths and it's impossible to reach the target from the source
-        allSpurPathsFound = true
-      } else {
-        // move the best candidate to the shortestPaths container
-        shortestPaths.enqueue(candidates.dequeue())
-      }
-    }
-
-    shortestPaths
+    if (shortestPath.isEmpty) None else Some(WeightedPath(shortestPath, pathWeight(sourceNode, shortestPath, amount, currentBlockHeight, wr)))
   }
 
   /**
@@ -235,16 +174,16 @@ object Graph {
       }
     }
 
-    targetFound match {
-      case false => Seq.empty[GraphEdge]
-      case true =>
-        val edgePath = new mutable.ArrayBuffer[GraphEdge](20)
-        var current = bestEdges.get(sourceNode)
-        while (null != current) {
-          edgePath += current
-          current = bestEdges.get(current.desc.b)
-        }
-        edgePath
+    if (targetFound) {
+      val edgePath = new mutable.ArrayBuffer[GraphEdge](20)
+      var current = bestEdges.get(sourceNode)
+      while (null != current) {
+        edgePath += current
+        current = bestEdges.get(current.desc.b)
+      }
+      edgePath
+    } else {
+      Seq.empty
     }
   }
 

@@ -22,7 +22,7 @@ import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.router.Graph.WeightRatios
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.bitcoin.Satoshi
+import fr.acinq.bitcoin.{ByteVector32, Satoshi}
 import scodec.bits.ByteVector
 
 
@@ -94,14 +94,15 @@ object Router {
     override def fee(amount: MilliSatoshi): MilliSatoshi = fee
   }
 
-  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios, maxRoutesPerPart: Int) {
+  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios) {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
       // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both.
       maxFeeBase.max(amount * maxFeePct)
     }
   }
 
-  case class RouteRequest(partId: ByteVector,
+  case class RouteRequest(paymentHash: ByteVector32,
+                          partId: ByteVector,
                           source: PublicKey,
                           target: PublicKey,
                           amount: MilliSatoshi,
@@ -118,15 +119,11 @@ object Router {
 
     /** This method retrieves the channel update that we used when we built the route. */
     def getChannelUpdateForNode(nodeId: PublicKey): Option[ChannelUpdate] = hops.find(_.nodeId == nodeId).map(_.lastUpdate)
-
-    def printNodes(): String = hops.map(_.nextNodeId).mkString("->")
-
-    def printChannels(): String = hops.map(_.lastUpdate.shortChannelId).mkString("->")
   }
 
-  case class RouteResponse(partId: ByteVector, routes: Seq[Route]) {
-    require(routes.nonEmpty, "routes cannot be empty")
-  }
+  sealed trait RouteResponse { def paymentHash: ByteVector32 }
+  case class RouteFound(paymentHash: ByteVector32, partId: ByteVector, route: Route) extends RouteResponse
+  case class NoRouteAvailable(paymentHash: ByteVector32, partId: ByteVector) extends RouteResponse
 
   case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
 

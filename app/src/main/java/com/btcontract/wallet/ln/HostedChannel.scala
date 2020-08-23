@@ -32,18 +32,15 @@ object HostedChannel {
   implicit val channelContext: scala.concurrent.ExecutionContextExecutor = scala.concurrent.ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def isOperational(chan: HostedChannel): Boolean = chan.data match { case hc: HostedCommits => hc.getError.isEmpty case _ => false }
   def isOperationalAndOpen(chan: HostedChannel): Boolean = isOperational(chan) && OPEN == chan.state
-  type ChansAndMax = (Vector[HostedChannel], MilliSatoshi)
 }
+
+case class ChanAndCommits(chan: HostedChannel, commits: HostedCommits)
+case class CommitsAndMax(commits: Vector[ChanAndCommits], maxReceivable: MilliSatoshi)
 
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
-  def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException this -> failure }
-  def maxPaymentsInFlight: Int = data match { case hc: HostedCommits => hc.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs case _ => Int.MaxValue }
-  def pendingOutgoing: Set[UpdateAddHtlc] = data match { case hc: HostedCommits => hc.localSpec.outgoingAdds ++ hc.nextLocalSpec.outgoingAdds case _ => Set.empty } // Cross-signed + new payments offered by us
-  def pendingIncoming: Set[UpdateAddHtlc] = data match { case hc: HostedCommits => hc.localSpec.incomingAdds intersect hc.nextLocalSpec.incomingAdds case _ => Set.empty } // Cross-signed but not yet resolved by us
-  def remoteBalance: MilliSatoshi = data match { case hc: HostedCommits => hc.nextLocalSpec.toRemote case _ => 0.msat }
-  def localBalance: MilliSatoshi = data match { case hc: HostedCommits => hc.nextLocalSpec.toLocal case _ => 0.msat }
-  def getCommits: Option[HostedCommits] = data match { case hc: HostedCommits => Some(hc) case _ => None }
+  def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException me -> failure }
+  def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => Some apply ChanAndCommits(me, hc) case _ => None }
 
   lazy val fakeEdge: GraphEdge = {
     val zeroCltvDelta = CltvExpiryDelta(0)
@@ -211,18 +208,18 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
 
       // Normal channel fetches on-chain when CLOSED, hosted sends a preimage and signals on UI when SUSPENDED
-      case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), OPEN | SUSPENDED) if pendingIncoming.contains(add) =>
+      case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, paymentPreimage = preimage)
         STORESENDBECOME(hc.addProposal(updateFulfill.asLocal), state, updateFulfill)
 
 
       // This will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
-      case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if pendingIncoming.contains(add) =>
+      case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, failureCode = code)
         STORESENDBECOME(hc.addProposal(updateFailMalformed.asLocal), state, updateFailMalformed)
 
 
-      case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), OPEN | SUSPENDED) if pendingIncoming.contains(add) =>
+      case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFail = UpdateFailHtlc(hc.announce.nodeSpecificHostedChanId, add.id, reason)
         STORESENDBECOME(hc.addProposal(updateFail.asLocal), state, updateFail)
 

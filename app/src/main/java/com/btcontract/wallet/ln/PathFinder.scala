@@ -35,9 +35,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
-      // Instruct graph to search through the single pre-selected local channel + prohibit finding routes through other local channels
-      val routesTry = RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
-      sender process routesTry
+      // Instruct graph to search through the single pre-selected local channel, prohibit finding routes through other local channels
+      sender process RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
 
     case CMDResync \ OPERATIONAL =>
       if (0L == getLastResyncStamp) become(data, INIT_SYNC)
@@ -71,17 +70,20 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     // If we hit an updated channel while routing we save it to db and update in-memory graph
     // If disabled channel stays disabled for a long time it will be pruned by peers and then us
 
-    case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
-      val desc: ChannelDesc = Router.getDesc(cu, data.channels(cu.shortChannelId).ann)
-      val data1 = resolveKnownDesc(desc, cu, isPublic = true)
+    case (cu: ChannelUpdate, OPERATIONAL)
+      if data.channels.contains(cu.shortChannelId) =>
+      val chanDesc = Router.getDesc(cu, data.channels(cu.shortChannelId).ann)
+      val data1 = resolveKnownDesc(chanDesc, cu, isPublic = true)
       become(data1, OPERATIONAL)
 
-    case (cu: ChannelUpdate, OPERATIONAL) if data.extraEdges.contains(cu.shortChannelId) =>
-      val desc: ChannelDesc = data.extraEdges(cu.shortChannelId).desc
-      val data1 = resolveKnownDesc(desc, cu, isPublic = false)
+    case (cu: ChannelUpdate, OPERATIONAL)
+      if data.extraEdges.contains(cu.shortChannelId) =>
+      val chanDesc = data.extraEdges(cu.shortChannelId).desc
+      val data1 = resolveKnownDesc(chanDesc, cu, isPublic = false)
       become(data1, OPERATIONAL)
 
-    case (edge: GraphEdge, OPERATIONAL) =>
+    case (edge: GraphEdge, OPERATIONAL)
+      if !data.channels.contains(edge.desc.shortChannelId) =>
       // We add assisted routes to graph as if they are normal channels
       val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
       val data1 = data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
