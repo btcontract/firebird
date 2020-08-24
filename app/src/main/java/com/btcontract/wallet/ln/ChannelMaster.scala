@@ -106,8 +106,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
     allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingAllShardsCleared) // No pending payments left
-    hc.localSpec.remoteMalformed.foreach(paymentMaster.process)
-    hc.localSpec.remoteFailed.foreach(paymentMaster.process)
     processIncoming
   }
 
@@ -159,7 +157,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
   def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
   def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
-  def canSendMoreOnceChanOpens: Boolean = estimateCanSendInPrinciple > estimateCanSendNow
+  def canAlsoSendOnceChanOpens: MilliSatoshi = estimateCanSendInPrinciple - estimateCanSendNow
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
     val inFlightNow = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
