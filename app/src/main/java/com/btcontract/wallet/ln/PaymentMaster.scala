@@ -3,21 +3,20 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
-import fr.acinq.eclair.router.Router.{ChannelDesc, Route, RouteParams, RouteRequest, RouteResponse}
-import fr.acinq.eclair.{CltvExpiry, MilliSatoshi, ShortChannelId}
-
+import fr.acinq.eclair.{CltvExpiry, MilliSatoshi}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED}
+import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
+import fr.acinq.eclair.router.Router.{ChannelDesc, Route, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.UpdateFulfillHtlc
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import fr.acinq.bitcoin.Crypto.PublicKey
 import java.util.concurrent.Executors
-
 import fr.acinq.eclair.crypto.Sphinx
 import fr.acinq.bitcoin.ByteVector32
+import scala.collection.mutable
 import scodec.bits.ByteVector
 
 
@@ -47,6 +46,8 @@ case class PaymentMasterData(payments: Map[ByteVector32, PaymentSender],
                              nodeFailedWithUnknownUpdateTimes: Map[PublicKey, Int] = Map.empty withDefaultValue 0,
                              chanFailedTimes: Map[ChannelDesc, Int] = Map.empty withDefaultValue 0)
 
+case class NodeFailed(nodeId: PublicKey, times: Int)
+case class ChannelFailed(dac: DescAndCapacity, amount: MilliSatoshi, times: Int)
 case class CMD_SEND_MPP(paymentHash: ByteVector32, paymentSecret: ByteVector32, targetNodeId: PublicKey,
                         totalAmount: MilliSatoshi, targetExpiry: CltvExpiry, assistedEdges: Set[GraphEdge],
                         routeParams: RouteParams)
@@ -107,24 +108,54 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
       // IMPLICIT GUARD: ignore in other states
       relayToAll(CMDAskForRoute)
 
-    case (request: RouteRequest, EXPECTING_PAYMENTS) =>
+    case (response: RouteResponse, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      // Switch state to allow new route requests to come through
+      relayTo(response.paymentHash, response)
+      become(data, EXPECTING_PAYMENTS)
+      me process CMDAskForRoute
+
+    case (req: RouteRequest, EXPECTING_PAYMENTS) =>
       // IMPLICIT GUARD: ignore in other states, payment will be able to re-send later
-      val nodes = data.nodeFailedWithUnknownUpdateTimes collect { case nodeId \ times if times >= cm.pf.routerConf.maxNodeFailures => nodeId }
-      val chansAmount = data.chanFailedTimes collect { case chanDesc \ times if times >= cm.pf.routerConf.maxChannelFailures => chanDesc }
-      val chansTimes = data.chanFailedAtAmount collect { case chanDesc \ amount if amount >= request.amount => chanDesc }
-      val request1 = request.copy(ignoreNodes = nodes.toSet, ignoreChannels = chansAmount.toSet ++ chansTimes)
+      val currentUsedCapacities: mutable.Map[DescAndCapacity, MilliSatoshi] = getUsedCapacities
+      val currentUsedDescs: mutable.Map[ChannelDesc, MilliSatoshi] = for (dac \ used <- currentUsedCapacities) yield dac.desc -> used
+      val ignoreChansFailedTimes = data.chanFailedTimes collect { case desc \ times if times >= cm.pf.routerConf.maxChannelFailures => desc }
+      val ignoreChansCanNotHandle = currentUsedCapacities collect { case DescAndCapacity(desc, capacity) \ used if used + req.amount >= capacity => desc }
+      val ignoreChansFailedAtAmount = data.chanFailedAtAmount collect { case desc \ failedAt if failedAt - currentUsedDescs(desc) - req.reserve <= req.amount => desc }
+      val ignoreNodes = data.nodeFailedWithUnknownUpdateTimes collect { case nodeId \ times if times >= cm.pf.routerConf.maxNodeFailures => nodeId }
+      val ignoreChans = ignoreChansFailedTimes.toSet ++ ignoreChansCanNotHandle ++ ignoreChansFailedAtAmount
+      val request1 = req.copy(ignoreNodes = ignoreNodes.toSet, ignoreChannels = ignoreChans)
       cm.pf process Tuple2(me, request1)
       become(data, WAITING_FOR_ROUTE)
 
-    case (response: RouteResponse, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) => relayTo(response.paymentHash, response)
+    case (ChannelFailed(descAndCapacity: DescAndCapacity, amount, times), EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      // At this point an affected InFlight statuse was removed by paymentFSM so failedAtAmount = sum(inFlight) + failed amount
+      val newFailedAtAmount = data.chanFailedAtAmount(descAndCapacity.desc).min(getUsedCapacities(descAndCapacity) + amount)
+      val atTimes1 = data.chanFailedTimes.updated(descAndCapacity.desc, data.chanFailedTimes(descAndCapacity.desc) + times)
+      val atAmount1 = data.chanFailedAtAmount.updated(descAndCapacity.desc, newFailedAtAmount)
+      become(data.copy(chanFailedAtAmount = atAmount1, chanFailedTimes = atTimes1), state)
+      me process CMDAskForRoute
 
-    case (fulfill: UpdateFulfillHtlc, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) => relayTo(fulfill.paymentHash, fulfill)
+    case (NodeFailed(nodeId, times), EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      val newNodeFailedTimes = data.nodeFailedWithUnknownUpdateTimes(nodeId) + times
+      val nodeFailedWithUnknownUpdateTimes1 = data.nodeFailedWithUnknownUpdateTimes.updated(nodeId, newNodeFailedTimes)
+      become(data.copy(nodeFailedWithUnknownUpdateTimes = nodeFailedWithUnknownUpdateTimes1), state)
+      me process CMDAskForRoute
 
-    case (chanError: CMDAddImpossible, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) => relayTo(chanError.cmd.paymentHash, chanError)
+    case (fulfill: UpdateFulfillHtlc, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      relayTo(fulfill.paymentHash, fulfill)
+      me process CMDAskForRoute
 
-    case (malform: MalformAndAdd, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) => relayTo(malform.ourAdd.paymentHash, malform)
+    case (chanError: CMDAddImpossible, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      relayTo(chanError.cmd.paymentHash, chanError)
+      me process CMDAskForRoute
 
-    case (fail: FailAndAdd, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) => relayTo(fail.ourAdd.paymentHash, fail)
+    case (malform: MalformAndAdd, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      relayTo(malform.ourAdd.paymentHash, malform)
+      me process CMDAskForRoute
+
+    case (fail: FailAndAdd, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      relayTo(fail.ourAdd.paymentHash, fail)
+      me process CMDAskForRoute
   }
 
   // Executed in channelContext
@@ -137,16 +168,8 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
   override def onException: PartialFunction[Malfunction, Unit] = { case (_, error: CMDAddImpossible) => me process error }
   override def onBecome: PartialFunction[Transition, Unit] = { case (_, _, SLEEPING | SUSPENDED, OPEN) => me process CMDChanGotOnline }
 
-  private def relayTo(hash: ByteVector32, change: Any): Unit = {
-    // Stage 1: payment is given a chance to update its state here
-    data.payments.get(hash).foreach(_ doProcess change)
-    // Stage 2: ask for new routes in next pass
-    me process CMDAskForRoute
-  }
-
-  private def relayToAll(change: Any): Unit = {
-    data.payments.values.foreach(_ doProcess change)
-  }
+  private def relayToAll(changeMessage: Any): Unit = data.payments.values.foreach(_ doProcess changeMessage)
+  private def relayTo(hash: ByteVector32, change: Any): Unit = data.payments.get(hash).foreach(_ doProcess change)
 
   private def makeSender(sender: PaymentSender, cmd: CMD_SEND_MPP): Unit = {
     val payments1 = data.payments.updated(cmd.paymentHash, sender)
@@ -154,7 +177,14 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
     sender doProcess cmd
   }
 
-  private def getUsedCapacities = {
-    ???
+  private def getUsedCapacities: mutable.Map[DescAndCapacity, MilliSatoshi] = {
+    val accum = mutable.Map.empty[DescAndCapacity, MilliSatoshi] withDefaultValue 0L.msat
+
+    for {
+      senderFSM <- data.payments.values
+      InFlight(_, route, _, _) <- senderFSM.data.parts.values
+      amount \ graphEdge <- route.amountPerGraphEdge
+    } accum(graphEdge) += amount
+    accum
   }
 }

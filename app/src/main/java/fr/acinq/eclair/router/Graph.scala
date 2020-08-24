@@ -295,6 +295,8 @@ object Graph {
 
   object GraphStructure {
 
+    case class DescAndCapacity(desc: ChannelDesc, capacity: MilliSatoshi)
+
     /**
      * Representation of an edge of the graph
      *
@@ -306,6 +308,8 @@ object Graph {
       lazy val capacity: MilliSatoshi = update.htlcMaximumMsat.get // All updates MUST have htlcMaximumMsat
 
       def fee(amount: MilliSatoshi): MilliSatoshi = nodeFee(update.feeBaseMsat, update.feeProportionalMillionths, amount)
+
+      def toDescAndCapacity: DescAndCapacity = DescAndCapacity(desc, capacity)
     }
 
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
@@ -483,10 +487,6 @@ object Graph {
 
         DirectedGraph(mutableMap.toMap)
       }
-
-      def graphEdgeToHop(graphEdge: GraphEdge): ChannelHop = ChannelHop(graphEdge.desc.a, graphEdge.desc.b, graphEdge.update)
     }
-
   }
-
 }

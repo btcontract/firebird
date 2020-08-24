@@ -22,7 +22,7 @@ import fr.acinq.eclair.Features.VariableLengthOnion
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import fr.acinq.eclair.crypto.Sphinx
 import fr.acinq.eclair.crypto.Sphinx.PacketAndSecrets
-import fr.acinq.eclair.router.Router.{ChannelHop, Hop, NodeHop}
+import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, UInt64, randomKey}
 import scodec.bits.ByteVector
@@ -170,15 +170,11 @@ object OutgoingPacket {
     *         - firstExpiry is the cltv expiry for the first htlc in the route
     *         - a sequence of payloads that will be used to build the onion
     */
-  def buildPayloads(hops: Seq[Hop], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Seq[Onion.PerHopPayload]) = {
+  def buildPayloads(hops: Seq[GraphEdge], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Seq[Onion.PerHopPayload]) = {
     hops.reverse.foldLeft((finalPayload.amount, finalPayload.expiry, Seq[Onion.PerHopPayload](finalPayload))) {
       case ((amount, expiry, payloads), hop) =>
-        val payload = hop match {
-          // Since we don't have any scenario where we add tlv data for intermediate hops, we use legacy payloads.
-          case hop: ChannelHop => Onion.RelayLegacyPayload(hop.lastUpdate.shortChannelId, amount, expiry)
-          case hop: NodeHop => Onion.createNodeRelayPayload(amount, expiry, hop.nextNodeId)
-        }
-        (amount + hop.fee(amount), expiry + hop.cltvExpiryDelta, payload +: payloads)
+        val payload = Onion.createNodeRelayPayload(amount, expiry, hop.desc.a)
+        (amount + hop.fee(amount), expiry + hop.update.cltvExpiryDelta, payload +: payloads)
     }
   }
 
@@ -192,39 +188,11 @@ object OutgoingPacket {
     *         - firstExpiry is the cltv expiry for the first htlc in the route
     *         - the onion to include in the HTLC
     */
-  def buildPacket[T <: Onion.PacketType](packetType: Sphinx.OnionRoutingPacket[T])(paymentHash: ByteVector32, hops: Seq[Hop], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Sphinx.PacketAndSecrets) = {
+  def buildPacket[T <: Onion.PacketType](packetType: Sphinx.OnionRoutingPacket[T])(paymentHash: ByteVector32, hops: Seq[GraphEdge], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Sphinx.PacketAndSecrets) = {
     val (firstAmount, firstExpiry, payloads) = buildPayloads(hops.drop(1), finalPayload)
-    val nodes = hops.map(_.nextNodeId)
+    val nodes = hops.map(_.desc.b)
     // BOLT 2 requires that associatedData == paymentHash
     val onion = buildOnion(packetType)(nodes, payloads, paymentHash)
-    (firstAmount, firstExpiry, onion)
-  }
-
-  /**
-    * Build an encrypted trampoline onion packet when the final recipient doesn't support trampoline.
-    * The next-to-last trampoline node payload will contain instructions to convert to a legacy payment.
-    *
-    * @param invoice      Bolt 11 invoice (features and routing hints will be provided to the next-to-last node).
-    * @param hops         the trampoline hops (including ourselves in the first hop, and the non-trampoline final recipient in the last hop).
-    * @param finalPayload payload data for the final node (amount, expiry, etc)
-    * @return a (firstAmount, firstExpiry, onion) tuple where:
-    *         - firstAmount is the amount for the trampoline node in the route
-    *         - firstExpiry is the cltv expiry for the first trampoline node in the route
-    *         - the trampoline onion to include in final payload of a normal onion
-    */
-  def buildTrampolineToLegacyPacket(invoice: PaymentRequest, hops: Seq[NodeHop], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Sphinx.PacketAndSecrets) = {
-    val (firstAmount, firstExpiry, payloads) = hops.drop(1).reverse.foldLeft((finalPayload.amount, finalPayload.expiry, Seq[Onion.PerHopPayload](finalPayload))) {
-      case ((amount, expiry, payloads1), hop) =>
-        // The next-to-last trampoline hop must include invoice data to indicate the conversion to a legacy payment.
-        val payload = if (payloads1.length == 1) {
-          Onion.createNodeRelayToNonTrampolinePayload(finalPayload.amount, finalPayload.totalAmount, finalPayload.expiry, hop.nextNodeId, invoice)
-        } else {
-          Onion.createNodeRelayPayload(amount, expiry, hop.nextNodeId)
-        }
-        (amount + hop.fee(amount), expiry + hop.cltvExpiryDelta, payload +: payloads1)
-    }
-    val nodes = hops.map(_.nextNodeId)
-    val onion = buildOnion(Sphinx.TrampolinePacket)(nodes, payloads, invoice.paymentHash)
     (firstAmount, firstExpiry, onion)
   }
 
@@ -233,7 +201,7 @@ object OutgoingPacket {
     *
     * @return the command and the onion shared secrets (used to decrypt the error in case of payment failure)
     */
-  def buildCommand(internalId: ByteVector, paymentHash: ByteVector32, hops: Seq[ChannelHop], finalPayload: Onion.FinalPayload): CMD_ADD_HTLC = {
+  def buildCommand(internalId: ByteVector, paymentHash: ByteVector32, hops: Seq[GraphEdge], finalPayload: Onion.FinalPayload): CMD_ADD_HTLC = {
     val (firstAmount, firstExpiry, onion) = buildPacket(Sphinx.PaymentPacket)(paymentHash, hops, finalPayload)
     CMD_ADD_HTLC(internalId, firstAmount, paymentHash, firstExpiry, finalPayload, PacketAndSecrets(onion.packet, onion.sharedSecrets))
   }

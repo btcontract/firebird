@@ -6,9 +6,9 @@ import com.btcontract.wallet.ln.crypto.Tools
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
-import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
+import fr.acinq.eclair.router.{Announcements, RouteCalculation}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteRequest, RouterConf}
 import fr.acinq.eclair.wire.ChannelUpdate
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -29,7 +29,8 @@ class GraphSpec {
                maxHtlc: MilliSatoshi,
                cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
                capacity: Satoshi = DEFAULT_CAPACITY,
-               balance_opt: Option[MilliSatoshi] = None): GraphEdge = {
+               balance_opt: Option[MilliSatoshi] = None,
+               score: Int = 1): GraphEdge = {
     val update = ChannelUpdate(
       signature = PlaceHolderSig,
       chainHash = Block.RegtestGenesisBlock.hash,
@@ -43,53 +44,85 @@ class GraphSpec {
       feeProportionalMillionths = feeProportionalMillionth,
       htlcMaximumMsat = Some(maxHtlc)
     )
+    update.score = score
     GraphEdge(ChannelDesc(ShortChannelId(shortChannelId), nodeId1, nodeId2), update)
   }
 
+  val (a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey)
+
+  val routerConf =
+    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
+      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4,
+      searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(40000000L),
+      maxAttemptsPerPart = 12, maxChannelFailures = 12, maxNodeFailures = 12)
+
+  val params = RouteCalculation.getDefaultRouteParams(routerConf)
+  val r = RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
+    partId = ByteVector.empty,
+    source = a,
+    target = d,
+    amount = 100000.msat,
+    maxFee = params.getMaxFee(300.msat),
+    localEdge = null,
+    ignoreNodes = Set.empty,
+    ignoreChannels = Set.empty,
+    params)
+
   @Test
   def calculateRoute(): Unit = {
-    val (a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey)
-
     val g = DirectedGraph(List(
-      makeEdge(1L, a, b, 2.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
       makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(3L, b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(3L, b, d, 2.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
       makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
     ))
 
-    val routerConf =
-      RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
-        firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4,
-        searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(40000000L),
-        maxAttemptsPerPart = 12, maxChannelFailures = 12, maxNodeFailures = 12)
-
-    val params = RouteCalculation.getDefaultRouteParams(routerConf)
-    val r = RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
-      partId = ByteVector.empty,
-      source = a,
-      target = d,
-      amount = 100000.msat,
-      maxFee = params.getMaxFee(300.msat),
-      localEdge = null,
-      ignoreNodes = Set.empty,
-      ignoreChannels = Set.empty,
-      params)
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
 
-    assertTrue(route.hops.map(_.nodeId) == Seq(a, c))
+    assertTrue(route.hops.map(_.desc.a) == Seq(a, c))
 
-    assertTrue(route.hops.map(_.nextNodeId) == Seq(c, d))
+    assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
 
     assertTrue(route.amounts == Vector(100002.msat, 100000.msat))
 
     val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
 
-    assertTrue(route1.hops.map(_.nodeId) == Seq(a, b))
+    assertTrue(route1.hops.map(_.desc.a) == Seq(a, b))
 
     val RouteFound(_, _, route2) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(ignoreNodes = Set(c)))
 
-    assertTrue(route2.hops.map(_.nodeId) == Seq(a, b))
+    assertTrue(route2.hops.map(_.desc.a) == Seq(a, b))
 
     val NoRouteAvailable(_, _) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(amount = 500000.msat)) // Can't handle fees
+  }
+
+  @Test
+  def cltvAffectsResult(): Unit = {
+    val g = DirectedGraph(List(
+      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(3L, b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(20), maxHtlc = 500000.msat), // Higher CLTV
+      makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
+
+    assertTrue(route.hops.map(_.desc.a) == Seq(a, c))
+
+    assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
+  }
+
+  @Test
+  def scoreAffectsResult(): Unit = {
+    val g = DirectedGraph(List(
+      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(3L, b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(20), maxHtlc = 500000.msat, score = 2), // Higher CLTV, but also better score
+      makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
+
+    assertTrue(route.hops.map(_.desc.a) == Seq(a, b))
   }
 }

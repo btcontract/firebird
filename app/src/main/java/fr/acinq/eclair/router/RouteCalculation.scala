@@ -19,7 +19,6 @@ package fr.acinq.eclair.router
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph.graphEdgeToHop
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Graph.{RichWeight, WeightRatios}
 import fr.acinq.eclair.router.Router._
@@ -33,7 +32,7 @@ import scala.util.{Failure, Success, Try}
 object RouteCalculation {
   def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): RouteResponse =
     findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight) match {
-      case Some(path) => RouteFound(r.paymentHash, r.partId, Route(path.weight.costs, path.path.map(graphEdgeToHop)))
+      case Some(result) => RouteFound(r.paymentHash, r.partId, Route(result.weight.costs, result.path))
       case _ => NoRouteAvailable(r.paymentHash, r.partId)
     }
 
