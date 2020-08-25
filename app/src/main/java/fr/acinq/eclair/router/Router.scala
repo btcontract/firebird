@@ -20,7 +20,7 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.{GraphStructure, WeightRatios}
+import fr.acinq.eclair.router.Graph.GraphStructure
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
@@ -32,10 +32,6 @@ object Router {
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
                         firstPassMaxCltv: CltvExpiryDelta,
-                        searchRatioCltv: Double,
-                        searchRatioChannelAge: Double,
-                        searchRatioChannelCapacity: Double,
-                        searchRatioSuccessScore: Double,
                         mppMinPartAmount: MilliSatoshi,
                         maxChannelFailures: Int,
                         maxNodeFailures: Int,
@@ -52,7 +48,7 @@ object Router {
 
   case class AssistedChannel(extraHop: ExtraHop, nextNodeId: PublicKey, htlcMaximum: MilliSatoshi)
 
-  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios) {
+  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta) {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
       // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both.
       maxFeeBase.max(amount * maxFeePct)

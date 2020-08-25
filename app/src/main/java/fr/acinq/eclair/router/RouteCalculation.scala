@@ -20,7 +20,7 @@ import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Graph.{RichWeight, WeightRatios}
+import fr.acinq.eclair.router.Graph.RichWeight
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire.ChannelUpdate
 import fr.acinq.eclair._
@@ -73,13 +73,7 @@ object RouteCalculation {
     maxFeeBase = routerConf.searchMaxFeeBase,
     maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength,
-    routeMaxCltv = routerConf.firstPassMaxCltv,
-    ratios = WeightRatios(
-      cltvDeltaFactor = routerConf.searchRatioCltv,
-      ageFactor = routerConf.searchRatioChannelAge,
-      capacityFactor = routerConf.searchRatioChannelCapacity,
-      successScoreFactor = routerConf.searchRatioSuccessScore
-    )
+    routeMaxCltv = routerConf.firstPassMaxCltv
   )
 
   @tailrec
@@ -101,7 +95,7 @@ object RouteCalculation {
 
     val boundaries: RichWeight => Boolean = { weight => feeOk(weight.costs.head - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
 
-    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, routeParams.ratios, currentBlockHeight, boundaries)
+    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, currentBlockHeight, boundaries)
 
     if (res.isEmpty && routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
       // if route not found within the constraints we relax and repeat the search

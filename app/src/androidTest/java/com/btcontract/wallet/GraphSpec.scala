@@ -20,7 +20,7 @@ class GraphSpec {
   val PlaceHolderSig = ByteVector64(ByteVector.fill(64)(0xaa))
   def randomPubKey = PublicKey(Tools.randomKeyPair.pub)
 
-  def makeEdge(shortChannelId: Long,
+  def makeEdge(shortChannelId: ShortChannelId,
                nodeId1: PublicKey,
                nodeId2: PublicKey,
                feeBase: MilliSatoshi,
@@ -34,7 +34,7 @@ class GraphSpec {
     val update = ChannelUpdate(
       signature = PlaceHolderSig,
       chainHash = Block.RegtestGenesisBlock.hash,
-      shortChannelId = ShortChannelId(shortChannelId),
+      shortChannelId = shortChannelId,
       timestamp = System.currentTimeMillis,
       messageFlags = 1,
       channelFlags = if (Announcements.isNode1(nodeId1, nodeId2)) 0 else 1,
@@ -45,15 +45,14 @@ class GraphSpec {
       htlcMaximumMsat = Some(maxHtlc)
     )
     update.score = score
-    GraphEdge(ChannelDesc(ShortChannelId(shortChannelId), nodeId1, nodeId2), update)
+    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), update)
   }
 
-  val (a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey)
+  val (s, a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey)
 
   val routerConf =
     RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
-      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4,
-      searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(40000000L),
+      firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(40000000L),
       maxAttemptsPerPart = 12, maxChannelFailures = 12, maxNodeFailures = 12)
 
   val params = RouteCalculation.getDefaultRouteParams(routerConf)
@@ -71,10 +70,10 @@ class GraphSpec {
   @Test
   def calculateRoute(): Unit = {
     val g = DirectedGraph(List(
-      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(3L, b, d, 2.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
+      makeEdge(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(ShortChannelId(3L), b, d, 2.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(ShortChannelId(4L), c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
     ))
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
@@ -99,30 +98,60 @@ class GraphSpec {
   @Test
   def cltvAffectsResult(): Unit = {
     val g = DirectedGraph(List(
-      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(3L, b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(20), maxHtlc = 500000.msat), // Higher CLTV
-      makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
+      makeEdge(ShortChannelId(1L), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(2L), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(3L), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(9), maxHtlc = 5000000000L.msat), // Used despite higher fee because of much lower cltv
+      makeEdge(ShortChannelId(4L), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = params.getMaxFee(500000000L.msat)))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(a, c))
+    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+  }
 
-    assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
+  @Test
+  def capacityAffectsResult(): Unit = {
+    val g = DirectedGraph(List(
+      makeEdge(ShortChannelId(1L), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(2L), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(3L), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(144), maxHtlc = 800000000000L.msat), // Used despite higher fee because of much larger channel size
+      makeEdge(ShortChannelId(4L), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = params.getMaxFee(500000000L.msat)))
+
+    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
 
   @Test
   def scoreAffectsResult(): Unit = {
     val g = DirectedGraph(List(
-      makeEdge(1L, a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(2L, a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
-      makeEdge(3L, b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(20), maxHtlc = 500000.msat, score = 2), // Higher CLTV, but also better score
-      makeEdge(4L, c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
+      makeEdge(ShortChannelId(1L), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(2L), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(3L), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat, score = 260), // Used despite higher fee because of much better score
+      makeEdge(ShortChannelId(4L), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r)
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = params.getMaxFee(500000000L.msat)))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(a, b))
+    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+  }
+
+  @Test
+  def channelAgeAffectsResult(): Unit = {
+    val g = DirectedGraph(List(
+      makeEdge(ShortChannelId("900000x1x1"), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("900000x1x1"), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("790000x1x1"), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat), // Used despite higher fee because it's ~2 years old
+      makeEdge(ShortChannelId("900000x1x1"), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("900000x1x1"), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 900000, r.copy(source = s, amount = 500000000L.msat, maxFee = params.getMaxFee(500000000L.msat)))
+
+    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
 }
