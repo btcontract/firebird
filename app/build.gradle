@@ -2,6 +2,14 @@ apply plugin: "com.android.application"
 apply plugin: "jp.leafytree.android-scala"
 
 android {
+    signingConfigs {
+        release {
+            storeFile file('/home/ilya/Code/Android/firebird/keystore.jks')
+            keyAlias = 'firebird'
+            keyPassword 'pass1234'
+            storePassword 'pass1234'
+        }
+    }
     compileSdkVersion 29
     buildToolsVersion "30.0.1"
 
