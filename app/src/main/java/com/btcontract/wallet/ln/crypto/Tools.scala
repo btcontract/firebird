@@ -90,7 +90,7 @@ object Tools {
   }
 }
 
-case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int, hint: Any = null) extends LightningException
+case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int) extends LightningException
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
 
 trait CanBeRepliedTo {
@@ -98,8 +98,12 @@ trait CanBeRepliedTo {
 }
 
 abstract class StateMachine[T] {
-  def become(freshData: T, freshState: String): Unit =
-    runAnd { data = freshData } { state = freshState }
+  def become(freshData: T, freshState: String): StateMachine[T] = {
+    // Update state, data and return itself for easy chaining operations
+    state = freshState
+    data = freshData
+    this
+  }
 
   def doProcess(change: Any): Unit
   var state: String = _

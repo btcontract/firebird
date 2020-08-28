@@ -34,8 +34,9 @@ object Router {
                         firstPassMaxCltv: CltvExpiryDelta,
                         mppMinPartAmount: MilliSatoshi,
                         maxChannelFailures: Int,
-                        maxNodeFailures: Int,
-                        maxAttemptsPerPart: Int)
+                        maxStrangeNodeFailures: Int,
+                        maxLocalAttempts: Int,
+                        maxRemoteAttemptsPerPart: Int)
 
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)
@@ -62,9 +63,9 @@ object Router {
                           amount: MilliSatoshi,
                           maxFee: MilliSatoshi,
                           localEdge: GraphEdge,
-                          ignoreNodes: Set[PublicKey],
-                          ignoreChannels: Set[ChannelDesc],
-                          routeParams: RouteParams) {
+                          routeParams: RouteParams,
+                          ignoreNodes: Set[PublicKey] = Set.empty,
+                          ignoreChannels: Set[ChannelDesc] = Set.empty) {
 
     // Used for "failed at amount" to avoid small delta retries (e.g. 1003 sat, 1002 sat, ...)
     lazy val reserve: MilliSatoshi = amount / 10
@@ -76,7 +77,7 @@ object Router {
     def fee(amount: MilliSatoshi): MilliSatoshi = amounts.head - amount
 
     // We don't care bout first route and amount since they belong to local channels
-    lazy val amountPerGraphEdge: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = amounts.tail.zip(hops.tail.map(_.toDescAndCapacity))
+    lazy val amountPerDescAndCap: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = amounts.tail.zip(hops.tail.map(_.toDescAndCapacity))
 
     /** This method retrieves the edge that we used when we built the route. */
     def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId)

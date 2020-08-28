@@ -204,7 +204,7 @@ object Graph {
     val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
     val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.update.cltvExpiryDelta
 
-    // Every factor adds 0 - 200 imginary SAT to edge weight
+    // Every factor adds 0 - 100 imginary SAT to edge weight
     val factor = (ageFactor + capFactor + cltvFactor + successFactor) * 100000L
     val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.head.toLong + factor
 

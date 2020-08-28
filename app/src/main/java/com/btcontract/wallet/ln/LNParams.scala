@@ -29,9 +29,9 @@ object LNParams {
   val maxHostedBlockHeight = 500000L
 
   lazy val routerConf =
-    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
+    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(50000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(50000000L),
-      maxAttemptsPerPart = 12, maxChannelFailures = 16, maxNodeFailures = 6)
+      maxLocalAttempts = 24, maxRemoteAttemptsPerPart = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
@@ -108,9 +108,9 @@ object ChanErrorCodes {
   final val ERR_HOSTED_IN_FLIGHT_HTLC_WHILE_RESTORING = ByteVector.fromValidHex("0007")
   final val ERR_HOSTED_CHANNEL_DENIED = ByteVector.fromValidHex("0008")
 
-  val ERR_LOCAL_AMOUNT_HIGH = 1
-  val ERR_REMOTE_AMOUNT_HIGH = 2
-  val ERR_REMOTE_AMOUNT_LOW = 3
+  val ERR_NOT_ENOUGH_BALANCE = 1
+  val ERR_TOO_MUCH_IN_FLIGHT = 2
+  val ERR_AMOUNT_TOO_SMALL = 3
   val ERR_TOO_MANY_HTLC = 4
   val ERR_NOT_OPEN = 5
 }

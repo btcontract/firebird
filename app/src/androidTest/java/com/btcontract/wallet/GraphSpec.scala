@@ -53,7 +53,7 @@ class GraphSpec {
   val routerConf =
     RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(40000000L),
-      maxAttemptsPerPart = 12, maxChannelFailures = 12, maxNodeFailures = 12)
+      maxLocalAttempts = 12, maxRemoteAttemptsPerPart = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   val params = RouteCalculation.getDefaultRouteParams(routerConf)
   val r = RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
@@ -63,8 +63,6 @@ class GraphSpec {
     amount = 100000.msat,
     maxFee = params.getMaxFee(300.msat),
     localEdge = null,
-    ignoreNodes = Set.empty,
-    ignoreChannels = Set.empty,
     params)
 
   @Test

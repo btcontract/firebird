@@ -119,7 +119,7 @@ object Announcements {
    * @return true if channel updates are "equal"
    */
   def areSame(u1: ChannelUpdate, u2: ChannelUpdate): Boolean =
-    u1.copy(signature = ByteVector64.Zeroes, timestamp = 0) == u2.copy(signature = ByteVector64.Zeroes, timestamp = 0)
+    u1.copy(signature = ByteVector64.Zeroes, timestamp = 0, channelFlags = 1.toByte) == u2.copy(signature = ByteVector64.Zeroes, timestamp = 0, channelFlags = 1.toByte)
 
   def makeMessageFlags(hasOptionChannelHtlcMax: Boolean): Byte = BitVector.bits(hasOptionChannelHtlcMax :: Nil).padLeft(8).toByte()
 

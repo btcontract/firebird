@@ -144,15 +144,11 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
   // Sending
 
-  def maxSendableFor(cnc: ChanAndCommits, numHtlcs: Int): MilliSatoshi = {
-    val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * numHtlcs
+  def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
+    val theoreticalMaxHtlcs = cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs
+    val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * theoreticalMaxHtlcs
     val withoutPercentAndBaseFee = withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
     0L.msat.max(withoutPercentAndBaseFee)
-  }
-
-  def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
-    // This estimates how large an amount a channel can handle if used to the max
-    maxSendableFor(cnc, cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs)
   }
 
   def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
@@ -160,12 +156,13 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def canAlsoSendOnceChanOpens: MilliSatoshi = estimateCanSendInPrinciple - estimateCanSendNow
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val inFlightNow = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
-    val gettingReadyForFlightNow = paymentMaster.data.payments.contains(paymentHash)
+    val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS
+    val hasPartsInChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val gettingReady = paymentMaster.data.payments.get(paymentHash).exists(pmt => PaymentMaster.INIT == pmt.state || PaymentMaster.PENDING == pmt.state)
 
     if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (inFlightNow.exists(_.paymentHash == paymentHash) || gettingReadyForFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
+    else if (hasPartsInChannels || gettingReady) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
   }
 }

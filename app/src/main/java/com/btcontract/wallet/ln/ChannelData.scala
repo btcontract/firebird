@@ -129,9 +129,9 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
     val add = UpdateAddHtlc(announce.nodeSpecificHostedChanId, nextTotalLocal + 1, cmd.firstAmount, cmd.paymentHash, cmd.cltvExpiry, cmd.packetAndSecrets.packet, internalId)
     val commits1: HostedCommits = addProposal(add.asLocal)
 
-    if (commits1.nextLocalSpec.toLocal < 0L.msat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_HIGH)
-    if (cmd.payload.amount < lastCrossSignedState.initHostedChannel.htlcMinimumMsat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_LOW, lastCrossSignedState.initHostedChannel.htlcMinimumMsat)
-    if (UInt64(commits1.nextLocalSpec.outgoingAddsSum.toLong) > lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_HIGH)
+    if (commits1.nextLocalSpec.toLocal < 0L.msat) throw CMDAddImpossible(cmd, ERR_NOT_ENOUGH_BALANCE)
+    if (cmd.payload.amount < lastCrossSignedState.initHostedChannel.htlcMinimumMsat) throw CMDAddImpossible(cmd, ERR_AMOUNT_TOO_SMALL)
+    if (UInt64(commits1.nextLocalSpec.outgoingAddsSum.toLong) > lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat) throw CMDAddImpossible(cmd, ERR_TOO_MUCH_IN_FLIGHT)
     if (commits1.nextLocalSpec.outgoingAdds.size > lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs) throw CMDAddImpossible(cmd, ERR_TOO_MANY_HTLC)
     commits1 -> add
   }

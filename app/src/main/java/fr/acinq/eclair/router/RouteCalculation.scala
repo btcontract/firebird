@@ -27,7 +27,6 @@ import fr.acinq.eclair._
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
 
 object RouteCalculation {
   def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): RouteResponse =
@@ -69,12 +68,9 @@ object RouteCalculation {
   /** Max allowed CLTV for a route (two weeks) */
   val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
 
-  def getDefaultRouteParams(routerConf: RouterConf): RouteParams = RouteParams(
-    maxFeeBase = routerConf.searchMaxFeeBase,
-    maxFeePct = routerConf.searchMaxFeePct,
-    routeMaxLength = routerConf.firstPassMaxRouteLength,
-    routeMaxCltv = routerConf.firstPassMaxCltv
-  )
+  def getDefaultRouteParams(routerConf: RouterConf): RouteParams =
+    RouteParams(maxFeeBase = routerConf.searchMaxFeeBase, maxFeePct = routerConf.searchMaxFeePct,
+      routeMaxLength = routerConf.firstPassMaxRouteLength, routeMaxCltv = routerConf.firstPassMaxCltv)
 
   @tailrec
   private def findRouteInternal(g: DirectedGraph,
