@@ -107,15 +107,14 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
       assignToChans(master.currentSendables, data1, cmd.totalAmount)
 
     case (reject: RemoteReject, INIT) =>
-      // Only catches if this is a new PaymentSender waiting for commands
-      val dummyCommand = CMD_SEND_MPP(reject.ourAdd.paymentHash, 0.msat, null)
-      val data1 = PaymentSenderData(dummyCommand, parts = Map.empty)
-      me abortAndNotify data1
+      // Only catches if this is a new PaymentSender waiting for commands and having a null data
+      val data1 = PaymentSenderData(CMD_SEND_MPP(reject.ourAdd.paymentHash, 0.msat, null), parts = Map.empty)
+      me abortAndNotify data1.withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
 
     case (fulfill: UpdateFulfillHtlc, INIT) =>
+      // Only catches if this is a new PaymentSender waiting for commands and having a null data
+      val data1 = PaymentSenderData(CMD_SEND_MPP(fulfill.paymentHash, 0.msat, null), parts = Map.empty)
       master.cm.events.outgoingSucceeded(fulfill.paymentHash)
-      val dummyCommand = CMD_SEND_MPP(fulfill.paymentHash, 0.msat, null)
-      val data1 = PaymentSenderData(dummyCommand, parts = Map.empty)
       become(data1, SUCCEEDED)
 
     case (fulfill: UpdateFulfillHtlc, PENDING | ABORTED) =>
@@ -214,13 +213,17 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
             resolveRemoteFail(data.withRemoteFailure(info.route, pkt), wait)
 
         } getOrElse {
+          val failure = UnreadableRemoteFailure(info.route)
           val nodesInBetween = info.route.hops.map(_.desc.b).drop(1).dropRight(1)
-          val data1 = data.copy(failures = UnreadableRemoteFailure(info.route) +: data.failures)
 
-          if (nodesInBetween.isEmpty) me abortAndNotify data1.withoutPartId(partId) else {
+          if (nodesInBetween.isEmpty) {
+            // Garbage is sent by our peer or final payee, fail a payment
+            val data1 = data.copy(failures = failure +: data.failures)
+            me abortAndNotify data1.withoutPartId(partId)
+          } else {
             // We don't know which exact remote node is sending garbage, exclude a random one
             master doProcess NodeFailed(shuffle(nodesInBetween).head, increment = TOO_MANY_TIMES)
-            resolveRemoteFail(data1, wait)
+            resolveRemoteFail(data.copy(failures = failure +: data.failures), wait)
           }
         }
       }
@@ -274,8 +277,8 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
 
       case _ =>
         // A non-zero leftover is present with no more channels left
-        // partId should already be removed upstream at this point
-        me abortAndNotify data1
+        // partId should already have been removed upstream at this point
+        me abortAndNotify data1.withLocalFailure(NOROUTE, NOT_ENOUGH_CAPACITY)
     }
   }
 
