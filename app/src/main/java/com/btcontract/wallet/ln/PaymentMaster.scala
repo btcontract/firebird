@@ -6,13 +6,14 @@ import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
 import fr.acinq.eclair.{CltvExpiry, MilliSatoshi}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-import fr.acinq.eclair.wire.{Node, Onion, Update, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
 import com.btcontract.wallet.ln.HostedChannel.{isOperational, isOperationalAndOpen}
+import fr.acinq.eclair.wire.{ChannelUpdate, Node, Onion, Update, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateMachine, Tools}
-import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, Route, RouteParams, RouteRequest, RouteResponse}
+import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
+import fr.acinq.eclair.router.Graph.RichWeight
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
@@ -29,8 +30,10 @@ object PaymentFailure {
   final val NOT_ENOUGH_CAPACITY = 1
   final val RUN_OUT_OF_RETRY_ATTEMPTS = 2
   final val PEER_COULD_NOT_PARSE_ONION = 3
-  final val NOROUTE = Route(Vector.empty, Nil)
   final val TOO_MANY_TIMES = 1000
+
+  final val NOWEIGHT = RichWeight(Vector.empty, 0, CltvExpiryDelta(0), 0D)
+  final val NOROUTE = Route(weight = NOWEIGHT, hops = Nil)
 }
 
 
@@ -56,6 +59,11 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def withRemoteFailure(route: Route, pkt: Sphinx.DecryptedFailurePacket): PaymentSenderData = copy(failures = RemoteFailure(route, pkt) +: failures)
   def withLocalFailure(route: Route, reason: Int): PaymentSenderData = copy(failures = LocalFailure(route, reason) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
+
+  def inFlights: Iterable[InFlightInfo] = parts.values collect { case wait: WaitForRouteOrInFlight if wait.flight.isDefined => wait.flight.get }
+  def maxCltvExpiryDeltaOpt: Option[InFlightInfo] = maxByOption[InFlightInfo, CltvExpiryDelta](inFlights, _.route.weight.cltv)
+  def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.update)
+  def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
 
 case class PaymentMasterData(payments: Map[ByteVector32, PaymentSender],
@@ -152,8 +160,8 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
     case (malform: MalformAndAdd, PENDING) =>
       data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == malform.partId =>
         master.currentSendablesExcept(wait.chan) collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
-          case Some(anotherChan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherChan).tuple), PENDING)
-          case _ => assignToChans(master.currentSendablesExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(NOROUTE, PEER_COULD_NOT_PARSE_ONION), wait.amount)
+          case Some(anotherCapableChan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
+          case _ => assignToChans(master.currentSendablesExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(wait.flight.get.route, PEER_COULD_NOT_PARSE_ONION), wait.amount)
         }
       }
 
@@ -232,8 +240,8 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
   def isFinalized: Boolean = ABORTED == state || SUCCEEDED == state
   def randomId: ByteVector = ByteVector.view(Tools.random getBytes 8)
 
-  def canBeSplit(amt: MilliSatoshi): Boolean = {
-    amt / 2 > master.cm.pf.routerConf.mppMinPartAmount
+  def canBeSplit(totalAmount: MilliSatoshi): Boolean = {
+    totalAmount / 2 > master.cm.pf.routerConf.mppMinPartAmount
   }
 
   private def assignToChans(sendable: mutable.Map[ChanAndCommits, MilliSatoshi], data1: PaymentSenderData, amt: MilliSatoshi): Unit = {
@@ -275,9 +283,8 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
     }
 
   private def abortAndNotify(data1: PaymentSenderData): Unit = {
-    // An idempotent transition which also fires a failure event once no more in-flight payment parts are left
-    val leftover = data1.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined => }
-    if (leftover.isEmpty) master.cm.events.outgoingFailed(data1.cmd.paymentHash)
+    // An idempotent transition, fires a failure event once no more in-flight parts are left
+    if (data1.inFlights.isEmpty) master.cm.events.outgoingFailed(data1.cmd.paymentHash)
     become(data1, ABORTED)
   }
 }

@@ -144,11 +144,11 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
     val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS
-    val hasPartsInChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val inChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
     val absentOrFinalized = paymentMaster.data.payments.get(paymentHash).forall(_.isFinalized)
 
     if (paymentMaster.canSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (hasPartsInChannels || !absentOrFinalized) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (inChannels || !absentOrFinalized) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
   }

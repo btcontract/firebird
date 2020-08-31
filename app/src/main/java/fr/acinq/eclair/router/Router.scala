@@ -20,7 +20,7 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.GraphStructure
+import fr.acinq.eclair.router.Graph.{GraphStructure, RichWeight}
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
@@ -71,13 +71,13 @@ object Router {
     lazy val reserve: MilliSatoshi = amount / 10
   }
 
-  case class Route(amounts: Vector[MilliSatoshi], hops: Seq[GraphEdge]) {
+  case class Route(weight: RichWeight, hops: Seq[GraphEdge] = Nil) {
     require(hops.nonEmpty, "route cannot be empty")
 
-    def fee(amount: MilliSatoshi): MilliSatoshi = amounts.head - amount
+    lazy val fee: MilliSatoshi = weight.costs.head - weight.costs.last
 
     // We don't care bout first route and amount since they belong to local channels
-    lazy val amountPerDescAndCap: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = amounts.tail.zip(hops.tail.map(_.toDescAndCapacity))
+    lazy val amountPerDescAndCap: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = weight.costs.tail.zip(hops.tail.map(_.toDescAndCapacity))
 
     /** This method retrieves the edge that we used when we built the route. */
     def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId)
