@@ -382,13 +382,9 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
   def getUsedCapacities: mutable.Map[DescAndCapacity, MilliSatoshi] = {
     // This gets supposedly used capacities of external channels in a routing graph
     // we need this to exclude channels which definitely can't route a given amount right now
-    val accum = mutable.Map.empty[DescAndCapacity, MilliSatoshi] withDefaultValue 0L.msat
-
-    for {
-      _ \ sender <- data.payments
-      _ \ WaitForRouteOrInFlight(_, _, _, Some(info), _, _) <- sender.data.parts
-      amount \ descAndCapacity <- info.route.amountPerDescAndCap
-    } accum(descAndCapacity) += amount
+    val accum = mutable.Map.empty[DescAndCapacity, MilliSatoshi] withDefaultValue MilliSatoshi(0L)
+    val descsAndCaps = data.payments.values.flatMap(_.data.inFlights).flatMap(_.route.amountPerDescAndCap)
+    descsAndCaps foreach { case amount \ dnc => accum(dnc) += amount }
     accum
   }
 
