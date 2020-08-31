@@ -68,10 +68,6 @@ object RouteCalculation {
   /** Max allowed CLTV for a route (two weeks) */
   val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
 
-  def getDefaultRouteParams(routerConf: RouterConf): RouteParams =
-    RouteParams(maxFeeBase = routerConf.searchMaxFeeBase, maxFeePct = routerConf.searchMaxFeePct,
-      routeMaxLength = routerConf.firstPassMaxRouteLength, routeMaxCltv = routerConf.firstPassMaxCltv)
-
   @tailrec
   private def findRouteInternal(g: DirectedGraph,
                                 localNodeId: PublicKey,

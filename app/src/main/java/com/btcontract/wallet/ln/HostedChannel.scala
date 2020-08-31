@@ -40,7 +40,7 @@ case class CommitsAndMax(commits: Vector[ChanAndCommits], maxReceivable: MilliSa
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
   def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException me -> failure }
-  def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => Some apply ChanAndCommits(me, hc) case _ => None }
+  def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => ChanAndCommits(me, hc).toSome case _ => None }
 
   lazy val fakeEdge: GraphEdge = {
     val zeroCltvDelta = CltvExpiryDelta(0)
@@ -280,18 +280,15 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, upd: ChannelUpdate, OPEN | SLEEPING)
         if hc.updateOpt.forall(_.timestamp < upd.timestamp) =>
-        val data1 = hc.modify(_.updateOpt) setTo Some(upd)
-        data = me STORE data1
+        data = me STORE hc.copy(updateOpt = upd.toSome)
 
 
       case (hc: HostedCommits, brand: HostedChannelBranding, OPEN | SLEEPING) =>
-        val data1 = hc.modify(_.brandingOpt) setTo Some(brand)
-        data = me STORE data1
+        data = me STORE hc.copy(brandingOpt = brand.toSome)
 
 
       case (hc: HostedCommits, remoteError: Error, WAIT_FOR_ACCEPT | OPEN | SLEEPING) =>
-        val hc1 = hc.modify(_.remoteError) setTo Some(remoteError)
-        BECOME(me STORE hc1, SUSPENDED)
+        BECOME(me STORE hc.copy(remoteError = remoteError.toSome), SUSPENDED)
 
 
       // User has accepted a proposed remote override, now make sure all provided parameters check out
@@ -342,8 +339,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   // CMDProceed is on ChannelManager
   def localSuspend(hc: HostedCommits, errCode: ByteVector): Unit = {
     val localError = Error(hc.announce.nodeSpecificHostedChanId, errCode)
-    val hc1 = hc.modify(_.localError) setTo Some(localError)
-    STORESENDBECOME(hc1, SUSPENDED, localError)
+    STORESENDBECOME(hc.copy(localError = localError.toSome), SUSPENDED, localError)
   }
 }
 

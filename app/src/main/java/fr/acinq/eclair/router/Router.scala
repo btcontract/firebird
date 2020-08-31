@@ -36,7 +36,7 @@ object Router {
                         maxChannelFailures: Int,
                         maxStrangeNodeFailures: Int,
                         maxLocalAttempts: Int,
-                        maxRemoteAttemptsPerPart: Int)
+                        maxRemoteAttempts: Int)
 
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)

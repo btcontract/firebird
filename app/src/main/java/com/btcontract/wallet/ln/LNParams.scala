@@ -24,14 +24,13 @@ object LNParams {
   val cltvExpiry: Int = blocksPerDay * 2 - 3
   val chainHash: ByteVector32 = Block.LivenetGenesisBlock.hash
   val minHostedOnChainRefund = Satoshi(1000000L)
-  val minPayment = MilliSatoshi(10000L)
   val minHostedLiabilityBlockdays = 365
-  val maxHostedBlockHeight = 500000L
+  val minPayment = MilliSatoshi(5000L)
 
   lazy val routerConf =
     RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(50000L), searchMaxFeePct = 0.01,
-      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(50000000L),
-      maxLocalAttempts = 24, maxRemoteAttemptsPerPart = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
+      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
+      maxLocalAttempts = 6, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),

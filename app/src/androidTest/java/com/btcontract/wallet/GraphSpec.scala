@@ -8,7 +8,7 @@ import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.{Announcements, RouteCalculation}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest, RouterConf}
 import fr.acinq.eclair.wire.ChannelUpdate
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -53,9 +53,10 @@ class GraphSpec {
   val routerConf =
     RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(40000000L),
-      maxLocalAttempts = 12, maxRemoteAttemptsPerPart = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
+      maxLocalAttempts = 12, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
-  val params = RouteCalculation.getDefaultRouteParams(routerConf)
+  val params = RouteParams(maxFeeBase = routerConf.searchMaxFeeBase, maxFeePct = routerConf.searchMaxFeePct,
+    routeMaxLength = routerConf.firstPassMaxRouteLength, routeMaxCltv = routerConf.firstPassMaxCltv)
   val r = RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
     partId = ByteVector.empty,
     source = a,

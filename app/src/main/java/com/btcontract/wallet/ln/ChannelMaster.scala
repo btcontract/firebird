@@ -134,33 +134,20 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
     }
 
-  def chansAndMaxReceivable: Option[CommitsAndMax] = {
-    val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.remoteBalance)
-    val canReceiveWithoutSmall = canReceive.dropWhile(_.commits.remoteBalance * canReceive.size < canReceive.last.commits.remoteBalance).takeRight(4) // To fit QR code
+  def maxReceivableInfo: Option[CommitsAndMax] = {
+    val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
     // Example: (5, 50, 60, 100) -> (50, 60, 100), receivalble = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
-    val candidates = for (cs <- canReceiveWithoutSmall.indices map canReceiveWithoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.remoteBalance * cs.size)
+    val withoutSmall = canReceive.dropWhile(_.commits.nextLocalSpec.toRemote * canReceive.size < canReceive.last.commits.nextLocalSpec.toRemote).takeRight(4)
+    val candidates = for (cs <- withoutSmall.indices map withoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.nextLocalSpec.toRemote * cs.size)
     maxByOption[CommitsAndMax, MilliSatoshi](candidates, _.maxReceivable)
   }
-
-  // Sending
-
-  def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
-    val theoreticalMaxHtlcs = cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs
-    val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * theoreticalMaxHtlcs
-    val withoutPercentAndBaseFee = withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
-    0L.msat.max(withoutPercentAndBaseFee)
-  }
-
-  def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
-  def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
-  def canAlsoSendOnceChanOpens: MilliSatoshi = estimateCanSendInPrinciple - estimateCanSendNow
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
     val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS
     val hasPartsInChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
-    val gettingReady = paymentMaster.data.payments.get(paymentHash).exists(pmt => PaymentMaster.INIT == pmt.state || PaymentMaster.PENDING == pmt.state)
+    val gettingReady = paymentMaster.data.payments.get(paymentHash).exists(_.isNotFinalized)
 
-    if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    if (paymentMaster.canSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (hasPartsInChannels || gettingReady) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
