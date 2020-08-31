@@ -47,12 +47,9 @@ sealed trait PartStatus {
 
 case class InFlightInfo(cmd: CMD_ADD_HTLC, route: Route)
 case class WaitForBetterConditions(partId: ByteVector, amount: MilliSatoshi) extends PartStatus
-case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, info: Option[InFlightInfo] = None,
-                                  localAttempts: Int = 0, remoteAttempts: Int = 0) extends PartStatus {
-
-  // Importantly these methods transition object into "wait for route" state because routing info becomes None
-  def oneMoreRemoteAttempt(newChan: HostedChannel): WaitForRouteOrInFlight = copy(info = None, remoteAttempts = remoteAttempts + 1, chan = newChan)
-  def oneMoreLocalAttempt(newChan: HostedChannel): WaitForRouteOrInFlight = copy(info = None, localAttempts = localAttempts + 1, chan = newChan)
+case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo], localAttempts: Int = 0, remoteAttempts: Int = 0) extends PartStatus {
+  def oneMoreRemoteAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, remoteAttempts = remoteAttempts + 1, chan = newHostedChannel)
+  def oneMoreLocalAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, localAttempts = localAttempts + 1, chan = newHostedChannel)
 }
 
 case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Vector[PaymentFailure] = Vector.empty) {
@@ -96,15 +93,9 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
   become(null, INIT)
 
   def doProcess(msg: Any): Unit = (msg, state) match {
-    // Properly clear pending parts once payment is aborted
-    case (found: RouteFound, ABORTED) => me abortAndNotify data.withoutPartId(found.partId)
-    case (failure: NoRouteAvailable, ABORTED) => me abortAndNotify data.withoutPartId(failure.partId)
-    case (error: CMDAddImpossible, ABORTED) => me abortAndNotify data.withoutPartId(error.cmd.internalId)
+    case (cmd: CMD_SEND_MPP, INIT | ABORTED) => assignToChans(master.currentSendables, PaymentSenderData(cmd, parts = Map.empty), cmd.totalAmount)
+    case (localError: CMDAddImpossible, ABORTED) => me abortAndNotify data.withoutPartId(localError.cmd.internalId)
     case (reject: RemoteReject, ABORTED) => me abortAndNotify data.withoutPartId(reject.partId)
-
-    case (cmd: CMD_SEND_MPP, INIT | ABORTED) =>
-      val data1 = PaymentSenderData(cmd, parts = Map.empty)
-      assignToChans(master.currentSendables, data1, cmd.totalAmount)
 
     case (reject: RemoteReject, INIT) =>
       // Only catches if this is a new PaymentSender waiting for commands and having a null data
@@ -128,13 +119,13 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
       }
 
     case (CMDAskForRoute, PENDING) =>
-      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.info.isEmpty =>
+      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
         val params = RouteParams(master.cm.pf.routerConf.searchMaxFeeBase, master.cm.pf.routerConf.searchMaxFeePct, master.cm.pf.routerConf.firstPassMaxRouteLength, master.cm.pf.routerConf.firstPassMaxCltv)
         master process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), wait.chan.fakeEdge, params)
       }
 
     case (fail: NoRouteAvailable, PENDING) =>
-      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.info.isEmpty && wait.partId == fail.partId =>
+      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty && wait.partId == fail.partId =>
         master.currentSendablesExcept(wait.chan) collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
           case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
           case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess HalveSplit(wait.amount)
@@ -143,15 +134,15 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
       }
 
     case (found: RouteFound, PENDING) =>
-      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.info.isEmpty && wait.partId == found.partId =>
+      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty && wait.partId == found.partId =>
         val finalPayload = Onion.createMultiPartPayload(wait.amount, data.cmd.totalAmount, data.cmd.targetExpiry, data.cmd.paymentSecret)
-        val info = InFlightInfo(OutgoingPacket.buildCommand(wait.partId, data.cmd.paymentHash, found.route.hops, finalPayload), found.route)
-        become(data.copy(parts = data.parts + wait.copy(info = info.toSome).tuple), PENDING)
-        wait.chan process info.cmd
+        val inFlightInfo = InFlightInfo(OutgoingPacket.buildCommand(wait.partId, data.cmd.paymentHash, found.route.hops, finalPayload), found.route)
+        become(data.copy(parts = data.parts + wait.copy(flight = inFlightInfo.toSome).tuple), PENDING)
+        wait.chan process inFlightInfo.cmd
       }
 
-    case (error: CMDAddImpossible, PENDING) =>
-      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.info.isDefined && wait.partId == error.cmd.internalId =>
+    case (err: CMDAddImpossible, PENDING) =>
+      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == err.cmd.internalId =>
         master.currentSendablesExcept(wait.chan) collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
           case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
           case _ => assignToChans(master.currentSendablesExcept(wait.chan), data.withoutPartId(wait.partId), wait.amount)
@@ -159,7 +150,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
       }
 
     case (malform: MalformAndAdd, PENDING) =>
-      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.info.isDefined && wait.partId == malform.partId =>
+      data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == malform.partId =>
         master.currentSendablesExcept(wait.chan) collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
           case Some(anotherChan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherChan).tuple), PENDING)
           case _ => assignToChans(master.currentSendablesExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(NOROUTE, PEER_COULD_NOT_PARSE_ONION), wait.amount)
@@ -245,19 +236,13 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
     amt / 2 > master.cm.pf.routerConf.mppMinPartAmount
   }
 
-  private def abortAndNotify(data1: PaymentSenderData): Unit = {
-    // An idempotent transition which also fires a failure event once no more parts left
-    if (data1.parts.isEmpty) master.cm.events.outgoingFailed(data1.cmd.paymentHash)
-    become(data1, ABORTED)
-  }
-
   private def assignToChans(sendable: mutable.Map[ChanAndCommits, MilliSatoshi], data1: PaymentSenderData, amt: MilliSatoshi): Unit = {
     // This is a terminal method in a sense that it either successfully assigns an amount to channels or turns a payment info failed state
     // this method always sets a new partId to assigned parts so old payment statuses in data must be cleared before calling it
 
     sendable.foldLeft(Map.empty[ByteVector, PartStatus] -> amt) {
       case (accumulator \ leftover, cnc \ chanSendable) if leftover > MilliSatoshi(0L) =>
-        val wait = WaitForRouteOrInFlight(randomId, chanSendable min leftover, cnc.chan)
+        val wait = WaitForRouteOrInFlight(randomId, chanSendable min leftover, cnc.chan, None)
         (accumulator + wait.tuple, leftover - wait.amount)
 
       case collected \ _ =>
@@ -283,12 +268,18 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
   }
 
   private def resolveRemoteFail(data1: PaymentSenderData, wait: WaitForRouteOrInFlight): Unit =
-    // When payment is failed remotely we make a number of attempts to re-send it as a whole before splitting
     master.currentSendables collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
       case Some(chan) if wait.remoteAttempts < maxRemote => become(data.copy(parts = data.parts + wait.oneMoreRemoteAttempt(chan).tuple), PENDING)
       case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess HalveSplit(wait.amount)
       case _ => me abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
     }
+
+  private def abortAndNotify(data1: PaymentSenderData): Unit = {
+    // An idempotent transition which also fires a failure event once no more in-flight payment parts are left
+    val leftover = data1.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined => }
+    if (leftover.isEmpty) master.cm.events.outgoingFailed(data1.cmd.paymentHash)
+    become(data1, ABORTED)
+  }
 }
 
 class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterData] with CanBeRepliedTo with ChannelListener { me =>
