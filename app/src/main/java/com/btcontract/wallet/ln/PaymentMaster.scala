@@ -249,16 +249,19 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
     // this method always sets a new partId to assigned parts so old payment statuses in data must be cleared before calling it
 
     sendable.foldLeft(Map.empty[ByteVector, PartStatus] -> amt) {
-      case (accumulator \ leftover, cnc \ chanSendable) if leftover > MilliSatoshi(0L) =>
+      case (collected @ (accumulator, leftover), cnc \ chanSendable) if leftover > 0L.msat =>
+        // If leftover becomes less than theoretical sendable minimum then we must bump it upwards
         val minSendable = cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat
-        val assignedAmount = chanSendable min leftover
+        // Example: leftover=500, minSendable=10, chanSendable=200 -> sending 200
+        // Example: leftover=300, minSendable=10, chanSendable=400 -> sending 300
+        // Example: leftover=6, minSendable=10, chanSendable=200 -> sending 10
+        // Example: leftover=6, minSendable=10, chanSendable=8 -> skipping
+        val finalAmount = leftover max minSendable min chanSendable
 
-        if (assignedAmount >= minSendable) {
-          // Only attepmt channels which definitely can handle a given amount
-          // check this here to avoid zero/micro amounts which can be problematic
-          val wait = WaitForRouteOrInFlight(randomId, assignedAmount, cnc.chan, None)
-          (accumulator + wait.tuple, leftover - assignedAmount)
-        } else (accumulator, leftover)
+        if (finalAmount >= minSendable) {
+          val wait = WaitForRouteOrInFlight(randomId, finalAmount, cnc.chan, None)
+          (accumulator + wait.tuple, leftover - finalAmount)
+        } else collected
 
       case collected \ _ =>
         // No more amount to assign
@@ -266,8 +269,9 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
         collected
 
     } match {
-      case parts \ MilliSatoshi(0L) =>
-        // Amount has been fully split across our local channels
+      case parts \ leftover if leftover <= 0L.msat =>
+        // A whole mount has been fully split across our local channels
+        // leftover may be slightly negative due to min amount corrections
         become(data1.copy(parts = data1.parts ++ parts), PENDING)
 
       case _ \ rest if master.canSendInPrinciple - master.canSendNow >= rest =>
