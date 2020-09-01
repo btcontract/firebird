@@ -28,7 +28,7 @@ object LNParams {
   val minPayment = MilliSatoshi(5000L)
 
   lazy val routerConf =
-    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(50000L), searchMaxFeePct = 0.01,
+    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
       maxLocalAttempts = 6, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 

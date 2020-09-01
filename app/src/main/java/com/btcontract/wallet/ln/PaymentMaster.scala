@@ -271,7 +271,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
     } match {
       case parts \ leftover if leftover <= 0L.msat =>
         // A whole mount has been fully split across our local channels
-        // leftover may be slightly negative due to min amount corrections
+        // leftover may be slightly negative due to min sendable corrections
         become(data1.copy(parts = data1.parts ++ parts), PENDING)
 
       case _ \ rest if master.canSendInPrinciple - master.canSendNow >= rest =>
@@ -304,22 +304,26 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   become(PaymentMasterData(Map.empty), EXPECTING_PAYMENTS)
+  // Listen to NotifyOperational events
+  cm.pf.listeners += me
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (cmd: CMD_SEND_MPP, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      // Forget previous failures if this is a new round of payment sending
       val noPendingPaymentsLeft = data.payments.values.forall(_.isFinalized)
       if (noPendingPaymentsLeft) become(data.forgetFailures, state)
-      for (extraEdge <- cmd.assistedEdges) cm.pf process extraEdge
+      // Make pathfinder aware of payee-provided routing hints
+      for (edge <- cmd.assistedEdges) cm.pf process edge
       relayOrCreateSender(cmd.paymentHash, cmd)
       me process CMDAskForRoute
 
     case (CMDChanGotOnline, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
-      // Payments may have awaiting parts due to offline channels
+      // Payments may still have awaiting parts due to offline channels
       data.payments.values.foreach(_ doProcess CMDChanGotOnline)
       me process CMDAskForRoute
 
-    case (CMDAskForRoute, EXPECTING_PAYMENTS) =>
-      // A proxy to always send command in master thread
+    case (CMDAskForRoute | PathFinder.NotifyOperational, EXPECTING_PAYMENTS) =>
+      // This is a proxy to always send command in payment master thread
       // IMPLICIT GUARD: this message is ignored in other states
       data.payments.values.foreach(_ doProcess CMDAskForRoute)
 
@@ -335,6 +339,11 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
       val request1 = req.copy(ignoreNodes = ignoreNodes.toSet, ignoreChannels = ignoreChans)
       cm.pf process Tuple2(me, request1)
       become(data, WAITING_FOR_ROUTE)
+
+    case (PathFinder.NotifyRejected, WAITING_FOR_ROUTE) =>
+      // Pathfinder is not yet ready, switch local state back
+      // pathfinder is expected to notify us once it gets ready
+      become(data, EXPECTING_PAYMENTS)
 
     case (response: RouteResponse, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
       data.payments.get(response.paymentHash).foreach(_ doProcess response)
