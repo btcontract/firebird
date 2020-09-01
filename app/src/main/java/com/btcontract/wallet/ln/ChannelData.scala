@@ -16,8 +16,13 @@ case class Htlc(incoming: Boolean, add: UpdateAddHtlc) {
   require(incoming || add.internalId.isDefined, "Outgoing add must contain an internal id")
 }
 
-case class FailAndAdd(theirFail: UpdateFailHtlc, ourAdd: UpdateAddHtlc) { lazy val internalId: ByteVector = ourAdd.internalId.get.data }
-case class MalformAndAdd(theirMalform: UpdateFailMalformedHtlc, ourAdd: UpdateAddHtlc) { lazy val internalId: ByteVector = ourAdd.internalId.get.data }
+trait RemoteReject {
+  val ourAdd: UpdateAddHtlc
+  val partId: ByteVector = ourAdd.internalId.get.data
+}
+
+case class FailAndAdd(theirFail: UpdateFailHtlc, ourAdd: UpdateAddHtlc) extends RemoteReject
+case class MalformAndAdd(theirMalform: UpdateFailMalformedHtlc, ourAdd: UpdateAddHtlc) extends RemoteReject
 
 case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: MilliSatoshi, htlcs: Set[Htlc] = Set.empty,
                           remoteFailed: Set[FailAndAdd] = Set.empty, remoteMalformed: Set[MalformAndAdd] = Set.empty,
@@ -35,7 +40,7 @@ object CommitmentSpec {
   type PreimageAndAdd = (ByteVector32, UpdateAddHtlc)
 
   def fulfill(cs: CommitmentSpec, isIncoming: Boolean, m: UpdateFulfillHtlc): CommitmentSpec = cs.findHtlcById(m.id, isIncoming) match {
-    case Some(theirAddHtlc) if theirAddHtlc.incoming => cs.copy(toLocal = cs.toLocal + theirAddHtlc.add.amountMsat, localFulfilled = cs.localFulfilled + m.paymentHash, htlcs = cs.htlcs - theirAddHtlc)
+    case Some(their) if their.incoming => cs.copy(toLocal = cs.toLocal + their.add.amountMsat, localFulfilled = cs.localFulfilled + m.paymentHash, htlcs = cs.htlcs - their)
     case Some(htlc) => cs.copy(toRemote = cs.toRemote + htlc.add.amountMsat, htlcs = cs.htlcs - htlc)
     case None => cs
   }
@@ -79,9 +84,9 @@ object CommitmentSpec {
 sealed trait ChannelData { val announce: NodeAnnouncementExt }
 case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: HostedCommits) extends ChannelData
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
-case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState, futureUpdates: Vector[LNDirectionalMessage], localSpec: CommitmentSpec,
-                         updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error], remoteError: Option[Error],
-                         startedAt: Long = System.currentTimeMillis) extends ChannelData {
+case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState, futureUpdates: Vector[LNDirectionalMessage],
+                         localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error],
+                         remoteError: Option[Error], startedAt: Long = System.currentTimeMillis) extends ChannelData {
 
   lazy val Tuple4(nextLocalUpdates, nextRemoteUpdates, nextTotalLocal, nextTotalRemote) =
     (Tuple4(Vector.empty[LightningMessage], Vector.empty[LightningMessage], lastCrossSignedState.localUpdates, lastCrossSignedState.remoteUpdates) /: futureUpdates) {
@@ -97,9 +102,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
   lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
   lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
-  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds ++ nextLocalSpec.outgoingAdds // Cross-signed + new payments offered by us
-  lazy val remoteBalance: MilliSatoshi = nextLocalSpec.toRemote // Includes unsigned updates
-  lazy val localBalance: MilliSatoshi = nextLocalSpec.toLocal // Includes unsigned updates
+  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
 
   def nextLocalUnsignedLCSS(blockDay: Long): LastCrossSignedState = {
     val incomingHtlcs \ outgoingHtlcs = nextLocalSpec.htlcs.toList.partition(_.incoming)
@@ -129,9 +132,9 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
     val add = UpdateAddHtlc(announce.nodeSpecificHostedChanId, nextTotalLocal + 1, cmd.firstAmount, cmd.paymentHash, cmd.cltvExpiry, cmd.packetAndSecrets.packet, internalId)
     val commits1: HostedCommits = addProposal(add.asLocal)
 
-    if (commits1.nextLocalSpec.toLocal < 0L.msat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_HIGH)
-    if (cmd.payload.amount < lastCrossSignedState.initHostedChannel.htlcMinimumMsat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_LOW, lastCrossSignedState.initHostedChannel.htlcMinimumMsat)
-    if (UInt64(commits1.nextLocalSpec.outgoingAddsSum.toLong) > lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat) throw CMDAddImpossible(cmd, ERR_REMOTE_AMOUNT_HIGH)
+    if (commits1.nextLocalSpec.toLocal < 0L.msat) throw CMDAddImpossible(cmd, ERR_NOT_ENOUGH_BALANCE)
+    if (cmd.payload.amount < lastCrossSignedState.initHostedChannel.htlcMinimumMsat) throw CMDAddImpossible(cmd, ERR_AMOUNT_TOO_SMALL)
+    if (UInt64(commits1.nextLocalSpec.outgoingAddsSum.toLong) > lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat) throw CMDAddImpossible(cmd, ERR_TOO_MUCH_IN_FLIGHT)
     if (commits1.nextLocalSpec.outgoingAdds.size > lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs) throw CMDAddImpossible(cmd, ERR_TOO_MANY_HTLC)
     commits1 -> add
   }

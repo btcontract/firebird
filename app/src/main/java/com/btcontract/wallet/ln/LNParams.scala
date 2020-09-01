@@ -24,14 +24,13 @@ object LNParams {
   val cltvExpiry: Int = blocksPerDay * 2 - 3
   val chainHash: ByteVector32 = Block.LivenetGenesisBlock.hash
   val minHostedOnChainRefund = Satoshi(1000000L)
-  val minPayment = MilliSatoshi(10000L)
   val minHostedLiabilityBlockdays = 365
-  val maxHostedBlockHeight = 500000L
+  val minPayment = MilliSatoshi(5000L)
 
   lazy val routerConf =
-    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
-      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, searchRatioCltv = 0.1, searchRatioChannelAge = 0.4,
-      searchRatioChannelCapacity = 0.2, searchRatioSuccessScore = 0.3, mppMinPartAmount = MilliSatoshi(50000000L), maxRoutesPerPart = 16)
+    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01,
+      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
+      maxLocalAttempts = 6, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
@@ -108,9 +107,9 @@ object ChanErrorCodes {
   final val ERR_HOSTED_IN_FLIGHT_HTLC_WHILE_RESTORING = ByteVector.fromValidHex("0007")
   final val ERR_HOSTED_CHANNEL_DENIED = ByteVector.fromValidHex("0008")
 
-  val ERR_LOCAL_AMOUNT_HIGH = 1
-  val ERR_REMOTE_AMOUNT_HIGH = 2
-  val ERR_REMOTE_AMOUNT_LOW = 3
+  val ERR_NOT_ENOUGH_BALANCE = 1
+  val ERR_TOO_MUCH_IN_FLIGHT = 2
+  val ERR_AMOUNT_TOO_SMALL = 3
   val ERR_TOO_MANY_HTLC = 4
   val ERR_NOT_OPEN = 5
 }

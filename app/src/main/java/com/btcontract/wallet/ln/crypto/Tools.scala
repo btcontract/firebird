@@ -27,6 +27,10 @@ object Tools {
   def none: PartialFunction[Any, Unit] = { case _ => }
   def runAnd[T](result: T)(action: Any): T = result
 
+  implicit class Any2Some[T](underlying: T) {
+    def toSome: Option[T] = Some(underlying)
+  }
+
   implicit def bytes2VecView(underlyingBytes: Bytes): ByteVector = ByteVector.view(underlyingBytes)
   implicit def lightningMessage2Ext(msg: LightningMessage): LightningMessageExt = LightningMessageExt(msg)
 
@@ -90,16 +94,17 @@ object Tools {
   }
 }
 
-case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int, hint: Any = null) extends LightningException
+case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int) extends LightningException
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
-
-trait CanBeRepliedTo {
-  def process(reply: Any): Unit
-}
+trait CanBeRepliedTo { def process(reply: Any): Unit }
 
 abstract class StateMachine[T] {
-  def become(freshData: T, freshState: String): Unit =
-    runAnd { data = freshData } { state = freshState }
+  def become(freshData: T, freshState: String): StateMachine[T] = {
+    // Update state, data and return itself for easy chaining operations
+    state = freshState
+    data = freshData
+    this
+  }
 
   def doProcess(change: Any): Unit
   var state: String = _

@@ -32,19 +32,12 @@ object SyncMaster {
   type ShortChanIdSet = Set[ShortChannelId]
   type NodeAnnouncements = List[NodeAnnouncement]
 
-  val zap: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "027cd974e47086291bb8a5b0160a889c738f2712a703b8ea939985fd16f3aae67e"), NodeAddress.unresolved(9735, host = 35, 237, 192, 216), "Zap")
-  val bitMex: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0395033b252c6f40e3756984162d68174e2bd8060a129c0d3462a9370471c6d28f"), NodeAddress.unresolved(9735, host = 35, 184, 216, 240), "BitMEX")
-  val lnMarkets: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03271338633d2d37b285dae4df40b413d8c6c791fbee7797bc5dc70812196d7d5c"), NodeAddress.unresolved(9735, host = 3, 95, 117, 200), "LNMarkets")
-  val bitstamp: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "02a04446caa81636d60d63b066f2814cbd3a6b5c258e3172cbdded7a16e2cfff4c"), NodeAddress.unresolved(9735, host = 3, 122, 40, 122), "Bitstamp")
-  val openNode: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03abf6f44c355dec0d5aa155bdbdd6e0c8fefe318eff402de65c6eb2e1be55dc3e"), NodeAddress.unresolved(9735, host = 18, 221, 23, 28), "OpenNode")
+  val blw: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03144fcc73cea41a002b2865f98190ab90e4ff58a2ce24d3870f5079081e42922d"), NodeAddress.unresolved(9735, host = 5, 9, 83, 143), "BLW")
+  val cheese: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0276e09a267592e7451a939c932cf685f0754de382a3ca85d2fb3a864d4c365ad5"), NodeAddress.unresolved(9735, host = 94, 177, 171, 73), "Cheese")
   val bitrefill: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0254ff808f53b2f8c45e74b70430f336c6c76ba2f4af289f48d6086ae6e60462d3"), NodeAddress.unresolved(9735, host = 52, 30, 63, 2), "Bitrefill")
-  val bitrefillTor: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "030c3f19d742ca294a55c00376b3b355c3c90d61c6b6b39554dbc7ac19b141c14f"), NodeAddress.unresolved(9735, host = 52, 50, 244, 44), "Tor")
-  val coinGate: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3"), NodeAddress.unresolved(9735, host = 3, 124, 63, 44), "CoinGate")
-  val liteGo: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "029aee02904d4e419770b93c1b07aae2814a79032e23cafb4024cbea6fb71be106"), NodeAddress.unresolved(9735, host = 195, 154, 169, 49), "LiteGo")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
-  val fold: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "02816caed43171d3c9854e3b0ab2cf0c42be086ff1bd4005acc2a5f7db70d83774"), NodeAddress.unresolved(9735, host = 35, 238, 153, 25), "Fold")
-  val syncNodeVec: NodeAnnouncements = List(zap, lnMarkets, bitstamp, openNode, bitrefill, bitrefillTor, coinGate, liteGo, acinq, fold, bitMex)
-  val minCapacity = MilliSatoshi(1000000000L) // We are not interested in channels with capacity less than this
+  val syncNodeVec: NodeAnnouncements = List(blw, cheese, bitrefill, acinq)
+  val minCapacity = MilliSatoshi(1000000000L)
 
   def isFresh(cu: ChannelUpdate, routerData: Data): Boolean = {
     val oldCopyOpt = routerData.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)

@@ -19,21 +19,19 @@ package fr.acinq.eclair.router
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph.graphEdgeToHop
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Graph.{RichWeight, WeightRatios}
+import fr.acinq.eclair.router.Graph.RichWeight
 import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire.ChannelUpdate
 import fr.acinq.eclair._
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
 
 object RouteCalculation {
   def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): RouteResponse =
     findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight) match {
-      case Some(path) => RouteFound(r.paymentHash, r.partId, Route(path.weight.costs, path.path.map(graphEdgeToHop)))
+      case Some(result) => RouteFound(r.paymentHash, r.partId, Route(result.weight, result.path))
       case _ => NoRouteAvailable(r.paymentHash, r.partId)
     }
 
@@ -51,7 +49,7 @@ object RouteCalculation {
     // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used
     // what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
     ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds, messageFlags = 1,
-      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0.msat, extraHop.feeBase, extraHop.feeProportionalMillionths, Some(htlcMaximum))
+      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0L.msat, extraHop.feeBase, extraHop.feeProportionalMillionths, Some(htlcMaximum))
   }
 
   private def toAssistedChannels(extraRoute: Seq[ExtraHop], targetNodeId: PublicKey): Map[ShortChannelId, AssistedChannel] = {
@@ -69,19 +67,6 @@ object RouteCalculation {
 
   /** Max allowed CLTV for a route (two weeks) */
   val DEFAULT_ROUTE_MAX_CLTV = CltvExpiryDelta(2016)
-
-  def getDefaultRouteParams(routerConf: RouterConf): RouteParams = RouteParams(
-    maxFeeBase = routerConf.searchMaxFeeBase,
-    maxFeePct = routerConf.searchMaxFeePct,
-    routeMaxLength = routerConf.firstPassMaxRouteLength,
-    routeMaxCltv = routerConf.firstPassMaxCltv,
-    ratios = WeightRatios(
-      cltvDeltaFactor = routerConf.searchRatioCltv,
-      ageFactor = routerConf.searchRatioChannelAge,
-      capacityFactor = routerConf.searchRatioChannelCapacity,
-      successScoreFactor = routerConf.searchRatioSuccessScore
-    )
-  )
 
   @tailrec
   private def findRouteInternal(g: DirectedGraph,
@@ -102,7 +87,7 @@ object RouteCalculation {
 
     val boundaries: RichWeight => Boolean = { weight => feeOk(weight.costs.head - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
 
-    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, routeParams.ratios, currentBlockHeight, boundaries)
+    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, currentBlockHeight, boundaries)
 
     if (res.isEmpty && routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
       // if route not found within the constraints we relax and repeat the search

@@ -20,9 +20,9 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Graph.WeightRatios
+import fr.acinq.eclair.router.Graph.{GraphStructure, RichWeight}
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.bitcoin.{ByteVector32, Satoshi}
+import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
 
 
@@ -32,12 +32,11 @@ object Router {
                         searchMaxFeePct: Double,
                         firstPassMaxRouteLength: Int,
                         firstPassMaxCltv: CltvExpiryDelta,
-                        searchRatioCltv: Double,
-                        searchRatioChannelAge: Double,
-                        searchRatioChannelCapacity: Double,
-                        searchRatioSuccessScore: Double,
                         mppMinPartAmount: MilliSatoshi,
-                        maxRoutesPerPart: Int)
+                        maxChannelFailures: Int,
+                        maxStrangeNodeFailures: Int,
+                        maxLocalAttempts: Int,
+                        maxRemoteAttempts: Int)
 
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)
@@ -50,51 +49,7 @@ object Router {
 
   case class AssistedChannel(extraHop: ExtraHop, nextNodeId: PublicKey, htlcMaximum: MilliSatoshi)
 
-  trait Hop {
-    /** @return the id of the start node. */
-    def nodeId: PublicKey
-
-    /** @return the id of the end node. */
-    def nextNodeId: PublicKey
-
-    /**
-      * @param amount amount to be forwarded.
-      * @return total fee required by the current hop.
-      */
-    def fee(amount: MilliSatoshi): MilliSatoshi
-
-    /** @return cltv delta required by the current hop. */
-    def cltvExpiryDelta: CltvExpiryDelta
-  }
-
-  /**
-    * A directed hop between two connected nodes using a specific channel.
-    *
-    * @param nodeId     id of the start node.
-    * @param nextNodeId id of the end node.
-    * @param lastUpdate last update of the channel used for the hop.
-    */
-  case class ChannelHop(nodeId: PublicKey, nextNodeId: PublicKey, lastUpdate: ChannelUpdate) extends Hop {
-    override lazy val cltvExpiryDelta: CltvExpiryDelta = lastUpdate.cltvExpiryDelta
-
-    override def fee(amount: MilliSatoshi): MilliSatoshi = nodeFee(lastUpdate.feeBaseMsat, lastUpdate.feeProportionalMillionths, amount)
-  }
-
-  /**
-    * A directed hop between two trampoline nodes.
-    * These nodes need not be connected and we don't need to know a route between them.
-    * The start node will compute the route to the end node itself when it receives our payment.
-    *
-    * @param nodeId          id of the start node.
-    * @param nextNodeId      id of the end node.
-    * @param cltvExpiryDelta cltv expiry delta.
-    * @param fee             total fee for that hop.
-    */
-  case class NodeHop(nodeId: PublicKey, nextNodeId: PublicKey, cltvExpiryDelta: CltvExpiryDelta, fee: MilliSatoshi) extends Hop {
-    override def fee(amount: MilliSatoshi): MilliSatoshi = fee
-  }
-
-  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta, ratios: WeightRatios) {
+  case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta) {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
       // The payment fee must satisfy either the flat fee or the percentage fee, not necessarily both.
       maxFeeBase.max(amount * maxFeePct)
@@ -108,17 +63,24 @@ object Router {
                           amount: MilliSatoshi,
                           maxFee: MilliSatoshi,
                           localEdge: GraphEdge,
-                          ignoreNodes: Set[PublicKey],
-                          ignoreChannels: Set[ChannelDesc],
-                          routeParams: RouteParams)
+                          routeParams: RouteParams,
+                          ignoreNodes: Set[PublicKey] = Set.empty,
+                          ignoreChannels: Set[ChannelDesc] = Set.empty) {
 
-  case class Route(amounts: Vector[MilliSatoshi], hops: Seq[ChannelHop]) {
+    // Used for "failed at amount" to avoid small delta retries (e.g. 1003 sat, 1002 sat, ...)
+    lazy val reserve: MilliSatoshi = amount / 10
+  }
+
+  case class Route(weight: RichWeight, hops: Seq[GraphEdge] = Nil) {
     require(hops.nonEmpty, "route cannot be empty")
 
-    def fee(amount: MilliSatoshi): MilliSatoshi = amounts.head - amount
+    lazy val fee: MilliSatoshi = weight.costs.head - weight.costs.last
 
-    /** This method retrieves the channel update that we used when we built the route. */
-    def getChannelUpdateForNode(nodeId: PublicKey): Option[ChannelUpdate] = hops.find(_.nodeId == nodeId).map(_.lastUpdate)
+    // We don't care bout first route and amount since they belong to local channels
+    lazy val amountPerDescAndCap: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = weight.costs.tail.zip(hops.tail.map(_.toDescAndCapacity))
+
+    /** This method retrieves the edge that we used when we built the route. */
+    def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId)
   }
 
   sealed trait RouteResponse { def paymentHash: ByteVector32 }

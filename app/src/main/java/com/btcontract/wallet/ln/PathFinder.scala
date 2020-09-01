@@ -16,6 +16,9 @@ object PathFinder {
   val WAITING = "state-waiting"
   val INIT_SYNC = "state-init-sync"
   val OPERATIONAL = "state-operational"
+
+  val NotifyRejected = "notify-rejected"
+  val NotifyOperational = "notify-operational"
   val CMDLoadGraph = "cmd-load-graph"
   val CMDResync = "cmd-resync"
 }
@@ -23,6 +26,7 @@ object PathFinder {
 abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
+  var listeners: Set[CanBeRepliedTo] = Set.empty
 
   // We don't load routing data on every startup but when user (or system) actually needs it
   become(freshData = Data(channels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.apply), WAITING)
@@ -34,9 +38,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
   def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
-    case (sender: CanBeRepliedTo, routeRequest: RouteRequest) \ OPERATIONAL =>
-      // Instruct graph to search through the single pre-selected local channel, prohibit finding routes through other local channels
-      sender process RouteCalculation.handleRouteRequest(data.graph addEdge routeRequest.localEdge, routerConf, getChainTip, routeRequest)
+    // In OPERATIONAL state we instruct graph to search through the single pre-selected local channel by inserting desc and making it a source, in ALL OTHER states we send a rejection back to sender
+    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL => sender process RouteCalculation.handleRouteRequest(data.graph addEdge request.localEdge, routerConf, getChainTip, request)
+    case (sender: CanBeRepliedTo, _: RouteRequest) \ _ => sender process NotifyRejected
 
     case CMDResync \ OPERATIONAL =>
       if (0L == getLastResyncStamp) become(data, INIT_SYNC)
@@ -61,8 +65,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     case (sync: SyncMasterGossipData, OPERATIONAL | INIT_SYNC) =>
       // On sync complete we may have shortIds which no peer is aware of currently
-      store.removeGhostChannels(loadGraphBecomeOperational diff sync.provenShortIds)
+      val ghostShortIds = loadGraphBecomeOperational.diff(sync.provenShortIds)
       updateLastResyncStamp(System.currentTimeMillis)
+      store.removeGhostChannels(ghostShortIds)
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled
@@ -82,12 +87,10 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       val data1 = resolveKnownDesc(chanDesc, cu, isPublic = false)
       become(data1, OPERATIONAL)
 
-    case (edge: GraphEdge, OPERATIONAL)
-      if !data.channels.contains(edge.desc.shortChannelId) =>
-      // We add assisted routes to graph as if they are normal channels
-      val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
-      val data1 = data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
-      become(data1, OPERATIONAL)
+    case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
+      // We add assisted routes to graph as if they are normal channels, also rememeber them to refill later if graph gets reloaded
+      val data1 = data.copy(extraEdges = data.extraEdges + (edge.update.shortChannelId -> edge), graph = data.graph addEdge edge)
+      become(data1, state)
 
     case _ =>
   }
@@ -128,8 +131,8 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
   def loadGraphBecomeOperational: ShortChanIdSet = {
     val channelMap \ localShortIds = store.getRoutingData
     val graph = DirectedGraph.makeGraph(channelMap).addEdges(data.extraEdges.values)
-    val data1 = Data(channels = channelMap, extraEdges = data.extraEdges, graph)
-    become(data1, OPERATIONAL)
+    become(Data(channelMap, data.extraEdges, graph), OPERATIONAL)
+    listeners.foreach(_ process NotifyOperational)
     localShortIds
   }
 }

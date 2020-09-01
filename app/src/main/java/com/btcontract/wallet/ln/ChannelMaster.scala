@@ -82,7 +82,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount =>
         // We have collected enough incoming HTLCs to cover our requested amount, fulfill them all at once
         val result = for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-        // Also clear payment memo to get rid of old copy (see next case)
+        // Also clear memos to get rid of old copies (see next case)
+        preliminaryResolveMemo.clear
         getPaymentInfoMemo.clear
         result
 
@@ -94,8 +95,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
     // Use `doProcess` to resolve all payments within this single call inside of channel executor
     // this whole method MUST itself be called within a channel executor to avoid concurrency issues
-    for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
-    for (cmd <- badRightAway) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
+    for (cmdResolution <- results.flatten) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
+    for (cmdResolution <- badRightAway) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
     for (chan <- all) chan doProcess CMD_PROCEED
   }
 
@@ -105,8 +106,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
     allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingAllShardsCleared) // No pending payments left
-    hc.localSpec.remoteMalformed.foreach(paymentMaster.process)
-    hc.localSpec.remoteFailed.foreach(paymentMaster.process)
     processIncoming
   }
 
@@ -135,38 +134,22 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
     }
 
-  def chansAndMaxReceivable: Option[CommitsAndMax] = {
-    val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.remoteBalance)
-    val canReceiveWithoutSmall = canReceive.dropWhile(_.commits.remoteBalance * canReceive.size < canReceive.last.commits.remoteBalance).takeRight(4) // To fit QR code
+  def maxReceivableInfo: Option[CommitsAndMax] = {
+    val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
     // Example: (5, 50, 60, 100) -> (50, 60, 100), receivalble = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
-    val candidates = for (cs <- canReceiveWithoutSmall.indices map canReceiveWithoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.remoteBalance * cs.size)
+    val withoutSmall = canReceive.dropWhile(_.commits.nextLocalSpec.toRemote * canReceive.size < canReceive.last.commits.nextLocalSpec.toRemote).takeRight(4)
+    val candidates = for (cs <- withoutSmall.indices map withoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.nextLocalSpec.toRemote * cs.size)
     maxByOption[CommitsAndMax, MilliSatoshi](candidates, _.maxReceivable)
   }
 
-  // Sending
-
-  def maxSendableFor(cnc: ChanAndCommits, numHtlcs: Int): MilliSatoshi = {
-    val withoutBaseFee = cnc.commits.localBalance - LNParams.routerConf.searchMaxFeeBase * numHtlcs
-    val withoutPercentAndBaseFee = withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
-    0.msat.max(withoutPercentAndBaseFee)
-  }
-
-  def maxSendable(cnc: ChanAndCommits): MilliSatoshi = {
-    // This estimates how large an amount a channel can handle if used to the max
-    maxSendableFor(cnc, cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs)
-  }
-
-  def estimateCanSendNow: MilliSatoshi = all.filter(isOperationalAndOpen).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
-  def estimateCanSendInPrinciple: MilliSatoshi = all.filter(isOperational).flatMap(_.chanAndCommitsOpt).map(maxSendable).sum
-  def canSendMoreOnceChanOpens: Boolean = estimateCanSendInPrinciple > estimateCanSendNow
-
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val inFlightNow = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
-    val gettingReadyForFlightNow = paymentMaster.data.payments.contains(paymentHash)
+    val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS
+    val inChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
+    val absentOrFinalized = paymentMaster.data.payments.get(paymentHash).forall(_.isFinalized)
 
-    if (estimateCanSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (inFlightNow.exists(_.paymentHash == paymentHash) || gettingReadyForFlightNow) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else if (payBag.getPaymentInfo(paymentHash).map(_.status) contains PaymentInfo.SUCCESS) PaymentInfo.NOT_SENDABLE_SUCCESS
+    if (paymentMaster.canSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    else if (inChannels || !absentOrFinalized) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
   }
 }

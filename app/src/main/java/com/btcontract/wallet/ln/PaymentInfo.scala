@@ -24,7 +24,7 @@ case class PaymentInfo(rawPr: String, paymentHash: ByteVector32, preimage: ByteV
                        status: Int, stamp: Long, description: String, rawAction: String, received: MilliSatoshi,
                        sent: MilliSatoshi, fee: MilliSatoshi, balanceSnapshot: MilliSatoshi, fiatRateSnapshot: String) {
 
-  lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0.msat)
+  lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0L.msat)
   lazy val pr: PaymentRequest = PaymentRequest.read(rawPr)
 }
 
