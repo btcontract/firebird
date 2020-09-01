@@ -421,7 +421,7 @@ class PaymentMaster(val cm: ChannelMaster) extends StateMachine[PaymentMasterDat
     data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amount }
     // Adding waiting amounts and then removing outgoing adds is necessary to always have an accurate view because access to channel data is concurrent
     shuffle(chans).flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
-    finals
+    finals filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
   }
 
   def feeFreeBalance(cnc: ChanAndCommits): MilliSatoshi = {
