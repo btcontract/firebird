@@ -84,9 +84,9 @@ object CommitmentSpec {
 sealed trait ChannelData { val announce: NodeAnnouncementExt }
 case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: HostedCommits) extends ChannelData
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
-case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState, futureUpdates: Vector[LNDirectionalMessage], localSpec: CommitmentSpec,
-                         updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error], remoteError: Option[Error],
-                         startedAt: Long = System.currentTimeMillis) extends ChannelData {
+case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState, futureUpdates: Vector[LNDirectionalMessage],
+                         localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error],
+                         remoteError: Option[Error], startedAt: Long = System.currentTimeMillis) extends ChannelData {
 
   lazy val Tuple4(nextLocalUpdates, nextRemoteUpdates, nextTotalLocal, nextTotalRemote) =
     (Tuple4(Vector.empty[LightningMessage], Vector.empty[LightningMessage], lastCrossSignedState.localUpdates, lastCrossSignedState.remoteUpdates) /: futureUpdates) {
