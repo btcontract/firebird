@@ -81,7 +81,7 @@ class GraphSpec {
 
     assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
 
-    assertTrue(route.amounts == Vector(100002.msat, 100000.msat))
+    assertTrue(route.weight.costs == Vector(100002.msat, 100000.msat))
 
     val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, routerConf, currentBlockHeight = 40000, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
 
