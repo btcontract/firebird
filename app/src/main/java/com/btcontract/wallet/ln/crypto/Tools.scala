@@ -2,19 +2,17 @@ package com.btcontract.wallet.ln.crypto
 
 import fr.acinq.bitcoin._
 import com.btcontract.wallet.ln.crypto.Tools._
-import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
-import java.nio.{ByteBuffer, ByteOrder}
 
 import scala.util.{Success, Try}
+import java.nio.{ByteBuffer, ByteOrder}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
-
+import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
+import com.btcontract.wallet.ln.crypto.Noise.KeyPair
+import com.btcontract.wallet.ln.LightningMessageExt
+import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import language.implicitConversions
 import java.security.SecureRandom
-
-import com.btcontract.wallet.ln.LightningMessageExt
-import com.btcontract.wallet.ln.crypto.Noise.KeyPair
-import fr.acinq.eclair.{Features, MilliSatoshi}
-import fr.acinq.eclair.channel.CMD_ADD_HTLC
+import fr.acinq.eclair.Features
 import scodec.bits.ByteVector
 
 

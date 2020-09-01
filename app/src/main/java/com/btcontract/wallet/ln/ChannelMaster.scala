@@ -20,22 +20,27 @@ import scodec.Attempt
 
 class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
   var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
-  val paymentMaster = new PaymentMaster(me)
-
-  var listeners = Set.empty[ChannelMasterListener]
-  val events: ChannelMasterListener = new ChannelMasterListener {
-    override def incomingAllShardsCleared(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.incomingAllShardsCleared(paymentHash)
-    override def outgoingSucceeded(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentHash)
-    override def outgoingFailed(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingFailed(paymentHash)
-  }
+  var listeners: Set[ChannelMasterListener] = Set.empty
 
   private val preliminaryResolveMemo = memoize(preliminaryResolve)
   private val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
+  val paymentMaster = new PaymentMaster(me)
+
+  val events: ChannelMasterListener = new ChannelMasterListener {
+    override def outgoingSucceeded(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentHash)
+    override def outgoingFailed(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingFailed(paymentHash)
+
+    override def incomingSucceeded(paymentHash: ByteVector32): Unit = {
+      // Clear for correct access to payments updated to PaymentInfo.SUCCESS
+      for (lst <- listeners) lst.incomingSucceeded(paymentHash)
+      preliminaryResolveMemo.clear
+      getPaymentInfoMemo.clear
+    }
+  }
 
   val incomingTimeoutWorker: ThrottledWork[ByteVector, Any] = new ThrottledWork[ByteVector, Any] {
-    // We always resolve incoming payments in same channel thread to avoid concurrent messaging issues
-    def process(paymenthash: ByteVector, res: Any): Unit = Future(processIncoming)(channelContext)
-    def work(paymenthash: ByteVector): Observable[Null] = RxUtils.ioQueue.delay(60.seconds)
+    def process(hash: ByteVector, res: Any): Unit = all.headOption.foreach(_ process CMD_INCOMING_TIMEOUT)
+    def work(hash: ByteVector): Observable[Null] = RxUtils.ioQueue.delay(60.seconds)
     def error(canNotHappen: Throwable): Unit = none
   }
 
@@ -67,73 +72,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(realConnectionListener), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
 
-  def processIncoming: Unit = {
-    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingIncoming).map(preliminaryResolveMemo)
-    val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
-    val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
-
-    // Grouping by payment hash assumes we never ask for two different payments with the same hash!
-    val results = maybeGood.groupBy(_.add.paymentHash).map(_.swap).mapValues(getPaymentInfoMemo) map {
-      case payments \ None => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      case payments \ _ if payments.map(_.payload.totalAmount).toSet.size > 1 => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      case payments \ Some(info) if payments.exists(_.payload.totalAmount < info.amountOrZero) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      case payments \ Some(info) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-
-      case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount =>
-        // We have collected enough incoming HTLCs to cover our requested amount, fulfill them all at once
-        val result = for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-        // Also clear memos to get rid of old copies (see next case)
-        preliminaryResolveMemo.clear
-        getPaymentInfoMemo.clear
-        result
-
-      // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN, silently fullfil these
-      case payments \ Some(info) if info.isIncoming && info.status == PaymentInfo.SUCCESS => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-      case payments \ _ if incomingTimeoutWorker.hasFinishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
-      case _ => Vector.empty
-    }
-
-    // Use `doProcess` to resolve all payments within this single call inside of channel executor
-    // this whole method MUST itself be called within a channel executor to avoid concurrency issues
-    for (cmdResolution <- results.flatten) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
-    for (cmdResolution <- badRightAway) findById(all, cmdResolution.add.channelId).foreach(_ doProcess cmdResolution)
-    for (chan <- all) chan doProcess CMD_PROCEED
-  }
-
-  // Executed in channelContext
-  override def stateUpdated(hc: HostedCommits): Unit = {
-    val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
-    val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
-    val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
-    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingAllShardsCleared) // No pending payments left
-    processIncoming
-  }
-
-  override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
-    // An incoming payment arrives so we prolong time-outed waiting for the rest of shards
-    case (_, _, add: UpdateAddHtlc) => incomingTimeoutWorker replaceWork add.paymentHash
-  }
-
-  override def onBecome: PartialFunction[Transition, Unit] = {
-    // Offline channel does not react to our commands so we resend them on reconnect
-    case (_, _, WAIT_FOR_ACCEPT | SLEEPING, OPEN | SUSPENDED) => processIncoming
-  }
-
-  private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
-    PaymentPacket.peel(LNParams.keys.makeFakeKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
-      case Right(packet) if packet.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(packet.payload.bits) match {
-        case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(packet, InvalidOnionPayload(error.tag, offset = 0), add)
-        case _: Attempt.Failure => failHtlc(packet, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
-
-        case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(packet, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
-        case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(packet, incorrectDetails(add), add)
-        case Attempt.Successful(payload) => FinalPayloadSpec(packet, payload.value, add)
-      }
-
-      case Right(packet) => failHtlc(packet, incorrectDetails(add), add)
-      case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
-    }
-
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
     // Example: (5, 50, 60, 100) -> (50, 60, 100), receivalble = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
@@ -152,10 +90,69 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
   }
+
+  private def processIncoming: Unit = {
+    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingIncoming).map(preliminaryResolveMemo)
+    val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
+    val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
+
+    // Grouping by payment hash assumes we never ask for two different payments with the same hash!
+    val results = maybeGood.groupBy(_.add.paymentHash).map(_.swap).mapValues(getPaymentInfoMemo) map {
+      case payments \ None => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      case payments \ _ if payments.map(_.payload.totalAmount).toSet.size > 1 => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      case payments \ Some(info) if payments.exists(_.payload.totalAmount < info.amountOrZero) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      case payments \ Some(info) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (payToFulfill <- payments) yield CMD_FULFILL_HTLC(info.preimage, payToFulfill.add)
+      // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN or post-restart incoming leftovers, silently fullfil these
+      case payments \ Some(info) if info.isIncoming && info.status == PaymentInfo.SUCCESS => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+      case payments \ _ if incomingTimeoutWorker.hasFinishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
+      case _ => Vector.empty
+    }
+
+    // This method should always be executed in channel context
+    // Using doProcess makes sure no external message gets intertwined in resolution
+    for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
+    for (cmd <- badRightAway) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
+    for (chan <- all) chan doProcess CMD_PROCEED
+  }
+
+  private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
+    PaymentPacket.peel(LNParams.keys.makeFakeKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
+      case Right(packet) if packet.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(packet.payload.bits) match {
+        case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(packet, InvalidOnionPayload(error.tag, offset = 0), add)
+        case _: Attempt.Failure => failHtlc(packet, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
+
+        case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(packet, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
+        case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(packet, incorrectDetails(add), add)
+        case Attempt.Successful(payload) => FinalPayloadSpec(packet, payload.value, add)
+      }
+
+      case Right(packet) => failHtlc(packet, incorrectDetails(add), add)
+      case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
+    }
+
+  override def stateUpdated(hc: HostedCommits): Unit = {
+    val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
+    val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
+    val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
+    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingSucceeded) // Notify about those where no pending payments left
+    processIncoming
+  }
+
+  override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
+    // An incoming payment arrives so we prolong waiting for the rest of shards
+    case (_, _, add: UpdateAddHtlc) => incomingTimeoutWorker replaceWork add.paymentHash
+    case (_, _, CMD_INCOMING_TIMEOUT) => processIncoming
+  }
+
+  override def onBecome: PartialFunction[Transition, Unit] = {
+    // Offline channel does not react to our commands so we resend them on reconnect
+    case (_, _, WAIT_FOR_ACCEPT | SLEEPING, OPEN | SUSPENDED) => processIncoming
+  }
 }
 
 trait ChannelMasterListener {
-  def incomingAllShardsCleared(paymentHash: ByteVector32): Unit = none
+  def incomingSucceeded(paymentHash: ByteVector32): Unit = none
   def outgoingSucceeded(paymentHash: ByteVector32): Unit = none
   def outgoingFailed(paymentHash: ByteVector32): Unit = none
 }

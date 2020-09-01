@@ -19,6 +19,8 @@ case class CMD_FULFILL_HTLC(preimage: ByteVector32, add: UpdateAddHtlc) extends 
 
 case class CMD_ADD_HTLC(internalId: ByteVector, firstAmount: MilliSatoshi, paymentHash: ByteVector32, cltvExpiry: CltvExpiry, payload: FinalPayload, packetAndSecrets: PacketAndSecrets) extends Command
 case class CMD_HOSTED_STATE_OVERRIDE(so: StateOverride) extends Command
+
+case object CMD_INCOMING_TIMEOUT extends Command
 case object CMD_CHAIN_TIP_KNOWN extends Command
 case object CMD_SOCKET_OFFLINE extends Command
 case object CMD_SOCKET_ONLINE extends Command

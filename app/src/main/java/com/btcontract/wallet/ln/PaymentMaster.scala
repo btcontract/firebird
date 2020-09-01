@@ -5,6 +5,7 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
 import fr.acinq.eclair.{CltvExpiry, MilliSatoshi}
+import fr.acinq.eclair.channel.{CMD_ADD_HTLC, CMD_PROCEED}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED}
@@ -16,7 +17,6 @@ import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, Rout
 import fr.acinq.eclair.router.Graph.RichWeight
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
-import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import fr.acinq.bitcoin.Crypto.PublicKey
 import java.util.concurrent.Executors
 import fr.acinq.eclair.crypto.Sphinx
@@ -146,7 +146,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
         val finalPayload = Onion.createMultiPartPayload(wait.amount, data.cmd.totalAmount, data.cmd.targetExpiry, data.cmd.paymentSecret)
         val inFlightInfo = InFlightInfo(OutgoingPacket.buildCommand(wait.partId, data.cmd.paymentHash, found.route.hops, finalPayload), found.route)
         become(data.copy(parts = data.parts + wait.copy(flight = inFlightInfo.toSome).tuple), PENDING)
-        wait.chan process inFlightInfo.cmd
+        wait.chan.process(inFlightInfo.cmd, CMD_PROCEED)
       }
 
     case (err: CMDAddImpossible, PENDING) =>
@@ -239,11 +239,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
 
   def isFinalized: Boolean = ABORTED == state || SUCCEEDED == state
   def randomId: ByteVector = ByteVector.view(Tools.random getBytes 8)
-
-  def canBeSplit(totalAmount: MilliSatoshi): Boolean = {
-    totalAmount / 2 > master.cm.pf.routerConf.mppMinPartAmount
-  }
-
+  def canBeSplit(totalAmount: MilliSatoshi): Boolean = totalAmount / 2 > master.cm.pf.routerConf.mppMinPartAmount
   private def assignToChans(sendable: mutable.Map[ChanAndCommits, MilliSatoshi], data1: PaymentSenderData, amt: MilliSatoshi): Unit = {
     // This is a terminal method in a sense that it either successfully assigns an amount to channels or turns a payment info failed state
     // this method always sets a new partId to assigned parts so old payment statuses in data must be cleared before calling it
