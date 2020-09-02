@@ -2,6 +2,7 @@ package com.btcontract.wallet;
 
 import static org.junit.Assert.*;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+
 import com.blockstream.libwally.Wally;
 import org.bitcoin.Secp256k1Context;
 import org.junit.runner.RunWith;
@@ -25,7 +26,7 @@ public class NativeLibsSpec {
         assertTrue(Wally.isEnabled());
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 50000)
     public void scryptWorksFast() {
         WalletApp.scryptDerive("hello@email.com", "password123");
     }
