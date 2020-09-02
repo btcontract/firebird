@@ -1,4 +1,0 @@
-[submodule "app/src/main/cpp/libwally-core"]
-	path = app/src/main/cpp/libwally-core
-	url = https://github.com/engenegr/libwally-core
-	branch = firebird
