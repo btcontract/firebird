@@ -1,11 +1,15 @@
 package com.btcontract.wallet
 
+import java.math.BigInteger
+
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.blockstream.libwally.Wally
 import fr.acinq.bitcoin.Base58.Prefix
-import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
-import fr.acinq.bitcoin.{Base58, Base58Check, Crypto}
+import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey, curve, one}
+import fr.acinq.bitcoin.{Base58, Base58Check, ByteVector64, Crypto}
 import org.bitcoin.Secp256k1Context
+import org.bouncycastle.crypto.params.ECPublicKeyParameters
+import org.bouncycastle.crypto.signers.ECDSASigner
 import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -13,13 +17,59 @@ import scodec.bits.ByteVector
 
 @RunWith(classOf[AndroidJUnit4])
 class NativeSpec {
+  def decodeSignatureCompact(signature: ByteVector64): (BigInteger, BigInteger) = {
+    val r = new BigInteger(1, signature.take(32).toArray)
+    val s = new BigInteger(1, signature.takeRight(32).toArray)
+    (r, s)
+  }
+
+  def verifySignatureFallback(data: ByteVector, signature: ByteVector64, publicKey: PublicKey): Boolean = {
+    val (r, s) = decodeSignatureCompact(signature)
+    require(r.compareTo(one) >= 0, "r must be >= 1")
+    require(r.compareTo(curve.getN) < 0, "r must be < N")
+    require(s.compareTo(one) >= 0, "s must be >= 1")
+    require(s.compareTo(curve.getN) < 0, "s must be < N")
+
+    val signer = new ECDSASigner
+    val params = new ECPublicKeyParameters(publicKey.ecpoint, curve)
+    signer.init(false, params)
+    signer.verifySignature(data.toArray, r, s)
+  }
+
   @Test
   def useAppContext(): Unit = {
     assertTrue(Secp256k1Context.isEnabled)
     assertTrue(Wally.isEnabled)
   }
 
-  @Test(timeout = 5000)
+  @Test
+  def nativeSecpIsFast(): Unit = {
+    val privateKey = PrivateKey.fromBase58("cRp4uUnreGMZN8vB7nQFX6XWMHU5Lc73HMAhmcDEwHfbgRS66Cqp", Base58.Prefix.SecretKeyTestnet)._1
+    val publicKey = privateKey.publicKey
+    val data = Crypto.sha256(ByteVector("this is a test".getBytes("UTF-8")))
+
+    val native = {
+      val sig = Crypto.sign(data, privateKey)
+      val a = System.currentTimeMillis()
+      for (_ <- 0 to 20) {
+        Crypto.verifySignature(data, sig, publicKey)
+      }
+      System.currentTimeMillis() - a
+    }
+
+    val fallback = {
+      val sig = Crypto.sign(data, privateKey)
+      val a = System.currentTimeMillis()
+      for (_ <- 0 to 20) {
+        verifySignatureFallback(data, sig, publicKey)
+      }
+      System.currentTimeMillis() - a
+    }
+
+    assertTrue(fallback / 100 > native)
+  }
+
+  @Test(timeout = 150000)
   def scryptWorksFast(): Unit = {
     WalletApp.scryptDerive("hello@email.com", "password123")
   }
