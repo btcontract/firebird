@@ -53,12 +53,6 @@ public class Wally {
   public final static native String bip32_key_to_address(Object jarg1, long jarg2, long jarg3);
   public final static native String bip32_key_to_addr_segwit(Object jarg1, String jarg2, long jarg3);
   public final static native String wif_to_address(String jarg1, long jarg2, long jarg3);
-  public final static native String confidential_addr_to_addr(String jarg1, long jarg2);
-  public final static native byte[] confidential_addr_to_ec_public_key(String jarg1, long jarg2, byte[] jarg3);
-  public final static native String confidential_addr_from_addr(String jarg1, long jarg2, byte[] jarg3);
-  public final static native String confidential_addr_to_addr_segwit(String jarg1, String jarg2, String jarg3);
-  public final static native byte[] confidential_addr_segwit_to_ec_public_key(String jarg1, String jarg2, byte[] jarg3);
-  public final static native String confidential_addr_from_addr_segwit(String jarg1, String jarg2, String jarg3, byte[] jarg4);
   public final static native void bip32_key_free(Object jarg1);
   public final static native Object bip32_key_init(long jarg1, long jarg2, long jarg3, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12);
   public final static native Object bip32_key_from_seed(byte[] jarg1, long jarg3, long jarg4);
@@ -66,7 +60,6 @@ public class Wally {
   public final static native Object bip32_key_unserialize(byte[] jarg1);
   public final static native Object bip32_key_from_parent(Object jarg1, long jarg2, long jarg3);
   public final static native Object bip32_key_from_parent_path(Object jarg1, int[] jarg2, long jarg4);
-  public final static native Object bip32_key_with_tweak_from_parent_path(Object jarg1, int[] jarg2, long jarg4);
   public final static native String bip32_key_to_base58(Object jarg1, long jarg2);
   public final static native Object bip32_key_from_base58(String jarg1);
   public final static native int bip32_key_strip_private_key(Object jarg1);
@@ -76,7 +69,6 @@ public class Wally {
   public final static native byte[] bip32_key_get_priv_key(Object jarg1, byte[] jarg2);
   public final static native byte[] bip32_key_get_hash160(Object jarg1, byte[] jarg2);
   public final static native byte[] bip32_key_get_pub_key(Object jarg1, byte[] jarg2);
-  public final static native byte[] bip32_key_get_pub_key_tweak_sum(Object jarg1, byte[] jarg2);
   public final static native int bip32_key_get_depth(Object jarg1);
   public final static native int bip32_key_get_child_num(Object jarg1);
   public final static native int bip32_key_get_version(Object jarg1);
@@ -133,9 +125,6 @@ public class Wally {
   public final static native int scriptpubkey_csv_2of3_then_2_from_bytes(byte[] jarg1, long jarg3, long jarg4, byte[] jarg5);
   public final static native int script_push_from_bytes(byte[] jarg1, long jarg3, byte[] jarg4);
   public final static native int witness_program_from_bytes(byte[] jarg1, long jarg3, byte[] jarg4);
-  public final static native int elements_pegout_script_size(long jarg1, long jarg2, long jarg3, long jarg4);
-  public final static native int elements_pegout_script_from_bytes(byte[] jarg1, byte[] jarg3, byte[] jarg5, byte[] jarg7, long jarg9, byte[] jarg10);
-  public final static native int elements_pegin_contract_script_from_bytes(byte[] jarg1, byte[] jarg3, long jarg5, byte[] jarg6);
   public final static native byte[] symmetric_key_from_seed(byte[] jarg1, byte[] jarg3);
   public final static native byte[] symmetric_key_from_parent(byte[] jarg1, short jarg3, byte[] jarg4, byte[] jarg6);
   public final static native Object tx_witness_stack_init(long jarg1);
@@ -171,22 +160,6 @@ public class Wally {
   public final static native byte[] tx_get_btc_signature_hash(Object jarg1, long jarg2, byte[] jarg3, long jarg5, long jarg6, long jarg7, byte[] jarg8);
   public final static native byte[] tx_get_signature_hash(Object jarg1, long jarg2, byte[] jarg3, byte[] jarg5, long jarg7, long jarg8, long jarg9, long jarg10, long jarg11, byte[] jarg12);
   public final static native int _tx_is_coinbase(Object jarg1);
-  public final static native void tx_elements_input_issuance_set(Object jarg1, byte[] jarg2, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12);
-  public final static native void tx_elements_input_issuance_free(Object jarg1);
-  public final static native Object tx_elements_input_init(byte[] jarg1, long jarg3, long jarg4, byte[] jarg5, Object jarg7, byte[] jarg8, byte[] jarg10, byte[] jarg12, byte[] jarg14, byte[] jarg16, byte[] jarg18, Object jarg20);
-  public final static native int _tx_elements_input_is_pegin(Object jarg1);
-  public final static native void tx_elements_output_commitment_set(Object jarg1, byte[] jarg2, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10);
-  public final static native void tx_elements_output_commitment_free(Object jarg1);
-  public final static native Object tx_elements_output_init(byte[] jarg1, byte[] jarg3, byte[] jarg5, byte[] jarg7, byte[] jarg9, byte[] jarg11);
-  public final static native void tx_add_elements_raw_input(Object jarg1, byte[] jarg2, long jarg4, long jarg5, byte[] jarg6, Object jarg8, byte[] jarg9, byte[] jarg11, byte[] jarg13, byte[] jarg15, byte[] jarg17, byte[] jarg19, Object jarg21, long jarg22);
-  public final static native void tx_add_elements_raw_output(Object jarg1, byte[] jarg2, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12, long jarg14);
-  public final static native int _tx_is_elements(Object jarg1);
-  public final static native byte[] tx_confidential_value_from_satoshi(long jarg1, byte[] jarg2);
-  public final static native long tx_confidential_value_to_satoshi(byte[] jarg1);
-  public final static native byte[] tx_get_elements_signature_hash(Object jarg1, long jarg2, byte[] jarg3, byte[] jarg5, long jarg7, long jarg8, byte[] jarg9);
-  public final static native byte[] tx_elements_issuance_generate_entropy(byte[] jarg1, long jarg3, byte[] jarg4, byte[] jarg6);
-  public final static native byte[] tx_elements_issuance_calculate_asset(byte[] jarg1, byte[] jarg3);
-  public final static native byte[] tx_elements_issuance_calculate_reissuance_token(byte[] jarg1, long jarg3, byte[] jarg4);
   public final static native byte[] tx_input_get_txhash(Object jarg1, byte[] jarg2);
   public final static native int _tx_input_get_script(Object jarg1, byte[] jarg2);
   public final static native int tx_input_get_script_len(Object jarg1);
@@ -199,42 +172,11 @@ public class Wally {
   public final static native void tx_input_set_witness(Object jarg1, Object jarg2);
   public final static native void tx_input_set_index(Object jarg1, long jarg2);
   public final static native void tx_input_set_sequence(Object jarg1, long jarg2);
-  public final static native byte[] tx_input_get_blinding_nonce(Object jarg1, byte[] jarg2);
-  public final static native byte[] tx_input_get_entropy(Object jarg1, byte[] jarg2);
-  public final static native int _tx_input_get_issuance_amount(Object jarg1, byte[] jarg2);
-  public final static native int tx_input_get_issuance_amount_len(Object jarg1);
-  public final static native int _tx_input_get_inflation_keys(Object jarg1, byte[] jarg2);
-  public final static native int tx_input_get_inflation_keys_len(Object jarg1);
-  public final static native int _tx_input_get_issuance_amount_rangeproof(Object jarg1, byte[] jarg2);
-  public final static native int tx_input_get_issuance_amount_rangeproof_len(Object jarg1);
-  public final static native int _tx_input_get_inflation_keys_rangeproof(Object jarg1, byte[] jarg2);
-  public final static native int tx_input_get_inflation_keys_rangeproof_len(Object jarg1);
-  public final static native void tx_input_set_blinding_nonce(Object jarg1, long jarg2, long jarg3);
-  public final static native void tx_input_set_entropy(Object jarg1, byte[] jarg2);
-  public final static native void tx_input_set_inflation_keys(Object jarg1, byte[] jarg2);
-  public final static native void tx_input_set_inflation_keys_rangeproof(Object jarg1, byte[] jarg2);
-  public final static native void tx_input_set_issuance_amount(Object jarg1, byte[] jarg2);
-  public final static native void tx_input_set_issuance_amount_rangeproof(Object jarg1, byte[] jarg2);
   public final static native int _tx_output_get_script(Object jarg1, byte[] jarg2);
   public final static native int tx_output_get_script_len(Object jarg1);
   public final static native long tx_output_get_satoshi(Object jarg1);
   public final static native void tx_output_set_script(Object jarg1, byte[] jarg2);
   public final static native void tx_output_set_satoshi(Object jarg1, long jarg2);
-  public final static native int _tx_output_get_asset(Object jarg1, byte[] jarg2);
-  public final static native int tx_output_get_asset_len(Object jarg1);
-  public final static native int _tx_output_get_value(Object jarg1, byte[] jarg2);
-  public final static native int tx_output_get_value_len(Object jarg1);
-  public final static native int _tx_output_get_nonce(Object jarg1, byte[] jarg2);
-  public final static native int tx_output_get_nonce_len(Object jarg1);
-  public final static native int _tx_output_get_surjectionproof(Object jarg1, byte[] jarg2);
-  public final static native int tx_output_get_surjectionproof_len(Object jarg1);
-  public final static native int _tx_output_get_rangeproof(Object jarg1, byte[] jarg2);
-  public final static native int tx_output_get_rangeproof_len(Object jarg1);
-  public final static native void tx_output_set_asset(Object jarg1, byte[] jarg2);
-  public final static native void tx_output_set_value(Object jarg1, byte[] jarg2);
-  public final static native void tx_output_set_nonce(Object jarg1, byte[] jarg2);
-  public final static native void tx_output_set_surjectionproof(Object jarg1, byte[] jarg2);
-  public final static native void tx_output_set_rangeproof(Object jarg1, byte[] jarg2);
   public final static native int tx_get_version(Object jarg1);
   public final static native int tx_get_locktime(Object jarg1);
   public final static native int tx_get_num_inputs(Object jarg1);
@@ -249,53 +191,11 @@ public class Wally {
   public final static native void tx_set_input_index(Object jarg1, long jarg2, long jarg3);
   public final static native void tx_set_input_sequence(Object jarg1, long jarg2, long jarg3);
   public final static native void tx_set_input_txhash(Object jarg1, long jarg2, long jarg3, long jarg4);
-  public final static native byte[] tx_get_input_blinding_nonce(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native byte[] tx_get_input_entropy(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int _tx_get_input_issuance_amount(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_input_issuance_amount_len(Object jarg1, long jarg2);
-  public final static native int _tx_get_input_inflation_keys(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_input_inflation_keys_len(Object jarg1, long jarg2);
-  public final static native int _tx_get_input_issuance_amount_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_input_issuance_amount_rangeproof_len(Object jarg1, long jarg2);
-  public final static native int _tx_get_input_inflation_keys_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_input_inflation_keys_rangeproof_len(Object jarg1, long jarg2);
-  public final static native void tx_set_input_blinding_nonce(Object jarg1, long jarg2, long jarg3, long jarg4);
-  public final static native void tx_set_input_entropy(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_input_inflation_keys(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_input_inflation_keys_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_input_issuance_amount(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_input_issuance_amount_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
   public final static native int _tx_get_output_script(Object jarg1, long jarg2, byte[] jarg3);
   public final static native int tx_get_output_script_len(Object jarg1, long jarg2);
   public final static native long tx_get_output_satoshi(Object jarg1, long jarg2);
   public final static native void tx_set_output_script(Object jarg1, long jarg2, byte[] jarg3);
   public final static native void tx_set_output_satoshi(Object jarg1, long jarg2, long jarg3);
-  public final static native byte[] tx_get_output_asset(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int _tx_get_output_value(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_output_value_len(Object jarg1, long jarg2);
-  public final static native byte[] tx_get_output_nonce(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int _tx_get_output_surjectionproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_output_surjectionproof_len(Object jarg1, long jarg2);
-  public final static native int _tx_get_output_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native int tx_get_output_rangeproof_len(Object jarg1, long jarg2);
-  public final static native void tx_set_output_asset(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_output_value(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_output_nonce(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_output_surjectionproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native void tx_set_output_rangeproof(Object jarg1, long jarg2, byte[] jarg3);
-  public final static native byte[] asset_generator_from_bytes(byte[] jarg1, byte[] jarg3, byte[] jarg5);
-  public final static native byte[] asset_final_vbf(long[] jarg1, long jarg3, byte[] jarg4, byte[] jarg6, byte[] jarg8);
-  public final static native byte[] asset_value_commitment(long jarg1, byte[] jarg2, byte[] jarg4, byte[] jarg6);
-  public final static native int asset_rangeproof_with_nonce(long jarg1, long jarg2, long jarg3, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12, byte[] jarg14, long jarg16, int jarg17, int jarg18, byte[] jarg19);
-  public final static native int asset_rangeproof(long jarg1, byte[] jarg2, byte[] jarg4, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12, byte[] jarg14, byte[] jarg16, long jarg18, int jarg19, int jarg20, byte[] jarg21);
-  public final static native int asset_surjectionproof_size(long jarg1);
-  public final static native int asset_surjectionproof(byte[] jarg1, byte[] jarg3, byte[] jarg5, byte[] jarg7, byte[] jarg9, byte[] jarg11, byte[] jarg13, byte[] jarg15);
-  public final static native long asset_unblind_with_nonce(long jarg1, long jarg2, byte[] jarg3, byte[] jarg5, byte[] jarg7, byte[] jarg9, byte[] jarg11, byte[] jarg13, byte[] jarg15);
-  public final static native long asset_unblind(byte[] jarg1, byte[] jarg3, byte[] jarg5, byte[] jarg7, byte[] jarg9, byte[] jarg11, byte[] jarg13, byte[] jarg15, byte[] jarg17);
-  public final static native byte[] asset_blinding_key_from_seed(byte[] jarg1, byte[] jarg3);
-  public final static native byte[] asset_blinding_key_to_ec_private_key(byte[] jarg1, byte[] jarg3, byte[] jarg5);
-  public final static native int asset_pak_whitelistproof_size(long jarg1);
-  public final static native int asset_pak_whitelistproof(byte[] jarg1, byte[] jarg3, long jarg5, byte[] jarg6, byte[] jarg8, byte[] jarg10, byte[] jarg12);
   public final static int WALLY_OK = 0;
   public final static int WALLY_ERROR = -1;
   public final static int WALLY_EINVAL = -2;
@@ -839,213 +739,5 @@ public class Wally {
 
   public final static void cleanup() {
       _cleanup(0);
-  }
-
-  // Support methods for the JNI class (Elements functionality)
-
-  public final static byte[] asset_generator_from_bytes(byte[] jarg1, byte[] jarg2) {
-      return asset_generator_from_bytes(jarg1, jarg2, null);
-  }
-
-  public final static byte[] asset_final_vbf(long[] jarg1, long jarg2, byte[] jarg3, byte[] jarg4) {
-      return asset_final_vbf(jarg1, jarg2, jarg3, jarg4, null);
-  }
-
-  public final static byte[] asset_value_commitment(long jarg1, byte[] jarg2, byte[] jarg3) {
-      return asset_value_commitment(jarg1, jarg2, jarg3, null);
-  }
-
-  public final static byte[] asset_rangeproof(long jarg1, byte[] jarg2, byte[] jarg3, byte[] jarg4,
-                                              byte[] jarg5, byte[] jarg6, byte[] jarg7, byte[] jarg8,
-                                              byte[] jarg9, int jarg10, int jarg11, int jarg12) {
-      final byte[] buf = new byte[ASSET_RANGEPROOF_MAX_LEN];
-      final int len = asset_rangeproof(jarg1, jarg2, jarg3, jarg4, jarg5, jarg6, jarg7, jarg8,
-                                       jarg9, jarg10, jarg11, jarg12, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] asset_surjectionproof(byte[] jarg1, byte[] jarg2, byte[] jarg3,
-                                                   byte[] jarg4, byte[] jarg5, byte[] jarg6, byte[] jarg7) {
-      final byte[] buf = new byte[asset_surjectionproof_size(jarg5.length / ASSET_TAG_LEN)];
-      final int len = asset_surjectionproof(jarg1, jarg2, jarg3, jarg4, jarg5, jarg6, jarg7, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] asset_blinding_key_from_seed(byte[] seed) {
-      return asset_blinding_key_from_seed(seed, null);
-  }
-
-  public final static byte[] asset_blinding_key_to_ec_private_key(byte[] asset_blinding_key,
-                                                                  byte[] script_pub_key) {
-      return asset_blinding_key_to_ec_private_key(asset_blinding_key, script_pub_key, null);
-  }
-
-  public final static long asset_unblind(byte[] pub_key, byte[] priv_key, byte[] proof,
-                                         byte[] commitment, byte[] extra_in,
-                                         byte[] generator,
-                                         final java.util.List<byte[]> outputs) {
-      // We return asset_out, abf_out, vbf_out in the passed list
-      for (int i = 0; i < 3; i++) // asset_out, abf_out, vbf_out
-          outputs.add(new byte[ASSET_TAG_LEN]);
-      return asset_unblind(pub_key, priv_key, proof, commitment, extra_in, generator,
-                           outputs.get(0), outputs.get(1), outputs.get(2));
-  }
-
-  public final static byte[] confidential_addr_to_ec_public_key(String addr, int prefix) {
-      final byte[] buf = new byte[EC_PUBLIC_KEY_LEN];
-      confidential_addr_to_ec_public_key(addr, prefix, buf);
-      return buf;
-  }
-
-  public final static byte[] tx_confidential_value_from_satoshi(long satoshi) {
-      return tx_confidential_value_from_satoshi(satoshi, null);
-  }
-
-  public final static Object tx_elements_input_init(byte[] jarg1, long jarg2, long jarg3, byte[] jarg4) {
-      return tx_elements_input_init(jarg1, jarg2, jarg3, jarg4, null, null, null, null, null, null, null, null);
-  }
-
-  public final static boolean tx_elements_input_is_pegin(final Object tx_input) {
-      return _tx_elements_input_is_pegin(tx_input) != 0;
-  }
-
-  public final static byte[] tx_input_get_blinding_nonce(Object tx_input) {
-      return tx_input_get_blinding_nonce(tx_input, null);
-  }
-
-  public final static byte[] tx_input_get_entropy(Object tx_input) {
-      return tx_input_get_entropy(tx_input, null);
-  }
-
-  public final static byte[] tx_input_get_issuance_amount(Object tx_input) {
-      final byte[] buf = new byte[tx_input_get_issuance_amount_len(tx_input)];
-      final int len = _tx_input_get_issuance_amount(tx_input, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_input_get_inflation_keys(Object tx_input) {
-      final byte[] buf = new byte[tx_input_get_inflation_keys_len(tx_input)];
-      final int len = _tx_input_get_inflation_keys(tx_input, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_input_get_issuance_amount_rangeproof(Object tx_input) {
-      final byte[] buf = new byte[tx_input_get_issuance_amount_rangeproof_len(tx_input)];
-      final int len = _tx_input_get_issuance_amount_rangeproof(tx_input, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_input_get_inflation_keys_rangeproof(Object tx_input) {
-      final byte[] buf = new byte[tx_input_get_inflation_keys_rangeproof_len(tx_input)];
-      final int len = _tx_input_get_inflation_keys_rangeproof(tx_input, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_output_get_value(Object tx_out) {
-      final byte[] buf = new byte[tx_output_get_value_len(tx_out)];
-      final int len = _tx_output_get_value(tx_out, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] tx_output_get_surjectionproof(Object tx_out) {
-      final byte[] buf = new byte[tx_output_get_surjectionproof_len(tx_out)];
-      final int len = _tx_output_get_surjectionproof(tx_out, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] tx_output_get_rangeproof(Object tx_out) {
-      final byte[] buf = new byte[tx_output_get_rangeproof_len(tx_out)];
-      final int len = _tx_output_get_rangeproof(tx_out, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static boolean tx_is_elements(final Object tx) {
-      return _tx_is_elements(tx) != 0;
-  }
-
-  public final static byte[] tx_get_elements_signature_hash(Object tx, long index, byte[] script, byte[] value, long sighash, long flags) {
-      return tx_get_elements_signature_hash(tx, index, script, value, sighash, flags, null);
-  }
-
-  public final static byte[] asset_pak_whitelistproof(byte[] on_keys, byte[] off_keys, long idx, byte[] sub_pubkey, byte[] priv_key, byte[] summed_key) {
-      final int required_len = asset_pak_whitelistproof_size(off_keys.length / Wally.EC_PUBLIC_KEY_LEN);
-      final byte[] buf = new byte[required_len];
-      asset_pak_whitelistproof(on_keys, off_keys, idx, sub_pubkey, priv_key, summed_key, buf);
-      return buf;
-  }
-
-  public final static byte[] elements_pegout_script_from_bytes(byte[] bh, byte[] mcs, byte[] pk, byte[] whl, long flags) {
-      final int required_len = elements_pegout_script_size(bh.length, mcs.length, pk.length, whl.length);
-      final byte[] buf = new byte[required_len];
-      final int len = elements_pegout_script_from_bytes(bh, mcs, pk, whl, flags, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] elements_pegin_contract_script_from_bytes(byte[] rs, byte[] cs, long flags) {
-      final byte[] buf = new byte[rs.length];
-      final int len = elements_pegin_contract_script_from_bytes(rs, cs, flags, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_input_blinding_nonce(Object tx, final int index) {
-      return tx_get_input_blinding_nonce(tx, index, null);
-  }
-
-  public final static byte[] tx_get_input_entropy(Object tx, final int index) {
-      return tx_get_input_entropy(tx, index, null);
-  }
-
-  public final static byte[] tx_get_input_issuance_amount(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_input_issuance_amount_len(tx, index)];
-      final int len = _tx_get_input_issuance_amount(tx, index, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_input_inflation_keys(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_input_inflation_keys_len(tx, index)];
-      final int len = _tx_get_input_inflation_keys(tx, index, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_input_issuance_amount_rangeproof(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_input_issuance_amount_rangeproof_len(tx, index)];
-      final int len = _tx_get_input_issuance_amount_rangeproof(tx, index, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_input_inflation_keys_rangeproof(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_input_inflation_keys_rangeproof_len(tx, index)];
-      final int len = _tx_get_input_inflation_keys_rangeproof(tx, index, buf);
-      return checkBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_output_asset(Object jarg1, int jarg2) {
-      return tx_get_output_asset(jarg1, jarg2, null);
-  }
-
-  public final static byte[] tx_get_output_value(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_output_value_len(tx, index)];
-      final int len = _tx_get_output_value(tx, index, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_output_nonce(Object jarg1, int jarg2) {
-      return tx_get_output_nonce(jarg1, jarg2, null);
-  }
-
-  public final static byte[] tx_get_output_surjectionproof(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_output_surjectionproof_len(tx, index)];
-      final int len = _tx_get_output_surjectionproof(tx, index, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] tx_get_output_rangeproof(Object tx, final int index) {
-      final byte[] buf = new byte[tx_get_output_rangeproof_len(tx, index)];
-      final int len = _tx_get_output_rangeproof(tx, index, buf);
-      return trimBuffer(buf, len);
-  }
-
-  public final static byte[] bip32_key_get_pub_key_tweak_sum(Object jarg1) {
-      return bip32_key_get_pub_key_tweak_sum(jarg1, null);
   }
 }
