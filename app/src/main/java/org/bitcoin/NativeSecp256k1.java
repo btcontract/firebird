@@ -484,11 +484,6 @@ public class NativeSecp256k1 {
         byte[] resArr = retByteArray[0];
         int retVal = new BigInteger(new byte[]{retByteArray[1][0]}).intValue();
 
-        if(compressed)
-            assertEquals(resArr.length, 33, "Got bad result length.");
-        else
-            assertEquals(resArr.length, 65, "Got bad result length.");
-
         assertEquals(retVal, 1, "Failed return value check.");
 
         return resArr;
