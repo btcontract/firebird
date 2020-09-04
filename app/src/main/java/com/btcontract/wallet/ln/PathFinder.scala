@@ -2,7 +2,6 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
-
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
@@ -19,6 +18,7 @@ object PathFinder {
   val OPERATIONAL = "state-operational"
 
   val NotifyRejected = "notify-rejected"
+  val NotifyInitSync = "notify-init-sync"
   val NotifyOperational = "notify-operational"
   val CMDLoadGraph = "cmd-load-graph"
   val CMDResync = "cmd-resync"
@@ -44,9 +44,14 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     case (sender: CanBeRepliedTo, _: RouteRequest) \ _ => sender process NotifyRejected
 
     case CMDResync \ OPERATIONAL =>
-      if (0L == getLastResyncStamp) become(data, INIT_SYNC)
+      if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 28) {
+        // App has not been opened during 4 weeks, notify that sync will take some time
+        listeners.foreach(_ process NotifyInitSync)
+        become(data, INIT_SYNC)
+      }
+
       new SyncMaster(getExtraNodes, store.listExcludedChannels, data, routerConf) { self =>
-        def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
+        def onChunkSyncComplete(data: PureRoutingData): Unit = me process data
         def onTotalSyncComplete: Unit = me process self
       }
 
