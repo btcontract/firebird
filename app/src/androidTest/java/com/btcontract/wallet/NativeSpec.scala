@@ -69,7 +69,7 @@ class NativeSpec {
     assertTrue(fallback / 100 > native)
   }
 
-  @Test(timeout = 150000)
+  @Test(timeout = 20000)
   def scryptWorksFast(): Unit = {
     WalletApp.scryptDerive("hello@email.com", "password123")
   }

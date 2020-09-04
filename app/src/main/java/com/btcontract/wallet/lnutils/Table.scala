@@ -27,14 +27,11 @@ object ChannelAnnouncementTable extends Table {
   val Tuple5(table, features, shortChannelId, nodeId1, nodeId2) = ("chan_announcements", "features", "short_channel_id", "node_id_1", "node_id_2")
   val newSql = s"INSERT OR IGNORE INTO $table ($features, $shortChannelId, $nodeId1, $nodeId2) VALUES (?, ?, ?, ?)"
   val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
-  val selectAllSql = s"SELECT * FROM $table"
 
-  val createSql = s"""
-    CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $features BLOB NOT NULL,
-      $shortChannelId INTEGER NOT NULL UNIQUE, $nodeId1 BLOB NOT NULL,
-      $nodeId2 BLOB NOT NULL
-    );"""
+  val selectAllSql = s"SELECT * FROM $table"
+  val selectTestSql = s"SELECT ${ChannelUpdateTable.shortChannelId} FROM ${ChannelUpdateTable.table} LIMIT 2000000"
+  val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN (SELECT ${ChannelUpdateTable.shortChannelId} FROM ${ChannelUpdateTable.table} LIMIT 2000000)"
+  val createSql = s"CREATE TABLE IF NOT EXISTS $table ($id INTEGER PRIMARY KEY AUTOINCREMENT, $features BLOB NOT NULL, $shortChannelId INTEGER NOT NULL UNIQUE, $nodeId1 BLOB NOT NULL, $nodeId2 BLOB NOT NULL)"
 }
 
 object ChannelUpdateTable extends Table {
@@ -64,11 +61,9 @@ object ExcludedChannelTable extends Table {
   val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId) VALUES (?)"
   val selectSql = s"SELECT * FROM $table ORDER BY $id DESC LIMIT 500000"
 
-  val createSql = s"""
-    CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT,
-      $shortChannelId INTEGER NOT NULL UNIQUE,
-    );"""
+  val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
+  val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN (SELECT ${ChannelUpdateTable.shortChannelId} FROM ${ChannelUpdateTable.table} LIMIT 2000000)"
+  val createSql = s"CREATE TABLE IF NOT EXISTS $table ($id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL UNIQUE)"
 }
 
 object PaymentTable extends Table {

@@ -26,6 +26,8 @@ case class ShortChannelId(id: Long) extends Ordered[ShortChannelId] {
 
   def toLong: Long = id
 
+  def toJavaLong: java.lang.Long = id
+
   def blockHeight: Int = ShortChannelId.blockHeight(this)
 
   override def toString: String = {

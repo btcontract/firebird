@@ -18,7 +18,7 @@ package fr.acinq
 
 import java.security.SecureRandom
 
-import fr.acinq.bitcoin.Crypto.PrivateKey
+import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin._
 import scodec.Attempt
 import scodec.bits.{BitVector, ByteVector}
@@ -44,6 +44,8 @@ package object eclair {
   def randomBytes64: ByteVector64 = ByteVector64(randomBytes(64))
 
   def randomKey: PrivateKey = PrivateKey(randomBytes32)
+
+  lazy val dummyPubKey: PublicKey = randomKey.publicKey
 
   def toLongId(fundingTxHash: ByteVector32, fundingOutputIndex: Int): ByteVector32 = {
     require(fundingOutputIndex < 65536, "fundingOutputIndex must not be greater than FFFF")

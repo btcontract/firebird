@@ -16,7 +16,7 @@ import scodec.bits.ByteVector
 import java.net.Socket
 
 
-case class PublicKeyAndPair(pk: PublicKey, keyPair: KeyPair)
+case class PublicKeyAndPair(them: PublicKey, keyPair: KeyPair)
 
 object CommsTower {
   type Listeners = Set[ConnectionListener]
@@ -59,7 +59,7 @@ object CommsTower {
       def handleEncryptedOutgoingData(data: ByteVector): Unit = try sock.getOutputStream.write(data.toArray) catch handleError
       def handleDecryptedIncomingData(data: ByteVector): Unit = (lightningMessageCodec.decode(data.bits).require.value, ourLastPing) match {
         case Ping(replyLength, _) \ _ if replyLength > 0 && replyLength <= 65532 => handler process Pong(ByteVector fromValidHex "00" * replyLength)
-        case Pong(randomDataFromPeer) \ Some(ourSavedWaitingPing) if randomDataFromPeer.size == ourSavedWaitingPing.pongLength => ourLastPing = None
+        case Pong(randomPeerData) \ Some(ourWaitingPing) if randomPeerData.size == ourWaitingPing.pongLength => ourLastPing = None
         case (message: HostedChannelMessage, _) => for (lst <- lsts) lst.onHostedMessage(me, message)
         case (theirInitMessage: Init, _) => handleTheirInit(lsts, theirInitMessage)
         case (message, _) => for (lst <- lsts) lst.onMessage(me, message)

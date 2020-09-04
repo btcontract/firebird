@@ -2,12 +2,13 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
+
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import com.btcontract.wallet.ln.SyncMaster.{NodeAnnouncements, ShortChanIdSet}
+import com.btcontract.wallet.ln.SyncMaster.{NodeAnnouncementSet, ShortChanIdSet}
 import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.wire.ChannelUpdate
 import java.util.concurrent.Executors
 
@@ -34,7 +35,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
-  def getExtraNodes: NodeAnnouncements
+  def getExtraNodes: NodeAnnouncementSet
   def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
@@ -44,9 +45,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     case CMDResync \ OPERATIONAL =>
       if (0L == getLastResyncStamp) become(data, INIT_SYNC)
-      new SyncMaster(getExtraNodes, store.listExcludedChannels, data, routerConf) {
-        def onTotalSyncComplete(syncMasterGossip: SyncMasterGossipData): Unit = me process syncMasterGossip
+      new SyncMaster(getExtraNodes, store.listExcludedChannels, data, routerConf) { self =>
         def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
+        def onTotalSyncComplete: Unit = me process self
       }
 
     case CMDResync \ WAITING =>
@@ -63,7 +64,7 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       // Run in PathFinder thread to not overload SyncMaster thread
       store.processPureData(pure)
 
-    case (sync: SyncMasterGossipData, OPERATIONAL | INIT_SYNC) =>
+    case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
       // On sync complete we may have shortIds which no peer is aware of currently
       val ghostShortIds = loadGraphBecomeOperational.diff(sync.provenShortIds)
       updateLastResyncStamp(System.currentTimeMillis)
@@ -77,14 +78,15 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
 
     case (cu: ChannelUpdate, OPERATIONAL)
       if data.channels.contains(cu.shortChannelId) =>
-      val chanDesc = Router.getDesc(cu, data.channels(cu.shortChannelId).ann)
-      val data1 = resolveKnownDesc(chanDesc, cu, isPublic = true)
+      val newUpdateIsOlder = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
+      val data1 = resolveKnownDesc(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu, newUpdateIsOlder, isPublic = true)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL)
       if data.extraEdges.contains(cu.shortChannelId) =>
       val chanDesc = data.extraEdges(cu.shortChannelId).desc
-      val data1 = resolveKnownDesc(chanDesc, cu, isPublic = false)
+      // Fake updates do not provide timestamp so any refresh should be newer
+      val data1 = resolveKnownDesc(chanDesc, cu, isOld = false, isPublic = false)
       become(data1, OPERATIONAL)
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
@@ -95,20 +97,18 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     case _ =>
   }
 
-  def resolveKnownDesc(desc: ChannelDesc, cu: ChannelUpdate, isPublic: Boolean): Data = {
+  def resolveKnownDesc(desc: ChannelDesc, cu: ChannelUpdate, isOld: Boolean, isPublic: Boolean): Data = {
     // Resolves channel updates which we obtain from node errors while trying to route payments
     val isEnabled = Announcements.isEnabled(cu.channelFlags)
-    val isOldChannel = !SyncMaster.isFresh(cu, data)
-    val isNoCapacity = cu.htlcMaximumMsat.isEmpty
     val edge = GraphEdge(desc, cu)
 
-    if (isOldChannel) {
+    if (cu.htlcMaximumMsat.isEmpty) {
+      store.removeChannelUpdate(edge.update)
+      // Unconditionally remove these updates from db
+      data.copy(graph = data.graph removeEdge edge.desc)
+    } else if (isOld) {
       // We have a newer one or this one is stale
       // retain db record since we have a more recent copy
-      data.copy(graph = data.graph removeEdge edge.desc)
-    } else if (isNoCapacity) {
-      // Always remove these from db
-      store.removeChannelUpdate(edge.update)
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isPublic && isEnabled) {
       store.addChannelUpdate(edge.update)

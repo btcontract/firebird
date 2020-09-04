@@ -48,7 +48,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
     // Parameters do not matter except that it must point from us to peer
     val fakeHop = ExtraHop(LNParams.keys.routingPubKey, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
     val fakeDesc = ChannelDesc(randomShortChannelId, LNParams.keys.routingPubKey, data.announce.na.nodeId)
-    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop, htlcMaximum = Long.MaxValue.msat)
+    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop)
     GraphEdge(fakeDesc, fakeUpdate)
   }
 

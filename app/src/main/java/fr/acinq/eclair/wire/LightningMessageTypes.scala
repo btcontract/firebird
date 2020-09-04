@@ -20,12 +20,15 @@ import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 
+import com.btcontract.wallet.ln.LNParams
 import com.btcontract.wallet.ln.wire.UpdateAddTlv
 import com.google.common.base.Charsets
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrdering, Protocol, Satoshi}
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
+import fr.acinq.eclair.dummyPubKey
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import scodec.bits.ByteVector
 
 /**
@@ -174,7 +177,14 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
                                nodeId2: PublicKey,
                                bitcoinKey1: PublicKey,
                                bitcoinKey2: PublicKey,
-                               unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasChainHash
+                               unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasChainHash {
+
+  // Point useless fields to same object, db-restored should be the same
+  def lite: ChannelAnnouncement = copy(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes,
+    bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
+    features = Features.empty, chainHash = LNParams.chainHash,
+    bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
+}
 
 case class Color(r: Byte, g: Byte, b: Byte) {
   override def toString: String = f"#$r%02x$g%02x$b%02x" // to hexa s"#  ${r}%02x ${r & 0xFF}${g & 0xFF}${b & 0xFF}"
@@ -262,8 +272,19 @@ case class ChannelUpdate(signature: ByteVector64,
                          feeProportionalMillionths: Long,
                          htlcMaximumMsat: Option[MilliSatoshi],
                          unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp with HasChainHash {
-  lazy val isNode1: Boolean = Announcements.isNode1(channelFlags)
-  // Used internally, should not be exposed as field
+  // Equals and hashcode are needed to correctly use ChannelUpdate as key in SyncMaster
+  override def equals(other: Any): Boolean = other match { case cu: ChannelUpdate => shortChannelId == cu.shortChannelId && directionality == cu.directionality case _ => false }
+  override def hashCode: Int = shortChannelId.hashCode + directionality.hashCode
+
+  // Used internally for db storage
+  def directionality: java.lang.Integer = if (isNode1) 1 else 2
+  def isNode1: Boolean = Announcements.isNode1(channelFlags)
+
+  // Point useless fields to same object, db-restored should be the same
+  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
+  // Used insternally to compare two channel updates with a same essential fields
+  def asDummyHop = ExtraHop(dummyPubKey, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta)
+  // Used internally, should not be exposed as class field
   var score: Long = 1L
 }
 
@@ -300,7 +321,8 @@ case class ReplyChannelRange(chainHash: ByteVector32,
                              complete: Byte,
                              shortChannelIds: EncodedShortChannelIds,
                              tlvStream: TlvStream[ReplyChannelRangeTlv] = TlvStream.empty) extends RoutingMessage {
-  val timestamps: ReplyChannelRangeTlv.EncodedTimestamps = tlvStream.get[ReplyChannelRangeTlv.EncodedTimestamps].get // We REQUIRE all peers to support this
+  val timestamps: ReplyChannelRangeTlv.EncodedTimestamps = tlvStream.get[ReplyChannelRangeTlv.EncodedTimestamps].get
+  val checksums: ReplyChannelRangeTlv.EncodedChecksums = tlvStream.get[ReplyChannelRangeTlv.EncodedChecksums].get
 }
 
 object ReplyChannelRange {

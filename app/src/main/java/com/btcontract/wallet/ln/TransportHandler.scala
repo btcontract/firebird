@@ -38,8 +38,7 @@ abstract class TransportHandler(keyPair: KeyPair, remotePubKey: ByteVector) exte
       doProcess(Ping)
 
     case (HandshakeData(reader1, buffer), Ping, HANDSHAKE) if buffer.length >= expectedLength(reader1) =>
-
-      require(buffer.head == prefix, "Invalid prefix in handshake buffer")
+      require(buffer.head == prefix, s"Invalid prefix=${buffer.head} in handshake buffer")
       val (payload, remainder) = buffer.tail.splitAt(expectedLength(reader1) - 1)
 
       reader1 read payload match {

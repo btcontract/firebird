@@ -185,7 +185,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
                 master doProcess NodeFailed(failedNodeId = nodeId, increment = 1)
                 resolveRemoteFail(data1, wait)
 
-              case true \ edge if Announcements.areSame(edge.update, failure.update) =>
+              case true \ edge if edge.update.asDummyHop == failure.update.asDummyHop =>
                 // Remote node returned the same update we used, channel is most likely imbalanced
                 // Note: we may have it disabled and new update comes enabled: still same update
                 master doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)

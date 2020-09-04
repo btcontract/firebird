@@ -33,12 +33,9 @@ object LNParams {
       maxLocalAttempts = 6, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   private[this] val localFeatures = Set(
-    ActivatedFeature(OptionDataLossProtect, FeatureSupport.Optional),
-    ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Mandatory),
-    ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Mandatory),
-    ActivatedFeature(ChannelRangeQueries, FeatureSupport.Mandatory),
-    ActivatedFeature(VariableLengthOnion, FeatureSupport.Mandatory),
-    ActivatedFeature(PaymentSecret, FeatureSupport.Mandatory)
+    ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Optional),
+    ActivatedFeature(ChannelRangeQueries, FeatureSupport.Optional),
+    ActivatedFeature(VariableLengthOnion, FeatureSupport.Optional)
   )
 
   var keys: LightningNodeKeys = _
@@ -122,19 +119,10 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
     case _: Tor3 => s"<strong>Tor</strong>\u0020${na.nodeId.toString take 12 grouped 3 mkString "\u0020"}"
   } getOrElse "No IP address"
 
-  lazy val nodeSpecificPrivKey: PrivateKey =
-    LNParams.keys.makeLightningKey(na.nodeId)
-
-  lazy val nodeSpecificPubKey: PublicKey =
-    nodeSpecificPrivKey.publicKey
-
-  lazy val nodeSpecificHostedChanId: ByteVector32 =
-    Tools.hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
-
-  lazy val nodeSpecificPkap: PublicKeyAndPair = {
-    val pair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value)
-    PublicKeyAndPair(na.nodeId, pair)
-  }
+  lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
+  lazy val nodeSpecificPrivKey: PrivateKey = LNParams.keys.makeLightningKey(na.nodeId)
+  lazy val nodeSpecificHostedChanId: ByteVector32 = Tools.hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
+  lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)
 }
 
 case class LightningMessageExt(msg: LightningMessage) {
@@ -145,11 +133,11 @@ case class LightningMessageExt(msg: LightningMessage) {
 
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit
-  def listChannelAnnouncements: Iterable[ChannelAnnouncement]
+  def listChannelAnnouncements: Vector[ChannelAnnouncement]
 
   def addChannelUpdate(cu: ChannelUpdate): Unit
   def removeChannelUpdate(cu: ChannelUpdate): Unit
-  def listChannelUpdates: Iterable[ChannelUpdate]
+  def listChannelUpdates: Vector[ChannelUpdate]
 
   def addExcludedChannel(shortId: ShortChannelId): Unit
   def listExcludedChannels: ShortChanIdSet

@@ -41,24 +41,24 @@ object RouteCalculation {
       .filterNot { case (_, ac) => ac.extraHop.nodeId == source } // we ignore routing hints for our own channels, we have more accurate information
       .toMap
     assistedChannels.values.map(ac =>
-      GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop, ac.htlcMaximum))
+      GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop))
     ).toSet
   }
 
-  def toFakeUpdate(extraHop: ExtraHop, htlcMaximum: MilliSatoshi): ChannelUpdate = {
-    // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used
-    // what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
-    ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds, messageFlags = 1,
-      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0L.msat, extraHop.feeBase, extraHop.feeProportionalMillionths, Some(htlcMaximum))
+  def toFakeUpdate(extraHop: ExtraHop): ChannelUpdate = {
+    ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds,
+      messageFlags = 1, // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
+      channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0L.msat, extraHop.feeBase, extraHop.feeProportionalMillionths,
+      Some(MilliSatoshi(Long.MaxValue)) // Lets assume a capacity is infinite, will be corrected by failed-at-amount
+    )
   }
 
   private def toAssistedChannels(extraRoute: Seq[ExtraHop], targetNodeId: PublicKey): Map[ShortChannelId, AssistedChannel] = {
     // BOLT 11: "For each entry, the pubkey is the node ID of the start of the channel", and the last node is the destination
-    val assumedCapacity = MilliSatoshi(Long.MaxValue)
     val nextNodeIds = extraRoute.map(_.nodeId).drop(1) :+ targetNodeId
     extraRoute.zip(nextNodeIds).reverse.foldLeft(Map.empty[ShortChannelId, AssistedChannel]) {
       case (acs, (extraHop: ExtraHop, nextNodeId)) =>
-        acs + (extraHop.shortChannelId -> AssistedChannel(extraHop, nextNodeId, assumedCapacity))
+        acs + (extraHop.shortChannelId -> AssistedChannel(extraHop, nextNodeId))
     }
   }
 

@@ -33,8 +33,6 @@ src/*~
 src/lcov*
 src/Makefile
 src/Makefile.in
-src/config.h
-src/config.h.in
 src/stamp-h1
 src/test/Makefile
 src/test/Makefile.in
@@ -45,7 +43,6 @@ src/test_clear*
 src/test_tx*
 src/test_elements_tx*
 src/test-suite.log
-src/swig_java/swig_java_wrap.c
 src/swig_java/*.java
 src/swig_java/*.jar
 src/swig_java/src/com/blockstream/libwally

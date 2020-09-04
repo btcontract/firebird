@@ -47,7 +47,7 @@ object Router {
   }
   // @formatter:on
 
-  case class AssistedChannel(extraHop: ExtraHop, nextNodeId: PublicKey, htlcMaximum: MilliSatoshi)
+  case class AssistedChannel(extraHop: ExtraHop, nextNodeId: PublicKey)
 
   case class RouteParams(maxFeeBase: MilliSatoshi, maxFeePct: Double, routeMaxLength: Int, routeMaxCltv: CltvExpiryDelta) {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {

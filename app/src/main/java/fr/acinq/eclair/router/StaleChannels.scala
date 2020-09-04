@@ -31,6 +31,12 @@ object StaleChannels {
     timestamp < staleThresholdSeconds
   }
 
+  def isAlmostStale(timestamp: Long): Boolean = {
+    // we define almost stale as 2 weeks minus 4 days
+    val staleThresholdSeconds = (System.currentTimeMillis.milliseconds - 10.days).toSeconds
+    timestamp < staleThresholdSeconds
+  }
+
   /**
     * Is stale a channel that:
     * (1) is older than 2 weeks (2*7*144 = 2016 blocks)

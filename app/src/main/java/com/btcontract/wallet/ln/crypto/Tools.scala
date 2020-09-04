@@ -49,13 +49,6 @@ object Tools {
     if (txIndex < 0) None else Some(result)
   }
 
-  def toLongId(txid: ByteVector, fundingOutputIndex: Int): ByteVector = {
-    require(fundingOutputIndex < 65536, "Index is larger than 65535")
-    val part2 = txid(30).^(fundingOutputIndex >> 8).toByte
-    val part3 = txid(31).^(fundingOutputIndex).toByte
-    txid.take(30) :+ part2 :+ part3
-  }
-
   def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 = {
     val pubkey1First: Boolean = LexicographicalOrdering.isLessThan(pubkey1, pubkey2)
     if (pubkey1First) Crypto.sha256(pubkey1 ++ pubkey2) else Crypto.sha256(pubkey2 ++ pubkey1)
