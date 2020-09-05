@@ -23,6 +23,8 @@ import fr.acinq.eclair.ShortChannelId
 import scodec.bits.ByteVector
 import shapeless.HNil
 
+import scala.collection.mutable
+
 object Sync {
   def shouldRequestUpdate(ourTimestamp: Long, ourChecksum: Long, theirTimestamp: Long, theirChecksum: Long): Boolean = {
     // we request their channel_update if all those conditions are met:
@@ -33,31 +35,8 @@ object Sync {
     val areDifferent = ourChecksum != theirChecksum
     val oursIsAlmostStale = StaleChannels.isAlmostStale(ourTimestamp)
     val theirsIsStale = StaleChannels.isStale(theirTimestamp)
+    println(s"theirsIsMoreRecent=$theirsIsMoreRecent, areDifferent=$areDifferent")
     theirsIsMoreRecent && (areDifferent || oursIsAlmostStale) && !theirsIsStale
-  }
-
-  def computeShortIdAndFlag(channels: Map[ShortChannelId, PublicChannel],
-                            shortChannelId: ShortChannelId,
-                            theirTimestamps: ReplyChannelRangeTlv.Timestamps,
-                            theirChecksums: ReplyChannelRangeTlv.Checksums): Option[ShortChannelIdAndFlag] = {
-    import QueryShortChannelIdsTlv.QueryFlagType._
-
-    val flags = if (!channels.contains(shortChannelId)) {
-      INCLUDE_CHANNEL_ANNOUNCEMENT | INCLUDE_CHANNEL_UPDATE_1 | INCLUDE_CHANNEL_UPDATE_2
-    } else {
-      // we already know this channel
-      val (ourTimestamps, ourChecksums) = getChannelDigestInfo(channels)(shortChannelId)
-      // if they don't provide timestamps or checksums, we set appropriate default values:
-      // - we assume their timestamp is more recent than ours by setting timestamp = Long.MaxValue
-      // - we assume their update is different from ours by setting checkum = Long.MaxValue (NB: our default value for checksum is 0)
-      val shouldRequestUpdate1 = shouldRequestUpdate(ourTimestamps.timestamp1, ourChecksums.checksum1, theirTimestamps.timestamp1, theirChecksums.checksum1)
-      val shouldRequestUpdate2 = shouldRequestUpdate(ourTimestamps.timestamp2, ourChecksums.checksum2, theirTimestamps.timestamp2, theirChecksums.checksum2)
-      val flagUpdate1 = if (shouldRequestUpdate1) INCLUDE_CHANNEL_UPDATE_1 else 0
-      val flagUpdate2 = if (shouldRequestUpdate2) INCLUDE_CHANNEL_UPDATE_2 else 0
-      flagUpdate1 | flagUpdate2
-    }
-
-    if (flags == 0) None else Some(ShortChannelIdAndFlag(shortChannelId, flags))
   }
 
   def getChannelDigestInfo(channels: Map[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): (ReplyChannelRangeTlv.Timestamps, ReplyChannelRangeTlv.Checksums) = {

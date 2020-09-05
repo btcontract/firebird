@@ -87,8 +87,6 @@ object Router {
   case class RouteFound(paymentHash: ByteVector32, partId: ByteVector, route: Route) extends RouteResponse
   case class NoRouteAvailable(paymentHash: ByteVector32, partId: ByteVector) extends RouteResponse
 
-  case class ShortChannelIdAndFlag(shortChannelId: ShortChannelId, flag: Long)
-
   case class Data(channels: Map[ShortChannelId, PublicChannel], extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {

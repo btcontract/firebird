@@ -260,6 +260,12 @@ case class NodeAnnouncement(signature: ByteVector64,
                             addresses: List[NodeAddress],
                             unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp
 
+object ChannelUpdate {
+  final val POSITION_NODE_1: java.lang.Integer = 1
+  final val POSITION_NODE_2: java.lang.Integer = 2
+  def makePosition(shortId: Long, position: java.lang.Integer) = s"$shortId-$position"
+}
+
 case class ChannelUpdate(signature: ByteVector64,
                          chainHash: ByteVector32,
                          shortChannelId: ShortChannelId,
@@ -272,19 +278,23 @@ case class ChannelUpdate(signature: ByteVector64,
                          feeProportionalMillionths: Long,
                          htlcMaximumMsat: Option[MilliSatoshi],
                          unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp with HasChainHash {
-  // Equals and hashcode are needed to correctly use ChannelUpdate as key in SyncMaster
-  override def equals(other: Any): Boolean = other match { case cu: ChannelUpdate => shortChannelId == cu.shortChannelId && directionality == cu.directionality case _ => false }
-  override def hashCode: Int = shortChannelId.hashCode + directionality.hashCode
 
-  // Used internally for db storage
-  def directionality: java.lang.Integer = if (isNode1) 1 else 2
-  def isNode1: Boolean = Announcements.isNode1(channelFlags)
+  lazy val position: java.lang.Integer = {
+    val isNode1: Boolean = Announcements.isNode1(channelFlags)
+    if (isNode1) ChannelUpdate.POSITION_NODE_1 else ChannelUpdate.POSITION_NODE_2
+  }
 
-  // Point useless fields to same object, db-restored should be the same
+  lazy val positionalId: String = ChannelUpdate.makePosition(shortChannelId.id, position)
+
+  // Equals and hashcode are needed to correctly use ChannelUpdate as key in SyncMaster mappings
+  override def equals(other: Any): Boolean = other match { case cu: ChannelUpdate => positionalId == cu.positionalId case _ => false }
+  override def hashCode: Int = positionalId.hashCode
+
+  // Reference useless fields to same object to reduce memory footprint, db-restored should be the same
   def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
   // Used insternally to compare two channel updates with a same essential fields
   def asDummyHop = ExtraHop(dummyPubKey, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta)
-  // Used internally, should not be exposed as class field
+  // Used internally for score estimation, can not be exposed as class field
   var score: Long = 1L
 }
 

@@ -5,13 +5,13 @@ import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
 import fr.acinq.bitcoin.DeterministicWallet._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
-import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
+import com.btcontract.wallet.ln.SyncMaster.{ExcludedMap, ShortIdToPublicChanMap}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
-import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
+import fr.acinq.eclair.router.Router.RouterConf
 import com.btcontract.wallet.ln.crypto.Tools
 import java.io.ByteArrayInputStream
 import fr.acinq.eclair.crypto.Mac32
@@ -45,7 +45,6 @@ object LNParams {
     Init(Features(localFeatures), TlvStream apply networks)
   }
 }
-
 
 class LightningNodeKeys(seed: Bytes) {
   private lazy val master: ExtendedPrivateKey = generate(ByteVector view seed)
@@ -94,7 +93,6 @@ class LightningNodeKeys(seed: Bytes) {
   }
 }
 
-
 object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_BLOCKDAY = ByteVector.fromValidHex("0001")
   final val ERR_HOSTED_WRONG_LOCAL_SIG = ByteVector.fromValidHex("0002")
@@ -110,7 +108,6 @@ object ChanErrorCodes {
   val ERR_TOO_MANY_HTLC = 4
   val ERR_NOT_OPEN = 5
 }
-
 
 case class NodeAnnouncementExt(na: NodeAnnouncement) {
   lazy val prettyNodeName: String = na.addresses collectFirst {
@@ -130,24 +127,20 @@ case class LightningMessageExt(msg: LightningMessage) {
   def asLocal: LNDirectionalMessage = msg -> true
 }
 
-
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit
   def listChannelAnnouncements: Vector[ChannelAnnouncement]
 
-  def addChannelUpdate(cu: ChannelUpdate): Unit
-  def removeChannelUpdate(cu: ChannelUpdate): Unit
+  def addChannelUpdateByPosition(cu: ChannelUpdate): Unit
+  def removeChannelUpdateByPosition(positionalId: String): Unit
   def listChannelUpdates: Vector[ChannelUpdate]
-
-  def addExcludedChannel(shortId: ShortChannelId): Unit
-  def listExcludedChannels: ShortChanIdSet
+  def listExcludedChannels: ExcludedMap
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
-  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet)
-  def removeGhostChannels(shortIdsToRemove: ShortChanIdSet): Unit
+  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit
   def processPureData(data: PureRoutingData): Unit
+  def getRoutingData: ShortIdToPublicChanMap
 }
-
 
 trait ChainLink {
   var listeners = Set.empty[ChainLinkListener]
@@ -159,7 +152,6 @@ trait ChainLinkListener {
   def onChainTipKnown: Unit
   def onTotalDisconnect: Unit
 }
-
 
 trait ChannelBag {
   def all: Vector[HostedCommits]
