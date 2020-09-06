@@ -18,8 +18,9 @@ class SyncSpec {
   def run: Unit = {
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
-    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 0, LNParams.routerConf) {
+    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 640000, LNParams.routerConf) {
       def onChunkSyncComplete(pure: PureRoutingData): Unit = {
+        println(s"Chunk complete, announces=${pure.announces.size}, updates=${pure.updates.size}, excluded=${pure.excluded.size}")
         store.processPureData(pure)
       }
 
@@ -27,6 +28,7 @@ class SyncSpec {
         val map: ShortIdToPublicChanMap = store.getRoutingData
         store.removeGhostChannels(map.keySet.diff(provenShortIds))
         val map1: ShortIdToPublicChanMap = store.getRoutingData
+        println(s"Total sync complete")
         assert(map1.nonEmpty)
         run
       }

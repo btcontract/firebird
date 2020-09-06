@@ -24,7 +24,6 @@ import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire.ChannelUpdate
 
 import scala.collection.JavaConversions._
-import scala.annotation.tailrec
 import scala.collection.mutable
 
 object Graph {
@@ -120,7 +119,7 @@ object Graph {
     // because in the worst case scenario we will insert all the vertices.
     val initialCapacity = 100
 
-    val bestWeights = new java.util.HashMap[PublicKey, RichWeight](initialCapacity)
+    val bestWeights = new DefaultHashMap[PublicKey, RichWeight](RichWeight(Vector(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue), initialCapacity)
     val bestEdges = new java.util.HashMap[PublicKey, GraphEdge](initialCapacity)
     // NB: we want the elements with smallest weight first, hence the `reverse`.
     val toExplore = mutable.PriorityQueue.empty[WeightedNode](NodeComparator.reverse)
@@ -148,7 +147,7 @@ object Graph {
           val canRelayAmount = currentCost <= edge.capacity && edge.update.htlcMaximumMsat.forall(currentCost <= _) && currentCost >= edge.update.htlcMinimumMsat
 
           if (canRelayAmount && boundaries(neighborWeight) && !ignoredEdges.contains(edge.desc) && !ignoredVertices.contains(neighbor)) {
-            val previousNeighborWeight = bestWeights.getOrDefault(neighbor, RichWeight(Vector(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue))
+            val previousNeighborWeight = bestWeights.getOrDefaultValue(neighbor)
             // if this path between neighbor and the target has a shorter distance than previously known, we select it
             if (neighborWeight.weight < previousNeighborWeight.weight) {
               // update the best edge for this vertex
@@ -440,7 +439,7 @@ object Graph {
        */
       def makeGraph(channels: Map[ShortChannelId, PublicChannel]): DirectedGraph = {
         // initialize the map with the appropriate size to avoid resizing during the graph initialization
-        val mutableMap = new java.util.HashMap[PublicKey, List[GraphEdge]](channels.size + 1)
+        val mutableMap = new DefaultHashMap[PublicKey, List[GraphEdge]](List.empty, channels.size + 1)
 
         // add all the vertices and edges in one go
         channels.values.foreach { channel =>
@@ -455,7 +454,7 @@ object Graph {
         }
 
         def addDescToMap(desc: ChannelDesc, u: ChannelUpdate): Unit = {
-          mutableMap.put(desc.b, GraphEdge(desc, u) +: mutableMap.getOrDefault(desc.b, List.empty[GraphEdge]))
+          mutableMap.put(desc.b, GraphEdge(desc, u) +: mutableMap.getOrDefaultValue(desc.b))
           mutableMap.get(desc.a) match {
             case null => mutableMap.put(desc.a, List.empty[GraphEdge])
             case _ =>

@@ -23,6 +23,10 @@ object CommsTower {
   val workers: mutable.Map[PublicKeyAndPair, Worker] = new ConcurrentHashMap[PublicKeyAndPair, Worker].asScala
   val listeners: mutable.Map[PublicKeyAndPair, Listeners] = new ConcurrentHashMap[PublicKeyAndPair, Listeners].asScala withDefaultValue Set.empty
 
+  final val PROCESSING_DATA = 1
+  final val AWAITING_MESSAGES = 2
+  final val AWAITING_PONG = 3
+
   def listen(listeners1: Set[ConnectionListener], pkap: PublicKeyAndPair, ann: NodeAnnouncement): Unit = synchronized {
     // Update and either insert a new worker or fire onOperational on new listeners iff worker currently exists and is online
     listeners(pkap) ++= listeners1
@@ -36,8 +40,8 @@ object CommsTower {
   class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, buffer: Bytes, sock: Socket) { me =>
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
 
-    var ourLastPing = Option.empty[Ping]
-    var theirInit = Option.empty[Init]
+    var pingState: Int = AWAITING_MESSAGES
+    var theirInit: Option[Init] = None
     var pinging: Subscription = _
 
     def disconnect: Unit = try sock.close catch none
@@ -46,40 +50,57 @@ object CommsTower {
     def handleTheirInit(listeners1: Set[ConnectionListener], theirInitMsg: Init): Unit = {
       // Use a separate variable for listeners here because a set of listeners provided to this method may be different
       // Account for a case where they disconnect while we are deciding on their features (do nothing in this case)
+      val areSupported = Features.areSupported(theirInitMsg.features)
       theirInit = Some(theirInitMsg)
 
-      (Features areSupported theirInitMsg.features, thread.isCompleted) match {
+      (areSupported, thread.isCompleted) match {
         case true \ false => for (lst <- listeners1) lst.onOperational(me) // They have not disconnected yet
         case false \ false => disconnect // Their features are not supported and they have not disconnected yet
         case _ \ true => // They have disconnected at this point, all callacks are already called, do nothing
       }
     }
 
-    val handler: TransportHandler = new TransportHandler(pkap.keyPair, ann.nodeId.value) {
-      def handleEncryptedOutgoingData(data: ByteVector): Unit = try sock.getOutputStream.write(data.toArray) catch handleError
-      def handleDecryptedIncomingData(data: ByteVector): Unit = (lightningMessageCodec.decode(data.bits).require.value, ourLastPing) match {
-        case Ping(replyLength, _) \ _ if replyLength > 0 && replyLength <= 65532 => handler process Pong(ByteVector fromValidHex "00" * replyLength)
-        case Pong(randomPeerData) \ Some(ourWaitingPing) if randomPeerData.size == ourWaitingPing.pongLength => ourLastPing = None
-        case (message: HostedChannelMessage, _) => for (lst <- lsts) lst.onHostedMessage(me, message)
-        case (theirInitMessage: Init, _) => handleTheirInit(lsts, theirInitMessage)
-        case (message, _) => for (lst <- lsts) lst.onMessage(me, message)
-      }
+    def sendPingAwaitPong(length: Int): Unit = {
+      val data = ByteVector.view(random getBytes length)
+      handler process Ping(length, data)
+      pingState = AWAITING_PONG
+    }
 
-      def handleEnterOperationalState: Unit = {
-        handler process LNParams.makeLocalInitMessage
-        pinging = Obs.interval(15.seconds).map(_ => random.nextInt(10) + 1) subscribe { length =>
-          val ourNextPing = Ping(data = ByteVector.view(random getBytes length), pongLength = length)
-          if (ourLastPing.isEmpty) handler process ourNextPing else disconnect
-          ourLastPing = Some(ourNextPing)
+    val handler: TransportHandler =
+      new TransportHandler(pkap.keyPair, ann.nodeId.value) {
+        def handleEncryptedOutgoingData(data: ByteVector): Unit =
+          try sock.getOutputStream.write(data.toArray) catch handleError
+
+        def handleDecryptedIncomingData(data: ByteVector): Unit = {
+          // Prevent pinger from disconnecting or sending pings
+          pingState = PROCESSING_DATA
+
+          lightningMessageCodec.decode(data.bits).require.value match {
+            case Ping(replyLength, _) if replyLength > 0 => handler process Pong(ByteVector fromValidHex "00" * replyLength)
+            case hostedMessage: HostedChannelMessage => for (lst <- lsts) lst.onHostedMessage(me, hostedMessage)
+            case theirInitMessage: Init => handleTheirInit(lsts, theirInitMessage)
+            case message => for (lst <- lsts) lst.onMessage(me, message)
+          }
+
+          // Allow pinger operations again
+          pingState = AWAITING_MESSAGES
+        }
+
+        def handleEnterOperationalState: Unit = {
+          handler process LNParams.makeLocalInitMessage
+          pinging = Obs.interval(15.seconds).map(_ => random.nextInt(10) + 1) subscribe { length =>
+            // We disconnect if we are still awaiting Pong since our last sent Ping, meaning peer sent nothing back
+            // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
+            if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length)
+          }
+        }
+
+        def handleError: PartialFunction[Throwable, Unit] = { case error =>
+          // Whatever happens here it's safe to disconnect right away
+          log(error.getLocalizedMessage)
+          disconnect
         }
       }
-
-      def handleError: PartialFunction[Throwable, Unit] = { case error =>
-        // Whatever happens here it's safe to disconnect right away
-        log(error.getLocalizedMessage)
-        disconnect
-      }
-    }
 
     val thread = Future {
       // Always use the first address, it's safe it throw here

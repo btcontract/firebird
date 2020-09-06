@@ -9,17 +9,15 @@ import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Featu
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
+import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import fr.acinq.eclair.router.Router.RouterConf
 import com.btcontract.wallet.ln.crypto.Tools
 import java.io.ByteArrayInputStream
-
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
 import java.nio.ByteOrder
-
-import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 
 
 object LNParams {
