@@ -3,23 +3,25 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
+import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
-import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
+import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector64
 import scodec.bits.ByteVector
 
 
-class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
-  def addExcludedChannel(shortId: ShortChannelId): Unit = db.change(ExcludedChannelTable.newSql, shortId.toJavaLong)
-  def listExcludedChannels: ShortChanIdSet = db.select(ExcludedChannelTable.selectSql).set(_ long ExcludedChannelTable.shortChannelId).map(ShortChannelId.apply)
-  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(ChannelUpdateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.directionality)
-  def removeChannelUpdate(cu: ChannelUpdate): Unit = db.change(ChannelUpdateTable.killSql, cu.shortChannelId.toJavaLong)
+class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
+  def positionalIdAsString(shortId: ShortChannelId, position: java.lang.Integer): String = shortId.id + "/" + position
+  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(params = positionalIdAsString(cu.shortChannelId, cu.position), sql = ChannelUpdateTable.updScoreSql)
+  def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit = db.change(params = positionalIdAsString(shortId, position), sql = ChannelUpdateTable.killByPositionalIdSql)
+  def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(ChannelAnnouncementTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
 
-  def addChannelAnnouncement(ca: ChannelAnnouncement): Unit =
-    db.change(ChannelAnnouncementTable.newSql, params = Array.emptyByteArray,
-      ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
+  def listExcludedChannels: Set[PositionalId] =
+    db.select(ExcludedChannelTable.selectSql, System.currentTimeMillis.toString) set { rc =>
+      (rc long ExcludedChannelTable.shortChannelId, rc int ExcludedChannelTable.position)
+    }
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] =
     db select ChannelAnnouncementTable.selectAllSql vec { rc =>
@@ -31,7 +33,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
         chainHash = LNParams.chainHash, shortChannelId, nodeId1, nodeId2, bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
     }
 
-  def addChannelUpdate(cu: ChannelUpdate): Unit = {
+  def addChannelUpdateByPosition(cu: ChannelUpdate): Unit = {
     val feeProportionalMillionths: java.lang.Long = cu.feeProportionalMillionths
     val cltvExpiryDelta: java.lang.Integer = cu.cltvExpiryDelta.toInt
     val htlcMinimumMsat: java.lang.Long = cu.htlcMinimumMsat.toLong
@@ -41,11 +43,9 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
     val feeBaseMsat: java.lang.Long = cu.feeBaseMsat.toLong
     val timestamp: java.lang.Long = cu.timestamp
 
-    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags,
-      cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.directionality)
-
-    db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta,
-      htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
+    val dbPositionalId: String = positionalIdAsString(cu.shortChannelId, cu.position)
+    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, dbPositionalId)
+    db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
   def listChannelUpdates: Vector[ChannelUpdate] =
@@ -67,40 +67,46 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore {
       update
     }
 
-  def getRoutingData: (Map[ShortChannelId, PublicChannel], ShortChanIdSet) = {
+  def getRoutingData: ShortIdToPublicChanMap = {
     val chanUpdatesByShortId = listChannelUpdates.groupBy(_.shortChannelId)
-    val shortIdSet = chanUpdatesByShortId.keys.toSet
 
     val tuples = listChannelAnnouncements flatMap { ann =>
       chanUpdatesByShortId get ann.shortChannelId collectFirst {
-        case Vector(update1, update2) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
-        case Vector(update2, update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
-        case Vector(update1) if update1.isNode1 => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
+        case Vector(update1, update2) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
+        case Vector(update2, update1) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
+        case Vector(update1) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
         case Vector(update2) => ann.shortChannelId -> PublicChannel(None, Some(update2), ann)
       }
     }
 
-    (tuples.toMap, shortIdSet)
+    tuples.toMap
   }
 
-  def removeGhostChannels(shortIds: ShortChanIdSet): Unit =
-    // Transactional inserts for MUCH faster performance
+  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit = {
+    // Once sync is complete we may have shortIds which our peers know nothing about
+    // this means related channels have been closed and we need to remove them locally
     db txWrap {
-      for (shortId <- shortIds) {
-        // Remove local channels which peers do not have now
-        db.change(ChannelUpdateTable.killSql, shortId.toJavaLong)
-        db.change(ExcludedChannelTable.killSql, shortId.toJavaLong)
+      for (shortId <- ghostIds) {
         db.change(ChannelAnnouncementTable.killSql, shortId.toJavaLong)
+        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_1)
+        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_2)
       }
 
-      db.change(ExcludedChannelTable.killPresentInChans) // Remove from excluded if present in channels (one peer says it's not good, other two peers say it's good)
+      db.change(ExcludedChannelTable.killPresentInChans) // Remove from excluded if present in channels (minority says it's bad, majority says it's good)
       db.change(ChannelAnnouncementTable.killNotPresentInChans) // Remove from announces if not present in channels (announce for excluded channel)
+      db.change(ExcludedChannelTable.killOldSql, System.currentTimeMillis: java.lang.Long) // Give old excluded channels a second chance
     }
+  }
 
-  def processPureData(pure: PureRoutingData): Unit =
-    db txWrap {
-      for (announcement <- pure.announces) addChannelAnnouncement(announcement)
-      for (channelUpdate <- pure.updates) addChannelUpdate(channelUpdate)
-      for (shortId <- pure.excluded) addExcludedChannel(shortId)
+  def processPureData(pure: PureRoutingData): Unit = db txWrap {
+    for (announce <- pure.announces) addChannelAnnouncement(announce)
+    for (update <- pure.updates) addChannelUpdateByPosition(update)
+
+    for (update <- pure.excluded) {
+      val dbPositionalId: String = positionalIdAsString(update.shortChannelId, update.position)
+      val until = if (update.htlcMaximumMsat.isEmpty) 1000L * 3600 * 24 * 30 else 1000L * 3600 * 24 * 300
+      // If htlcMaximumMsat is empty then peer uses an old software and may update it soon, otherwise capacity is unlikely to increase so ban it for a longer time
+      db.change(ExcludedChannelTable.newSql, update.shortChannelId.toJavaLong, System.currentTimeMillis + until: java.lang.Long, update.position, dbPositionalId)
     }
+  }
 }

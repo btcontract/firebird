@@ -28,7 +28,7 @@ import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrde
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
 import fr.acinq.eclair.dummyPubKey
-import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
+import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import scodec.bits.ByteVector
 
 /**
@@ -260,6 +260,19 @@ case class NodeAnnouncement(signature: ByteVector64,
                             addresses: List[NodeAddress],
                             unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp
 
+object ChannelUpdate {
+  type PositionalId = (Long, java.lang.Integer)
+  final val POSITION_NODE_1: java.lang.Integer = 1
+  final val POSITION_NODE_2: java.lang.Integer = 2
+}
+
+case class UpdateCore(position: java.lang.Integer,
+                      shortChannelId: ShortChannelId,
+                      feeBase: MilliSatoshi,
+                      feeProportionalMillionths: Long,
+                      cltvExpiryDelta: CltvExpiryDelta,
+                      htlcMaximumMsat: Option[MilliSatoshi])
+
 case class ChannelUpdate(signature: ByteVector64,
                          chainHash: ByteVector32,
                          shortChannelId: ShortChannelId,
@@ -272,20 +285,18 @@ case class ChannelUpdate(signature: ByteVector64,
                          feeProportionalMillionths: Long,
                          htlcMaximumMsat: Option[MilliSatoshi],
                          unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp with HasChainHash {
-  // Equals and hashcode are needed to correctly use ChannelUpdate as key in SyncMaster
-  override def equals(other: Any): Boolean = other match { case cu: ChannelUpdate => shortChannelId == cu.shortChannelId && directionality == cu.directionality case _ => false }
-  override def hashCode: Int = shortChannelId.hashCode + directionality.hashCode
 
-  // Used internally for db storage
-  def directionality: java.lang.Integer = if (isNode1) 1 else 2
-  def isNode1: Boolean = Announcements.isNode1(channelFlags)
+  lazy val position: java.lang.Integer = {
+    val isNode1: Boolean = Announcements.isNode1(channelFlags)
+    if (isNode1) ChannelUpdate.POSITION_NODE_1 else ChannelUpdate.POSITION_NODE_2
+  }
 
-  // Point useless fields to same object, db-restored should be the same
-  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
-  // Used insternally to compare two channel updates with a same essential fields
-  def asDummyHop = ExtraHop(dummyPubKey, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta)
-  // Used internally, should not be exposed as class field
-  var score: Long = 1L
+  lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
+
+  // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
+  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, timestamp = System.currentTimeMillis, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
+
+  var score: Long = 1L // Used internally for score estimation, can not be exposed as class field
 }
 
 // @formatter:off
