@@ -7,9 +7,9 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
 import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
-import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
+import fr.acinq.eclair.router.Router.{ChannelDesc, Data, PublicChannel, RouteRequest, RouterConf}
 import java.util.concurrent.Executors
+import fr.acinq.eclair.ShortChannelId
 
 
 object PathFinder {
@@ -62,9 +62,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       me process CMDResync
 
     case CMDLoadGraph \ WAITING =>
-      val channelMap: ShortIdToPublicChanMap = store.getRoutingData
-      val graph = DirectedGraph.makeGraph(channelMap).addEdges(data.extraEdges.values)
-      become(freshData = Data(channelMap, data.extraEdges, graph), OPERATIONAL)
+      val channelMap: Map[ShortChannelId, PublicChannel] = store.getRoutingData
+      val searchGraph = DirectedGraph.makeGraph(channelMap).addEdges(data.extraEdges.values)
+      become(freshData = Data(channelMap, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
@@ -72,12 +72,12 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
       store.processPureData(pure)
 
     case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
-      val channelMap: ShortIdToPublicChanMap = store.getRoutingData
+      val channelMap: Map[ShortChannelId, PublicChannel] = store.getRoutingData
       val ghostShortIdsPeersKnowNothingAbout = channelMap.keySet.diff(sync.provenShortIds)
       val channelMap1 = channelMap -- ghostShortIdsPeersKnowNothingAbout
 
-      val graph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
-      become(freshData = Data(channelMap1, data.extraEdges, graph), OPERATIONAL)
+      val searchGraph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
+      become(freshData = Data(channelMap1, data.extraEdges, searchGraph), OPERATIONAL)
       store.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
       updateLastResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)

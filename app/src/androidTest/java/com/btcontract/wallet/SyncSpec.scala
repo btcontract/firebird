@@ -1,12 +1,10 @@
 package com.btcontract.wallet
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
 import com.btcontract.wallet.lnutils.{LNOpenHelper, SQliteNetworkDataStore}
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
-import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -25,9 +23,9 @@ class SyncSpec {
       }
 
       def onTotalSyncComplete: Unit = {
-        val map: ShortIdToPublicChanMap = store.getRoutingData
+        val map = store.getRoutingData
         store.removeGhostChannels(map.keySet.diff(provenShortIds))
-        val map1: ShortIdToPublicChanMap = store.getRoutingData
+        val map1 = store.getRoutingData
         println(s"Total sync complete")
         assert(map1.nonEmpty)
         run

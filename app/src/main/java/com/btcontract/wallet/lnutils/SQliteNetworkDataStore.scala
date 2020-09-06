@@ -3,7 +3,6 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
-import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import fr.acinq.eclair.router.Router.PublicChannel
@@ -67,7 +66,7 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
       update
     }
 
-  def getRoutingData: ShortIdToPublicChanMap = {
+  def getRoutingData: Map[ShortChannelId, PublicChannel] = {
     val chanUpdatesByShortId = listChannelUpdates.groupBy(_.shortChannelId)
 
     val tuples = listChannelAnnouncements flatMap { ann =>

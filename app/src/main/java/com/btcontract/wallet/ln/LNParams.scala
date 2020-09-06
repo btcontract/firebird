@@ -5,14 +5,13 @@ import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
 import fr.acinq.bitcoin.DeterministicWallet._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
-import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
 import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
-import fr.acinq.eclair.router.Router.RouterConf
 import com.btcontract.wallet.ln.crypto.Tools
 import java.io.ByteArrayInputStream
 import fr.acinq.eclair.crypto.Mac32
@@ -139,8 +138,8 @@ trait NetworkDataStore {
   def incrementChannelScore(cu: ChannelUpdate): Unit
   def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit
   def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit
+  def getRoutingData: Map[ShortChannelId, PublicChannel]
   def processPureData(data: PureRoutingData): Unit
-  def getRoutingData: ShortIdToPublicChanMap
 }
 
 trait ChainLink {
