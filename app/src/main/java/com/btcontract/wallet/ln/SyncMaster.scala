@@ -1,23 +1,24 @@
 package com.btcontract.wallet.ln
 
 import fr.acinq.eclair.wire._
-
 import scala.concurrent.duration._
 import com.btcontract.wallet.ln.SyncMaster._
-import com.btcontract.wallet.ln.crypto.Tools._
-import scodec.bits.ByteVector
 import QueryShortChannelIdsTlv.QueryFlagType._
+import com.btcontract.wallet.ln.crypto.Tools._
+
+import scodec.bits.ByteVector
 import scala.collection.mutable
 import scala.util.Random.shuffle
 import fr.acinq.eclair.router.Sync
 import java.util.concurrent.Executors
-
 import fr.acinq.bitcoin.Crypto.PublicKey
 import com.btcontract.wallet.ln.crypto.StateMachine
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
+import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
+
 import fr.acinq.eclair.{MilliSatoshi, ShortChannelId}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouterConf}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouterConf}
 
 
 object SyncMaster {
@@ -30,30 +31,33 @@ object SyncMaster {
   val CMDGetGossip = "cmd-get-gossip"
   val CMDShutdown = "cmd-shut-down"
 
-  type UpdatePositionSet = Set[Int]
-  type ExcludedMap = mutable.Map[ShortChannelId, UpdatePositionSet]
-  type ShortIdToPublicChanMap = Map[ShortChannelId, PublicChannel]
   type ConifrmedBySet = Set[PublicKey]
+  type ShortIdToPublicChanMap = Map[ShortChannelId, PublicChannel]
 
   val lightning: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03baa70886d9200af0ffbd3f9e18d96008331c858456b16e3a9b41e735c6208fef"), NodeAddress.unresolved(9735, host = 45, 20, 67, 1), "LIGHTNING")
   val conductor: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03c436af41160a355fc1ed230a64f6a64bcbd2ae50f12171d1318f9782602be601"), NodeAddress.unresolved(9735, host = 18, 191, 89, 219), "Conductor")
   val cheese: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0276e09a267592e7451a939c932cf685f0754de382a3ca85d2fb3a864d4c365ad5"), NodeAddress.unresolved(9735, host = 94, 177, 171, 73), "Cheese")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
-  val syncNodes: Set[NodeAnnouncement] = Set(conductor, cheese, acinq) // Set(lightning, conductor, cheese, acinq)
-  val minCapacity = MilliSatoshi(1L) // MilliSatoshi(1000000000L)
+  val syncNodes: Set[NodeAnnouncement] = Set(lightning, conductor, cheese, acinq)
+  val minCapacity = MilliSatoshi(500000000L)
   val chunksToWait = 24
 }
-
 
 sealed trait SyncWorkerData
 
 case class SyncWorkerShortIdsData(ranges: List[ReplyChannelRange] = Nil) extends SyncWorkerData {
   lazy val allShortIds: Seq[ShortChannelId] = ranges.flatMap(_.shortChannelIds.array)
+
+  def isHolistic: Boolean = ranges forall { range =>
+    val sameStampToChecksums = range.timestamps.timestamps.size == range.checksums.checksums.size
+    val sameDataToTlv = range.shortChannelIds.array.size == range.timestamps.timestamps.size
+    sameStampToChecksums && sameDataToTlv
+  }
 }
 
 case class SyncWorkerGossipData(queries: Seq[QueryShortChannelIds],
-                                updates: Set[ChannelUpdate] = Set.empty[ChannelUpdate],
-                                announces: Set[ChannelAnnouncement] = Set.empty[ChannelAnnouncement],
+                                updates: Set[ChannelUpdate] = Set.empty,
+                                announces: Set[ChannelAnnouncement] = Set.empty,
                                 excluded: Set[ChannelUpdate] = Set.empty) extends SyncWorkerData
 
 case class CMDShortIdsComplete(sync: SyncWorker, data: SyncWorkerShortIdsData)
@@ -63,14 +67,15 @@ case class CMDGossipComplete(sync: SyncWorker)
 case class SyncWorker(master: SyncMaster, keyPair: KeyPair, ann: NodeAnnouncement) extends StateMachine[SyncWorkerData] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
-
   val pkap = PublicKeyAndPair(ann.nodeId, keyPair)
+
   val listener: ConnectionListener = new ConnectionListener {
-    override def onOperational(worker: CommsTower.Worker): Unit = process(worker)
-    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = process(msg)
+    override def onOperational(worker: CommsTower.Worker): Unit = me process worker
+    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = me process msg
 
     override def onDisconnect(worker: CommsTower.Worker): Unit = {
       // Remove this listener and remove an object itself from master
+      // This disconnect is unexpected, normal shoutdown removes listener
       CommsTower.listeners(worker.pkap) -= listener
       master process me
     }
@@ -121,7 +126,6 @@ case class SyncWorker(master: SyncMaster, keyPair: KeyPair, ann: NodeAnnouncemen
   }
 }
 
-
 trait SyncMasterData {
   lazy val threshold: Int = maxSyncs / 2
   def activeSyncs: Set[SyncWorker]
@@ -131,21 +135,21 @@ trait SyncMasterData {
 case class SyncMasterShortIdData(activeSyncs: Set[SyncWorker], collectedRanges: Map[PublicKey, SyncWorkerShortIdsData], maxSyncs: Int) extends SyncMasterData
 case class SyncMasterGossipData(activeSyncs: Set[SyncWorker], chunksLeft: Int, maxSyncs: Int) extends SyncMasterData
 
+case class UpdateConifrmState(liteUpdOpt: Option[ChannelUpdate], confirmedBy: ConifrmedBySet) {
+  def add(cu: ChannelUpdate, from: PublicKey): UpdateConifrmState = copy(liteUpdOpt = Some(cu), confirmedBy = confirmedBy + from)
+}
+
 case class PureRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate], excluded: Set[ChannelUpdate] = Set.empty)
-abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: ExcludedMap, routerData: Data, val from: Int, routerConf: RouterConf) extends StateMachine[SyncMasterData] { me =>
-  def provenAndNotExcluded(shortId: ShortChannelId, position: java.lang.Integer): Boolean = provenShortIds.contains(shortId) && !excluded.get(shortId).exists(_ contains position)
+abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[PositionalId], routerData: Data, val from: Int, routerConf: RouterConf) extends StateMachine[SyncMasterData] { me =>
+  val confirmedChanUpdates: mutable.Map[UpdateCore, UpdateConifrmState] = mutable.Map.empty withDefaultValue UpdateConifrmState(liteUpdOpt = None, confirmedBy = Set.empty)
+  val confirmedChanAnnounces: mutable.Map[ChannelAnnouncement, ConifrmedBySet] = mutable.Map.empty withDefaultValue Set.empty
+  var newExcludedChanUpdates: Set[ChannelUpdate] = Set.empty
+  var provenShortIds: Set[ShortChannelId] = Set.empty
+
+  def provenAndNotExcluded(shortId: ShortChannelId, position: java.lang.Integer): Boolean = provenShortIds.contains(shortId) && !excluded.contains(shortId.id -> position)
   def provenAndTooSmallOrNoInfo(update: ChannelUpdate): Boolean = provenShortIds.contains(update.shortChannelId) && update.htlcMaximumMsat.forall(_ < minCapacity)
   def onChunkSyncComplete(pure: PureRoutingData): Unit
   def onTotalSyncComplete: Unit
-
-  val confirmedChanAnnounces: mutable.Map[ChannelAnnouncement, ConifrmedBySet] = mutable.Map.empty withDefaultValue Set.empty[PublicKey]
-
-  val confirmedChanUpdates: mutable.Map[String, ConifrmedBySet] = mutable.Map.empty withDefaultValue Set.empty[PublicKey]
-  val confirmedChanUpdates1: mutable.Map[String, Vector[ChannelUpdate]] = mutable.Map.empty withDefaultValue Vector.empty
-
-  var newExcludedChanUpdates: Set[ChannelUpdate] = Set.empty[ChannelUpdate]
-  var provenShortIds: Set[ShortChannelId] = Set.empty[ShortChannelId]
-  var queries: Seq[QueryShortChannelIds] = Nil
 
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
@@ -174,12 +178,11 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: ExcludedM
 
       if (data1.collectedRanges.size == maxSyncs) {
         // We have collected enough channel ranges for gossip
-        val shortIdAccumulator = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
-        data1.collectedRanges.values.flatMap(_.allShortIds).foreach(shortId => shortIdAccumulator(shortId) += 1)
-        provenShortIds = shortIdAccumulator.collect { case shortId \ num if num > data.threshold => shortId }.toSet
-        queries = data1.collectedRanges.values.maxBy(_.allShortIds.size).ranges.flatMap(reply2Query)
-
-        println(s"size: ${queries.size}")
+        val goodRanges = data1.collectedRanges.values.filter(_.isHolistic)
+        val accum = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
+        goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
+        provenShortIds = accum.collect { case shortId \ confs if confs > data.threshold => shortId }.toSet
+        val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.flatMap(reply2Query).toList
 
         // Transfer every worker into gossip syncing state
         become(SyncMasterGossipData(activeSyncs, chunksToWait, maxSyncs), GOSSIP_SYNC)
@@ -198,21 +201,17 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: ExcludedM
       newSyncWorker process SyncWorkerGossipData(workerData.queries)
 
     case (sync: SyncWorker, data1: SyncMasterGossipData, GOSSIP_SYNC) =>
-      println("DISCONNECT")
       become(data1.copy(activeSyncs = data1.activeSyncs - sync), GOSSIP_SYNC)
       // Sync has disconnected, stop tracking it and try to connect to another one
       RxUtils.ioQueue.delay(3.seconds).map(_ => me process sync.data).foreach(identity)
 
     case (CMDChunkComplete(sync, workerData), data1: SyncMasterGossipData, GOSSIP_SYNC) =>
-      for (announce <- workerData.announces) confirmedChanAnnounces(announce) += sync.pkap.them
-      for (update <- workerData.updates) {
-        confirmedChanUpdates(update.positionalId) += sync.pkap.them
-        confirmedChanUpdates1(update.positionalId) +:= update
-      }
+      for (liteAnnounce <- workerData.announces) confirmedChanAnnounces(liteAnnounce) = confirmedChanAnnounces(liteAnnounce) + sync.pkap.them
+      for (liteUpdate <- workerData.updates) confirmedChanUpdates(liteUpdate.core) = confirmedChanUpdates(liteUpdate.core).add(liteUpdate, sync.pkap.them)
       newExcludedChanUpdates ++= workerData.excluded
 
       if (data1.chunksLeft > 0) {
-        // We batch multiple chunks to have less db calls
+        // We batch multiple chunks to have less upstream db calls
         val nextData = data1.copy(chunksLeft = data1.chunksLeft - 1)
         become(nextData, GOSSIP_SYNC)
       } else {
@@ -237,13 +236,11 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: ExcludedM
   }
 
   def sendOutData(data1: SyncMasterGossipData): Unit = {
-    val goodAnnounces = confirmedChanAnnounces.filter { case _ \ confirmedByNodes => confirmedByNodes.size > data1.threshold }.keys.toSet
-    val goodPositionalIds = confirmedChanUpdates.filter { case _ \ confirmedByNodes => confirmedByNodes.size > data1.threshold }.keys.toSet
-    val goodUpdates: Set[ChannelUpdate] = goodPositionalIds.map(posId => confirmedChanUpdates1(posId).maxBy(_.timestamp))
-
+    val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > data1.threshold => announce }.toSet
+    val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > data1.threshold => update }.toSet
     me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates)
-    confirmedChanAnnounces --= goodAnnounces
-    confirmedChanUpdates --= goodPositionalIds
+    for (announce <- goodAnnounces) confirmedChanAnnounces -= announce
+    for (update <- goodUpdates) confirmedChanUpdates -= update.core
     newExcludedChanUpdates = Set.empty
   }
 
@@ -255,45 +252,38 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: ExcludedM
     SyncWorker(me, randomKeyPair, randomAnnounce)
   }
 
-  def reply2Query(reply: ReplyChannelRange): Seq[QueryShortChannelIds] = {
+  def reply2Query(reply: ReplyChannelRange): Iterator[QueryShortChannelIds] = {
     val idStampChecksum = (reply.shortChannelIds.array, reply.timestamps.timestamps, reply.checksums.checksums)
+    val groupedQueryChunks = idStampChecksum.zipped.map(computeFlag).filter(_._2 != 0).grouped(routerConf.channelQueryChunkSize)
 
-    val shortIdQueryChunks = for {
-      (shortId, stamps, checksums) <- idStampChecksum.zipped.toList
-      flags = computeShortIdAndFlag(shortId, stamps, checksums) if 0 != flags
-    } yield (shortId, flags)
-
-    val groupedQueryChunks = shortIdQueryChunks grouped routerConf.channelQueryChunkSize
-
-    val queries = for {
+    for {
       chunk <- groupedQueryChunks
       shortIds \ flags = chunk.unzip
       shortChannelIds = EncodedShortChannelIds(reply.shortChannelIds.encoding, shortIds)
       tlv = QueryShortChannelIdsTlv.EncodedQueryFlags(reply.shortChannelIds.encoding, flags)
-    } yield QueryShortChannelIds(reply.chainHash, shortChannelIds, TlvStream apply tlv)
-    queries.toList
+    } yield QueryShortChannelIds(LNParams.chainHash, shortChannelIds, TlvStream apply tlv)
   }
 
-  private def computeShortIdAndFlag(shortChannelId: ShortChannelId,
-                                    theirTimestamps: ReplyChannelRangeTlv.Timestamps,
-                                    theirChecksums: ReplyChannelRangeTlv.Checksums) = {
+  private val computeFlag = (shortlId: ShortChannelId,
+                             theirTimestamps: ReplyChannelRangeTlv.Timestamps,
+                             theirChecksums: ReplyChannelRangeTlv.Checksums) => {
 
-    val update1NotExcluded = provenAndNotExcluded(shortChannelId, ChannelUpdate.POSITION_NODE_1)
-    val update2NotExcluded = provenAndNotExcluded(shortChannelId, ChannelUpdate.POSITION_NODE_2)
+      val update1NotExcluded = provenAndNotExcluded(shortlId, ChannelUpdate.POSITION_NODE_1)
+      val update2NotExcluded = provenAndNotExcluded(shortlId, ChannelUpdate.POSITION_NODE_2)
 
-    if (routerData.channels contains shortChannelId) {
-      val ReplyChannelRangeTlv.Timestamps(stamp1, stamp2) \ ReplyChannelRangeTlv.Checksums(checksum1, checksum2) = Sync.getChannelDigestInfo(routerData.channels)(shortChannelId)
-      val shouldRequestUpdate1 = update1NotExcluded && Sync.shouldRequestUpdate(stamp1, checksum1, theirTimestamps.timestamp1, theirChecksums.checksum1) // Save funcall in excluded
-      val shouldRequestUpdate2 = update2NotExcluded && Sync.shouldRequestUpdate(stamp2, checksum2, theirTimestamps.timestamp2, theirChecksums.checksum2) // Save funcall in excluded
+      if (routerData.channels contains shortlId) {
+        val ReplyChannelRangeTlv.Timestamps(stamp1, stamp2) \ ReplyChannelRangeTlv.Checksums(checksum1, checksum2) = Sync.getChannelDigestInfo(routerData.channels)(shortlId)
+        val shouldRequestUpdate1 = update1NotExcluded && Sync.shouldRequestUpdate(stamp1, checksum1, theirTimestamps.timestamp1, theirChecksums.checksum1) // Save funcall in excluded
+        val shouldRequestUpdate2 = update2NotExcluded && Sync.shouldRequestUpdate(stamp2, checksum2, theirTimestamps.timestamp2, theirChecksums.checksum2) // Save funcall in excluded
 
-      val flagUpdate1 = if (shouldRequestUpdate1) INCLUDE_CHANNEL_UPDATE_1 else 0
-      val flagUpdate2 = if (shouldRequestUpdate2) INCLUDE_CHANNEL_UPDATE_2 else 0
-      0 | flagUpdate1 | flagUpdate2
-    } else {
-      val flagAnnounce = if (update1NotExcluded || update2NotExcluded) INCLUDE_CHANNEL_ANNOUNCEMENT else 0
-      val flagUpdate1 = if (update1NotExcluded) INCLUDE_CHANNEL_UPDATE_1 else 0
-      val flagUpdate2 = if (update2NotExcluded) INCLUDE_CHANNEL_UPDATE_2 else 0
-      flagAnnounce | flagUpdate1 | flagUpdate2
+        val flagUpdate1 = if (shouldRequestUpdate1) INCLUDE_CHANNEL_UPDATE_1 else 0
+        val flagUpdate2 = if (shouldRequestUpdate2) INCLUDE_CHANNEL_UPDATE_2 else 0
+        (shortlId, 0 | flagUpdate1 | flagUpdate2)
+      } else {
+        val flagAnnounce = if (update1NotExcluded || update2NotExcluded) INCLUDE_CHANNEL_ANNOUNCEMENT else 0
+        val flagUpdate1 = if (update1NotExcluded) INCLUDE_CHANNEL_UPDATE_1 else 0
+        val flagUpdate2 = if (update2NotExcluded) INCLUDE_CHANNEL_UPDATE_2 else 0
+        (shortlId, flagAnnounce | flagUpdate1 | flagUpdate2)
+      }
     }
-  }
 }

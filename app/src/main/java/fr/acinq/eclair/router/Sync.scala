@@ -23,8 +23,6 @@ import fr.acinq.eclair.ShortChannelId
 import scodec.bits.ByteVector
 import shapeless.HNil
 
-import scala.collection.mutable
-
 object Sync {
   def shouldRequestUpdate(ourTimestamp: Long, ourChecksum: Long, theirTimestamp: Long, theirChecksum: Long): Boolean = {
     // we request their channel_update if all those conditions are met:
@@ -35,7 +33,6 @@ object Sync {
     val areDifferent = ourChecksum != theirChecksum
     val oursIsAlmostStale = StaleChannels.isAlmostStale(ourTimestamp)
     val theirsIsStale = StaleChannels.isStale(theirTimestamp)
-    println(s"theirsIsMoreRecent=$theirsIsMoreRecent, areDifferent=$areDifferent")
     theirsIsMoreRecent && (areDifferent || oursIsAlmostStale) && !theirsIsStale
   }
 

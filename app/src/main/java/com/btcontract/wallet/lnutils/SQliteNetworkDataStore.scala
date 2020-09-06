@@ -3,32 +3,25 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
-import com.btcontract.wallet.ln.SyncMaster.{ExcludedMap, ShortIdToPublicChanMap, UpdatePositionSet}
+import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
+import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector64
-import scala.collection.mutable
 import scodec.bits.ByteVector
 
 
 class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
-  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(ChannelUpdateTable.updScoreSql, cu.positionalId)
-  def removeChannelUpdateByPosition(positionalId: String): Unit = db.change(ChannelUpdateTable.killByPositionalIdSql, positionalId)
+  def positionalIdAsString(shortId: ShortChannelId, position: java.lang.Integer): String = shortId.id + "/" + position
+  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(params = positionalIdAsString(cu.shortChannelId, cu.position), sql = ChannelUpdateTable.updScoreSql)
+  def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit = db.change(params = positionalIdAsString(shortId, position), sql = ChannelUpdateTable.killByPositionalIdSql)
+  def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(ChannelAnnouncementTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
 
-  def listExcludedChannels: ExcludedMap = {
-    val res = mutable.Map.empty[ShortChannelId, UpdatePositionSet] withDefaultValue Set.empty
-    db.select(ExcludedChannelTable.selectSql, System.currentTimeMillis.toString) foreach { rc =>
-      val shortId = ShortChannelId(rc long ExcludedChannelTable.shortChannelId)
-      res(shortId) += rc int ExcludedChannelTable.position
+  def listExcludedChannels: Set[PositionalId] =
+    db.select(ExcludedChannelTable.selectSql, System.currentTimeMillis.toString) set { rc =>
+      (rc long ExcludedChannelTable.shortChannelId, rc int ExcludedChannelTable.position)
     }
-
-    res
-  }
-
-  def addChannelAnnouncement(ca: ChannelAnnouncement): Unit =
-    db.change(ChannelAnnouncementTable.newSql, params = Array.emptyByteArray,
-      ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] =
     db select ChannelAnnouncementTable.selectAllSql vec { rc =>
@@ -50,8 +43,8 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
     val feeBaseMsat: java.lang.Long = cu.feeBaseMsat.toLong
     val timestamp: java.lang.Long = cu.timestamp
 
-    // Insert if not present, ignore and update if it is
-    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.positionalId)
+    val dbPositionalId: String = positionalIdAsString(cu.shortChannelId, cu.position)
+    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, dbPositionalId)
     db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
@@ -95,8 +88,8 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
     db txWrap {
       for (shortId <- ghostIds) {
         db.change(ChannelAnnouncementTable.killSql, shortId.toJavaLong)
-        me removeChannelUpdateByPosition ChannelUpdate.makePosition(shortId.id, ChannelUpdate.POSITION_NODE_1)
-        me removeChannelUpdateByPosition ChannelUpdate.makePosition(shortId.id, ChannelUpdate.POSITION_NODE_2)
+        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_1)
+        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_2)
       }
 
       db.change(ExcludedChannelTable.killPresentInChans) // Remove from excluded if present in channels (minority says it's bad, majority says it's good)
@@ -110,9 +103,10 @@ class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
     for (update <- pure.updates) addChannelUpdateByPosition(update)
 
     for (update <- pure.excluded) {
+      val dbPositionalId: String = positionalIdAsString(update.shortChannelId, update.position)
       val until = if (update.htlcMaximumMsat.isEmpty) 1000L * 3600 * 24 * 30 else 1000L * 3600 * 24 * 300
       // If htlcMaximumMsat is empty then peer uses an old software and may update it soon, otherwise capacity is unlikely to increase so ban it for a longer time
-      db.change(ExcludedChannelTable.newSql, update.shortChannelId.toJavaLong, System.currentTimeMillis + until: java.lang.Long, update.position, update.positionalId)
+      db.change(ExcludedChannelTable.newSql, update.shortChannelId.toJavaLong, System.currentTimeMillis + until: java.lang.Long, update.position, dbPositionalId)
     }
   }
 }

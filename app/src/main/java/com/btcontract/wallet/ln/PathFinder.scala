@@ -2,17 +2,14 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
-
+import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
+import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
-import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
-import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
-import java.util.concurrent.Executors
-
 import com.btcontract.wallet.ln.SyncMaster.ShortIdToPublicChanMap
-import fr.acinq.eclair.ShortChannelId
+import java.util.concurrent.Executors
 
 
 object PathFinder {
@@ -118,24 +115,24 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     val edge = GraphEdge(desc, cu)
 
     if (cu.htlcMaximumMsat.isEmpty) {
-      // Will be queried again on next sync, will get excluded
-      store.removeChannelUpdateByPosition(edge.update.positionalId)
+      // Will be queried again on next sync and will likely get excluded
+      store.removeChannelUpdateByPosition(cu.shortChannelId, cu.position)
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isOld) {
       // We have a newer one or this one is stale
       // retain db record since we have a more recent copy
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isPublic && isEnabled) {
-      store.addChannelUpdateByPosition(edge.update)
+      store.addChannelUpdateByPosition(cu)
       data.copy(graph = data.graph addEdge edge)
     } else if (isPublic) {
       // Save in db because it's fresh
-      store.addChannelUpdateByPosition(edge.update)
+      store.addChannelUpdateByPosition(cu)
       // But remove from runtime graph because disabled
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isEnabled) {
       // Good new private update, store in runtime map also
-      val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
+      val extraEdges1 = data.extraEdges + (cu.shortChannelId -> edge)
       data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
     } else {
       // Remove from runtime graph because disabled
