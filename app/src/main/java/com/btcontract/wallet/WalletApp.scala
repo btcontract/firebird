@@ -10,6 +10,7 @@ import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import scala.util.{Success, Try}
 
+import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
 import com.btcontract.wallet.lnutils.LNUrl
@@ -57,6 +58,8 @@ object WalletApp {
     case _ => value = null
   }
 
+  def isAlive: Boolean = true
+
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)
     require(null != bitcoinURI.getAddress, "No address detected")
@@ -76,16 +79,9 @@ object WalletApp {
 
   // Fiat conversion
 
-  def msatInFiat(rates: Rates, code: String, msat: MilliSatoshi): Try[Double] =
-    Try(rates apply code) map { perBtc => msat.toLong * perBtc / BtcDenomination.factor }
-
-  def msatInFiatHuman(rates: Rates, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code, msat) match {
-    case Success(generatedFiatAmount) => s"≈ ${Denomination.formatFiat format generatedFiatAmount} $code"
-    case _ => s"≈ ? $code"
-  }
-
-  val currentMsatInFiatHuman: MilliSatoshi => String =
-    msatInFiatHuman(FiatRates.ratesInfo.rates, fiatCode, _: MilliSatoshi)
+  def msatInFiat(rates: Rates, code: String, msat: MilliSatoshi): Try[Double] = Try(rates apply code) map { ratePerOneBtc => msat.toLong * ratePerOneBtc / BtcDenomination.factor }
+  def msatInFiatHuman(rates: Rates, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code, msat) match { case Success(amt) => s"≈ ${Denomination.formatFiat format amt} $code" case _ => s"≈ ? $code" }
+  val currentMsatInFiatHuman: MilliSatoshi => String = msat => msatInFiatHuman(FiatRates.ratesInfo.rates, fiatCode, msat)
 
   // Mnemonic
 
@@ -135,6 +131,7 @@ class WalletApp extends Application {
     WalletApp.app = this
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
 
     FiatRates.ratesInfo = {
       val raw = prefs.getString(WalletApp.FIAT_RATES_DATA, new String)

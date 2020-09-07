@@ -47,11 +47,9 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'androidx.biometric:biometric:1.0.1'
     implementation 'com.stepstone.stepper:material-stepper:4.3.1'
-    implementation 'androidx.constraintlayout:constraintlayout:2.0.1'
     implementation 'com.codemybrainsout.rating:ratingdialog:1.0.8'
     implementation 'com.google.android.material:material:1.2.0'
     implementation 'com.github.medyo:fancybuttons:1.9.1'
-    implementation 'com.thefuntasty.hauler:core:3.1.0'
     implementation 'com.github.perfomer:blitz:1.0.6'
 
     implementation 'com.google.code.ndef-tools-for-android:ndeftools:1.2.4'
