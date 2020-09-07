@@ -17,8 +17,8 @@ import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 
 import fr.acinq.eclair.{MilliSatoshi, ShortChannelId}
+import fr.acinq.eclair.router.Router.{Data, RouterConf}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouterConf}
 
 
 object SyncMaster {
@@ -152,7 +152,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Posit
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   become(SyncMasterShortIdData(Set.empty, Map.empty, maxSyncs = 3), SHORT_ID_SYNC)
-  me process CMDAddSync
+  for (_ <- 0 until data.maxSyncs) me process CMDAddSync
 
   def doProcess(change: Any): Unit = (change, data, state) match {
     case (CMDAddSync, data1: SyncMasterShortIdData, SHORT_ID_SYNC) if data1.activeSyncs.size < data1.maxSyncs =>
@@ -162,12 +162,11 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Posit
       // Worker is connecting, tell it get shortIds once connection is there
       become(data1.copy(activeSyncs = data1.activeSyncs + newSyncWorker), SHORT_ID_SYNC)
       newSyncWorker process SyncWorkerShortIdsData(ranges = Nil)
-      me process CMDAddSync
 
     case (sync: SyncWorker, SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
       val data1 = SyncMasterShortIdData(activeSyncs - sync, ranges - sync.pkap.them, maxSyncs)
       // Sync has disconnected, stop tracking it and try to connect to another one with delay
-      RxUtils.ioQueue.delay(3.seconds).map(_ => me process CMDAddSync).foreach(identity)
+      RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
       become(data1, SHORT_ID_SYNC)
 
     case (CMDShortIdsComplete(sync, ranges1), SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
@@ -201,7 +200,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Posit
     case (sync: SyncWorker, data1: SyncMasterGossipData, GOSSIP_SYNC) =>
       become(data1.copy(activeSyncs = data1.activeSyncs - sync), GOSSIP_SYNC)
       // Sync has disconnected, stop tracking it and try to connect to another one
-      RxUtils.ioQueue.delay(3.seconds).map(_ => me process sync.data).foreach(identity)
+      RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process sync.data)
 
     case (CMDChunkComplete(sync, workerData), data1: SyncMasterGossipData, GOSSIP_SYNC) =>
       for (liteAnnounce <- workerData.announces) confirmedChanAnnounces(liteAnnounce) = confirmedChanAnnounces(liteAnnounce) + sync.pkap.them

@@ -5,6 +5,7 @@ import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
 import com.btcontract.wallet.lnutils.{LNOpenHelper, SQliteNetworkDataStore}
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
+import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
 
