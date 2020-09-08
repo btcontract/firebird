@@ -2,6 +2,10 @@
     <color name="bg">#282B30</color>
     <color name="bgfloat">#49616B</color>
     <color name="colorAccent">#FAFAFA</color>
+    <color name="buttonDisableDefault">#444444</color>
+    <color name="buttonDisableBorder">#555555</color>
+    <color name="buttonDefault">#3B5998</color>
+    <color name="buttonBorder">#576DB8</color>
 
     <!-- material stepper -->
 
