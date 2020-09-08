@@ -18,12 +18,6 @@
 
     <!-- item styles -->
 
-    <!--
-    fancy:fb_disabledColor 	setDisableBackgroundColor(int) 	Disabled Color of button background
-fancy:fb_disabledTextColor 	setDisableTextColor(int) 	Disabled Color of button text
-fancy:fb_disabledBorderColor
-    -->
-
     <style name="ActionButton">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">wrap_content</item>
@@ -34,10 +28,10 @@ fancy:fb_disabledBorderColor
         <item name="fb_defaultColor">@color/buttonDefault</item>
         <item name="fb_disabledColor">@color/buttonDisableDefault</item>
         <item name="fb_focusColor">@color/material_blue_500</item>
-        <item name="android:paddingBottom">10dp</item>
+        <item name="android:paddingBottom">11dp</item>
         <item name="android:paddingRight">14dp</item>
         <item name="android:paddingLeft">14dp</item>
-        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingTop">9dp</item>
         <item name="android:textSize">16sp</item>
         <item name="fb_borderWidth">2dp</item>
         <item name="fb_radius">6dp</item>

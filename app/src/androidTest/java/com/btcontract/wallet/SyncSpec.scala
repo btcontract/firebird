@@ -3,7 +3,7 @@ package com.btcontract.wallet
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
-import com.btcontract.wallet.lnutils.{LNOpenHelper, SQliteNetworkDataStore}
+import com.btcontract.wallet.lnutils.{SQLiteInterface, SQliteNetworkDataStore}
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
 import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
@@ -11,7 +11,7 @@ import org.junit.runner.RunWith
 
 @RunWith(classOf[AndroidJUnit4])
 class SyncSpec {
-  val db = new LNOpenHelper(WalletApp.app, new String(Tools.random.getBytes(8)))
+  val db = new SQLiteInterface(WalletApp.app, new String(Tools.random.getBytes(8)))
   val store = new SQliteNetworkDataStore(db)
 
   def run: Unit = {

@@ -8,6 +8,21 @@ import android.content.Context
 import android.net.Uri
 
 
+object DataTable extends Table {
+  val Tuple3(table, label, content) = ("data", "label", "content")
+  val newSql = s"INSERT OR IGNORE INTO $table ($label, $content) VALUES (?, ?)"
+  val updSql = s"UPDATE $table SET $content = ? WHERE $label = ?"
+  val selectSql = s"SELECT * FROM $table WHERE $label = ?"
+  val killSql = s"DELETE FROM $table WHERE $label = ?"
+
+  val createSql = s"""
+    CREATE TABLE IF NOT EXISTS $table (
+      $id INTEGER PRIMARY KEY AUTOINCREMENT,
+      $label TEXT NOT NULL UNIQUE,
+      $content STRING NOT NULL
+    )"""
+}
+
 object ChannelTable extends Table {
   val Tuple3(table, identifier, data) = ("channel", "identifier", "data")
   val newSql = s"INSERT OR IGNORE INTO $table ($identifier, $data) VALUES (?, ?)"
@@ -110,7 +125,7 @@ object PaymentTable extends Table {
 }
 
 trait Table { val (id, fts) = "_id" -> "fts4" }
-class LNOpenHelper(context: Context, name: String) extends SQLiteOpenHelper(context, name, null, 1) {
+class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(context, name, null, 1) {
   def sqlPath(targetTable: String): Uri = Uri parse s"sqlite://com.btcontract.wallet/table/$targetTable"
   def change(sql: String, params: Object*): Unit = base.execSQL(sql, params.toArray)
   val base: SQLiteDatabase = getWritableDatabase
@@ -130,8 +145,9 @@ class LNOpenHelper(context: Context, name: String) extends SQLiteOpenHelper(cont
     dbs execSQL ExcludedChannelTable.createSql
     dbs execSQL ChannelUpdateTable.createSql
     dbs execSQL PaymentTable.createVSql
-    dbs execSQL PaymentTable.createSql
     dbs execSQL ChannelTable.createSql
+    dbs execSQL PaymentTable.createSql
+    dbs execSQL DataTable.createSql
   }
 
   def onUpgrade(dbs: SQLiteDatabase, v0: Int, v1: Int): Unit = {

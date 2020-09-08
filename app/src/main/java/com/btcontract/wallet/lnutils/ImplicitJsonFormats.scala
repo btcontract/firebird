@@ -1,19 +1,20 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
+import com.btcontract.wallet.ln.{CommitmentSpec, FailAndAdd, HostedCommits, Htlc, LightningNodeKeys, MalformAndAdd, MnemonicStorageFormat, NodeAnnouncementExt, PasswordStorageFormat, PaymentAction, StorageFormat}
 import fr.acinq.eclair.wire.LightningMessageCodecs.{channelUpdateCodec, errorCodec, lightningMessageCodec, nodeAnnouncementCodec, updateAddHtlcCodec, updateFailHtlcCodec, updateFailMalformedHtlcCodec}
 import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelBranding, LastCrossSignedState, LightningMessage, NodeAnnouncement, UpdateAddHtlc, UpdateFailHtlc, UpdateFailMalformedHtlc}
-import com.btcontract.wallet.ln.{CommitmentSpec, FailAndAdd, HostedCommits, Htlc, MalformAndAdd, NodeAnnouncementExt, PaymentAction}
 import com.btcontract.wallet.{Bitpay, BitpayItem, BlockchainInfoItem, CoinGecko, CoinGeckoItem, RatesInfo}
 import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec}
 import com.btcontract.wallet.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
-import fr.acinq.bitcoin.{ByteVector32, Transaction}
+import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
+import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey}
 import fr.acinq.eclair.{MilliSatoshi, wire}
 
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
-import fr.acinq.eclair.wire.CommonCodecs.bytes32
+import fr.acinq.bitcoin.Crypto.PrivateKey
+import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.BitVector
-import java.math.BigInteger
 import scodec.Codec
 
 
@@ -36,16 +37,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   def writeExt[T](ext: (String, JsValue), base: JsValue) =
     JsObject(base.asJsObject.fields + ext)
 
-  implicit object BigIntegerFmt extends JsonFormat[BigInteger] {
-    def read(json: JsValue): BigInteger = new BigInteger(me json2String json)
-    def write(internal: BigInteger): JsValue = internal.toString.toJson
-  }
-
-  implicit object TransactionFmt extends JsonFormat[Transaction] {
-    def read(json: JsValue): Transaction = Transaction.read(me json2String json)
-    def write(internal: Transaction): JsValue = internal.bin.toHex.toJson
-  }
-
   // Channel
 
   implicit val errorFmt: JsonFormat[wire.Error] = sCodecJsonFmt(errorCodec)
@@ -57,6 +48,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val hostedChannelBrandingFmt: JsonFormat[HostedChannelBranding] = sCodecJsonFmt(hostedChannelBrandingCodec)
   implicit val updateFailMalformedHtlcFmt: JsonFormat[UpdateFailMalformedHtlc] = sCodecJsonFmt(updateFailMalformedHtlcCodec)
   implicit val updateFailHtlcFmt: JsonFormat[UpdateFailHtlc] = sCodecJsonFmt(updateFailHtlcCodec)
+  implicit val privateKeyFmt: JsonFormat[PrivateKey] = sCodecJsonFmt(privateKey)
   implicit val bytes32Fmt: JsonFormat[ByteVector32] = sCodecJsonFmt(bytes32)
 
   implicit val milliSatoshiFmt: JsonFormat[MilliSatoshi] = jsonFormat[Long, MilliSatoshi](MilliSatoshi.apply, "underlying")
@@ -118,6 +110,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     }
   }
 
+  // Note: tag on these MUST start with lower case because it is defined that way on protocol level
   implicit val withdrawRequestFmt: JsonFormat[WithdrawRequest] = taggedJsonFmt(jsonFormat[String, String, Long, String, Option[Long],
     WithdrawRequest](WithdrawRequest.apply, "callback", "k1", "maxWithdrawable", "defaultDescription", "minWithdrawable"), tag = "withdrawRequest")
 
@@ -129,4 +122,33 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Option[Boolean], Vector[String], String,
     PayRequestFinal](PayRequestFinal.apply, "successAction", "disposable", "routes", "pr")
+
+  // Wallet keys
+
+  implicit val keyPathFmt: JsonFormat[KeyPath] = jsonFormat[Seq[Long], KeyPath](KeyPath.apply, "path")
+  implicit val extendedPrivateKeyFmt: JsonFormat[ExtendedPrivateKey] = jsonFormat[ByteVector32, ByteVector32, Int, KeyPath, Long,
+    ExtendedPrivateKey](ExtendedPrivateKey.apply, "secretkeybytes", "chaincode", "depth", "path", "parent")
+
+  implicit val lightningNodeKeysFmt: JsonFormat[LightningNodeKeys] = jsonFormat[Set[String], (String, String), ExtendedPrivateKey, PrivateKey,
+    LightningNodeKeys](LightningNodeKeys.apply, "addressPool", "xpub", "extendedNodeKey", "hashingKey")
+
+  implicit object StorageFormatFmt extends JsonFormat[StorageFormat] {
+    def write(internal: StorageFormat): JsValue = internal match {
+      case mnemonicFormat: MnemonicStorageFormat => mnemonicFormat.toJson
+      case passwordFormat: PasswordStorageFormat => passwordFormat.toJson
+      case _ => throw new Exception
+    }
+
+    def read(serialized: JsValue): StorageFormat = serialized.asJsObject fields TAG match {
+      case JsString("MnemonicStorageFormat") => serialized.convertTo[MnemonicStorageFormat]
+      case JsString("PasswordStorageFormat") => serialized.convertTo[PasswordStorageFormat]
+      case tag => throw new Exception(s"Unknown lnurl=$tag")
+    }
+  }
+
+  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[LightningNodeKeys,
+    MnemonicStorageFormat](MnemonicStorageFormat.apply, "keys"), tag = "MnemonicStorageFormat")
+
+  implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[LightningNodeKeys, String, Option[String],
+    PasswordStorageFormat](PasswordStorageFormat.apply, "keys", "user", "password"), tag = "PasswordStorageFormat")
 }

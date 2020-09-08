@@ -5,16 +5,18 @@ import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+
 import com.btcontract.wallet.helper.{AwaitService, BtcDenomination, Denomination, SatDenomination}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
+import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import scala.util.{Success, Try}
 
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
-import com.btcontract.wallet.lnutils.LNUrl
 import scala.util.matching.UnanchoredRegex
+import com.btcontract.wallet.ln.LNParams
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.eclair.wire.NodeAddress
@@ -33,6 +35,9 @@ object WalletApp {
   var app: WalletApp = _
   var fiatCode: String = _
   var denom: Denomination = _
+  var db: SQLiteInterface = _
+  var dataBag: SQliteDataBag = _
+
   var value: Any = new String // Keep default empty string
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
   val denoms = List(SatDenomination, BtcDenomination)
@@ -58,7 +63,7 @@ object WalletApp {
     case _ => value = null
   }
 
-  def isAlive: Boolean = true
+  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != LNParams.keys
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)
@@ -94,11 +99,11 @@ object WalletApp {
 
   def scryptDerive(email: String, pass: String): ByteVector = {
     // An intentionally expensive key-stretching method
-    // N = 2^18, r = 8, p = 2
+    // N = 2^19, r = 8, p = 2
 
     val derived: Bytes = new Array[Byte](64)
     val salt: Bytes = Crypto.hash256(email.getBytes).take(16).toArray
-    Wally.scrypt(pass.trim.getBytes, salt, Math.pow(2, 18).toLong, 8, 2, derived)
+    Wally.scrypt(pass.trim.getBytes, salt, Math.pow(2, 19).toLong, 8, 2, derived)
     ByteVector.view(derived)
   }
 }
@@ -132,6 +137,9 @@ class WalletApp extends Application {
     WalletApp.app = this
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
+    WalletApp.db = new SQLiteInterface(this, "firebird.db")
+    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+
     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
 
     FiatRates.ratesInfo = {

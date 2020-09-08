@@ -11,7 +11,7 @@ import fr.acinq.bitcoin.ByteVector64
 import scodec.bits.ByteVector
 
 
-class SQliteNetworkDataStore(db: LNOpenHelper) extends NetworkDataStore { me =>
+class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me =>
   def positionalIdAsString(shortId: ShortChannelId, position: java.lang.Integer): String = shortId.id + "/" + position
   def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(params = positionalIdAsString(cu.shortChannelId, cu.position), sql = ChannelUpdateTable.updScoreSql)
   def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit = db.change(params = positionalIdAsString(shortId, position), sql = ChannelUpdateTable.killByPositionalIdSql)

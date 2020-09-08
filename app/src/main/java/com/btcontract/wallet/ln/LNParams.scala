@@ -46,43 +46,50 @@ object LNParams {
   }
 }
 
-class LightningNodeKeys(seed: Bytes) {
-  private lazy val master: ExtendedPrivateKey = generate(ByteVector view seed)
-  lazy val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
-  lazy val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-  lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
-
-  // Compatible with Electrum/Phoenix/BLW
-  def buildAddress(num: Long, chainHash: ByteVector32): String = {
-    val derivationPath = DeterministicWallet KeyPath s"m/84'/0'/0'/0/$num"
-    val priv = DeterministicWallet.derivePrivateKey(master, derivationPath)
-    fr.acinq.bitcoin.computeBIP84Address(priv.publicKey, chainHash)
+object LightningNodeKeys {
+  def makeFromSeed(seed: Bytes): LightningNodeKeys = {
+    val master: ExtendedPrivateKey = generate(ByteVector view seed)
+    val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
+    val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
+    val addressPool = for (num <- 0 to 50) yield buildAddress(master, num, LNParams.chainHash)
+    LightningNodeKeys(addressPool.toSet, buildXPub(master), extendedNodeKey, hashingKey)
   }
 
-  def buildXPub: (String, String) = {
-    val derivationPath = DeterministicWallet KeyPath "m/84'/0'/0'"
+  // Compatible with Electrum/Phoenix/BLW
+  def buildXPub(master: ExtendedPrivateKey): (String, String) = {
+    val derivationPath: KeyPath = DeterministicWallet KeyPath "m/84'/0'/0'"
     val pub = DeterministicWallet publicKey DeterministicWallet.derivePrivateKey(master, derivationPath)
     (DeterministicWallet.encode(pub, DeterministicWallet.zpub), derivationPath.toString)
   }
+
+  def buildAddress(master: ExtendedPrivateKey, num: Long, chainHash: ByteVector32): String = {
+    val derivationPath: KeyPath = DeterministicWallet KeyPath s"m/84'/0'/0'/46/$num"
+    val priv = DeterministicWallet.derivePrivateKey(master, derivationPath)
+    fr.acinq.bitcoin.computeBIP84Address(priv.publicKey, chainHash)
+  }
+}
+
+case class LightningNodeKeys(addressPool: Set[String], xpub: (String, String), extendedNodeKey: ExtendedPrivateKey, hashingKey: PrivateKey) {
+  lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Used for separate key per domain
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
     val chain = hardened(138) +: makeKeyPath(pathMaterial)
-    derivePrivateKey(master, chain).privateKey
+    derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
-  // Our node separate key per peer
+  // Our separate node key per peer
   def makeLightningKey(theirNodeId: PublicKey): PrivateKey = {
     val chain = hardened(230) +: makeKeyPath(theirNodeId.value)
-    derivePrivateKey(master, chain).privateKey
+    derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   // Used for fake NodeId in invoices
   def makeFakeKey(paymentHash: ByteVector): PrivateKey = {
     val chain = hardened(184) +: makeKeyPath(paymentHash)
-    derivePrivateKey(master, chain).privateKey
+    derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def makeKeyPath(material: ByteVector): Vector[Long] = {
@@ -92,6 +99,10 @@ class LightningNodeKeys(seed: Bytes) {
     Vector.fill(4)(getChunk)
   }
 }
+
+trait StorageFormat { def keys: LightningNodeKeys }
+case class MnemonicStorageFormat(keys: LightningNodeKeys) extends StorageFormat
+case class PasswordStorageFormat(keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat
 
 object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_BLOCKDAY = ByteVector.fromValidHex("0001")
