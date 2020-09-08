@@ -5,14 +5,14 @@ import com.btcontract.wallet.{R, WalletActivity, WalletApp}
 import com.journeyapps.barcodescanner.{BarcodeCallback, BarcodeResult, BarcodeView}
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.btcontract.wallet.ln.crypto.Tools
-import android.widget.Button
+import android.widget.ImageButton
 import android.os.Bundle
 
 
 class ScannerBottomSheet(host: WalletActivity) extends BottomSheetDialogFragment with BarcodeCallback { me =>
   var lastAttempt: Long = System.currentTimeMillis
   var barcodeReader: BarcodeView = _
-  var flashlight: Button = _
+  var flashlight: ImageButton = _
 
   def pauseBarcodeReader: Unit = Tools.runAnd(barcodeReader setTorch false)(barcodeReader.pause)
   def resumeBarcodeReader: Unit = Tools.runAnd(barcodeReader decodeContinuous me)(barcodeReader.resume)
@@ -24,7 +24,7 @@ class ScannerBottomSheet(host: WalletActivity) extends BottomSheetDialogFragment
 
   override def onViewCreated(view: View, savedState: Bundle): Unit = {
     barcodeReader = view.findViewById(R.id.reader).asInstanceOf[BarcodeView]
-    flashlight = view.findViewById(R.id.flashlight).asInstanceOf[Button]
+    flashlight = view.findViewById(R.id.flashlight).asInstanceOf[ImageButton]
     flashlight setOnClickListener host.onButtonTap(toggleTorch)
   }
 
@@ -43,16 +43,16 @@ class ScannerBottomSheet(host: WalletActivity) extends BottomSheetDialogFragment
   }
 
   def toggleTorch: Unit = {
-    val tag = flashlight.getTag.asInstanceOf[Int]
+    val currentTag = flashlight.getTag.asInstanceOf[Int]
 
-    if (tag == R.string.turn_flashlight_off) {
-      flashlight.setText(R.string.turn_flashlight_on)
-      flashlight.setTag(R.string.turn_flashlight_on)
-      barcodeReader.setTorch(false)
-    } else {
-      flashlight.setText(R.string.turn_flashlight_off)
-      flashlight.setTag(R.string.turn_flashlight_off)
+    if (currentTag != R.drawable.flashlight_on) {
+      flashlight.setImageResource(R.drawable.flashlight_on)
+      flashlight.setTag(R.drawable.flashlight_on)
       barcodeReader.setTorch(true)
+    } else {
+      flashlight.setImageResource(R.drawable.flashlight_off)
+      flashlight.setTag(R.drawable.flashlight_off)
+      barcodeReader.setTorch(false)
     }
   }
 }

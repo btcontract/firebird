@@ -26,15 +26,14 @@
         <item name="android:gravity">top</item>
     </style>
 
-    <style name="StandardText">
+    <style name="FillingText">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">fill_parent</item>
     </style>
 
-    <style name="TransparentButton" parent="StandardText">
-        <item name="android:background">?android:selectableItemBackground</item>
-        <item name="android:layout_width">fill_parent</item>
-        <item name="android:layout_margin">0dp</item>
-        <item name="android:textSize">14sp</item>
+    <style name="BoundedText">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:maxWidth">500dp</item>
     </style>
 </resources>

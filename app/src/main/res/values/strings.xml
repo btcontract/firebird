@@ -4,9 +4,6 @@
     <string name="action_settings">Settings</string>
     <string name="err_nothing_useful">No useful data found</string>
 
-    <string name="turn_flashlight_on">Turn flashlight on</string>
-    <string name="turn_flashlight_off">Turn flashlight off</string>
-
     <!-- orbot -->
     <string name="orbot_status">Checking Orbot status&#8230;</string>
     <string name="orbot_err_not_installed">Orbot is not installed so Tor network can not be used right now</string>
