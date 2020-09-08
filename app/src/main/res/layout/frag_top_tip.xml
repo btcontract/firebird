@@ -1,0 +1,11 @@
+<LinearLayout
+    style="@style/StandardLinearLayout"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        style="@style/MarginBoundedText"
+        android:layout_width="wrap_content"
+        android:id="@+id/titleTip"/>
+
+    <View style="@style/GrayDivider"/>
+</LinearLayout>

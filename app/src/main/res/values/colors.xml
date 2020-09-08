@@ -2,4 +2,5 @@
     <color name="bg">#282B30</color>
     <color name="bgfloat">#49616B</color>
     <color name="colorAccent">#FAFAFA</color>
+    <item name="ln" type="color">#0099FE</item>
 </resources>

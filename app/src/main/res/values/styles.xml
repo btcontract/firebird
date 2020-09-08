@@ -18,6 +18,17 @@
 
     <!-- item styles -->
 
+    <style name="SlidingDialog">
+        <item name="android:windowEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:windowExitAnimation">@anim/slide_hide</item>
+    </style>
+
+    <style name="GrayDivider">
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_width">fill_parent</item>
+        <item name="android:background">#33999999</item>
+    </style>
+
     <style name="StandardLinearLayout" parent="AppTheme">
         <item name="android:layout_height">fill_parent</item>
         <item name="android:layout_width">fill_parent</item>
@@ -25,6 +36,8 @@
         <item name="android:orientation">vertical</item>
         <item name="android:gravity">top</item>
     </style>
+
+    <!-- text styles -->
 
     <style name="FillingText">
         <item name="android:layout_height">wrap_content</item>
@@ -35,5 +48,10 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">wrap_content</item>
         <item name="android:maxWidth">500dp</item>
+    </style>
+
+    <style name="MarginBoundedText" parent="BoundedText">
+        <item name="android:layout_marginBottom">25dp</item>
+        <item name="android:layout_marginTop">25dp</item>
     </style>
 </resources>
