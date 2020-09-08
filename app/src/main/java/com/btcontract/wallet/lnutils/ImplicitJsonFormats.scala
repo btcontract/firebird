@@ -81,18 +81,18 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   // LNURL and payment actions
 
   implicit object PaymentActionFmt extends JsonFormat[PaymentAction] {
-    def read(raw: JsValue): PaymentAction = raw.asJsObject fields TAG match {
-      case JsString("message") => raw.convertTo[MessageAction]
-      case JsString("aes") => raw.convertTo[AESAction]
-      case JsString("url") => raw.convertTo[UrlAction]
-      case tag => throw new Exception(s"Unknown action=$tag")
-    }
-
     def write(internal: PaymentAction): JsValue = internal match {
       case paymentAction: MessageAction => paymentAction.toJson
       case paymentAction: UrlAction => paymentAction.toJson
       case paymentAction: AESAction => paymentAction.toJson
       case _ => throw new Exception
+    }
+
+    def read(raw: JsValue): PaymentAction = raw.asJsObject fields TAG match {
+      case JsString("message") => raw.convertTo[MessageAction]
+      case JsString("aes") => raw.convertTo[AESAction]
+      case JsString("url") => raw.convertTo[UrlAction]
+      case tag => throw new Exception(s"Unknown action=$tag")
     }
   }
 
@@ -142,7 +142,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     def read(serialized: JsValue): StorageFormat = serialized.asJsObject fields TAG match {
       case JsString("MnemonicStorageFormat") => serialized.convertTo[MnemonicStorageFormat]
       case JsString("PasswordStorageFormat") => serialized.convertTo[PasswordStorageFormat]
-      case tag => throw new Exception(s"Unknown lnurl=$tag")
+      case tag => throw new Exception(s"Unknown wallet key format=$tag")
     }
   }
 
