@@ -2,5 +2,11 @@
     <color name="bg">#282B30</color>
     <color name="bgfloat">#49616B</color>
     <color name="colorAccent">#FAFAFA</color>
-    <item name="ln" type="color">#0099FE</item>
+
+    <!-- material stepper -->
+
+    <color name="material_grey_500">#9E9E9E</color>
+	<color name="material_grey_400">#BDBDBD</color>
+    <color name="material_blue_500">#2196F3</color>
+	<color name="material_red_500">#F44336</color>
 </resources>

@@ -108,7 +108,7 @@ trait WalletActivity extends AppCompatActivity { me =>
 
   def updateView2Blue(oldView: View, newText: String): View = {
     val titleTip = oldView.findViewById(R.id.titleTip).asInstanceOf[TextView]
-    oldView setBackgroundColor ContextCompat.getColor(me, R.color.ln)
+    oldView setBackgroundColor ContextCompat.getColor(me, R.color.material_blue_500)
     titleTip setText s"<font color=#FFFFFF>$newText</font>".html
     oldView
   }
