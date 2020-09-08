@@ -101,11 +101,11 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val urlActionFmt: JsonFormat[UrlAction] = taggedJsonFmt(jsonFormat[Option[String], String, String, UrlAction](UrlAction.apply, "domain", "description", "url"), tag = "url")
 
   implicit object LNUrlDataFmt extends JsonFormat[LNUrlData] {
-    def write(unserialized: LNUrlData): JsValue = throw new RuntimeException
-    def read(serialized: JsValue): LNUrlData = serialized.asJsObject fields TAG match {
-      case JsString("hostedChannelRequest") => serialized.convertTo[HostedChannelRequest]
-      case JsString("withdrawRequest") => serialized.convertTo[WithdrawRequest]
-      case JsString("payRequest") => serialized.convertTo[PayRequest]
+    def write(internal: LNUrlData): JsValue = throw new RuntimeException
+    def read(raw: JsValue): LNUrlData = raw.asJsObject fields TAG match {
+      case JsString("hostedChannelRequest") => raw.convertTo[HostedChannelRequest]
+      case JsString("withdrawRequest") => raw.convertTo[WithdrawRequest]
+      case JsString("payRequest") => raw.convertTo[PayRequest]
       case tag => throw new Exception(s"Unknown lnurl=$tag")
     }
   }
@@ -139,9 +139,9 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
       case _ => throw new Exception
     }
 
-    def read(serialized: JsValue): StorageFormat = serialized.asJsObject fields TAG match {
-      case JsString("MnemonicStorageFormat") => serialized.convertTo[MnemonicStorageFormat]
-      case JsString("PasswordStorageFormat") => serialized.convertTo[PasswordStorageFormat]
+    def read(raw: JsValue): StorageFormat = raw.asJsObject fields TAG match {
+      case JsString("MnemonicStorageFormat") => raw.convertTo[MnemonicStorageFormat]
+      case JsString("PasswordStorageFormat") => raw.convertTo[PasswordStorageFormat]
       case tag => throw new Exception(s"Unknown wallet key format=$tag")
     }
   }
