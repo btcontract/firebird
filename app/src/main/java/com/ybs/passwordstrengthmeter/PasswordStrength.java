@@ -10,13 +10,6 @@ public enum PasswordStrength {
   MEDIUM(R.string.password_strength_medium, Color.argb(255, 220, 185, 0)),
   GOOD(R.string.password_strength_good, Color.GREEN);
 
-  //--------REQUIREMENTS--------
-  static int REQUIRED_LENGTH = 9;
-  static int MAXIMUM_LENGTH = 16;
-  static boolean REQUIRE_DIGITS = true;
-  static boolean REQUIRE_LOWER_CASE = true;
-  static boolean REQUIRE_UPPER_CASE = true;
-
   int resId;
   int color;
 
@@ -34,53 +27,38 @@ public enum PasswordStrength {
   }
 
   public static PasswordStrength calculateStrength(String password) {
-    int currentScore = 0;
     boolean sawUpper = false;
     boolean sawLower = false;
     boolean sawDigit = false;
+    int length = password.length();
 
-    for (int i = 0; i < password.length(); i++) {
+    for (int i = 0; i < length; i++) {
       char c = password.charAt(i);
-      if (!sawDigit && Character.isDigit(c)) {
-        currentScore += 1;
+      if (Character.isDigit(c)) {
         sawDigit = true;
       } else {
-        if (!sawUpper || !sawLower) {
-          if (Character.isUpperCase(c))
-            sawUpper = true;
-          else
-            sawLower = true;
-          if (sawUpper && sawLower)
-            currentScore += 1;
+        if (Character.isUpperCase(c)) {
+          sawUpper = true;
+        } else {
+          sawLower = true;
         }
       }
     }
 
-    if (password.length() > REQUIRED_LENGTH) {
-      if ((REQUIRE_UPPER_CASE && !sawUpper) || (REQUIRE_LOWER_CASE && !sawLower) || (REQUIRE_DIGITS && !sawDigit)) {
-        currentScore = 1;
-      } else {
-        currentScore = 2;
-        if (password.length() > MAXIMUM_LENGTH) {
-          currentScore = 3;
-        }
-      }
+    if (length == 8 && sawUpper && sawLower && sawDigit)  {
+      return MEDIUM;
+    } else if (length > 8 && sawUpper && sawLower && sawDigit) {
+      return GOOD;
+    } else if (length == 10 && sawUpper && sawLower) { // Mixed case, without digits
+      return MEDIUM;
+    } else if (length > 10 && sawUpper && sawLower) { // Mixed case, with possible digits
+      return GOOD;
+    } else if (length == 12 && (sawUpper || sawLower)) { // Single case, with possible digits, not purely digital
+      return MEDIUM;
+    } else if (length > 12 && (sawUpper || sawLower)) { // Single case, with possible digits, not purely digital
+      return GOOD;
     } else {
-      currentScore = 0;
+      return WEAK;
     }
-
-    switch (currentScore) {
-      case 0:
-        return WEAK;
-      case 1:
-        return MEDIUM;
-      case 2:
-      case 3:
-        return GOOD;
-      default:
-    }
-
-    return GOOD;
   }
-
 }
