@@ -115,8 +115,9 @@ abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) e
     val edge = GraphEdge(desc, cu)
 
     if (cu.htlcMaximumMsat.isEmpty) {
-      // Will be queried again on next sync and will likely get excluded
-      store.removeChannelUpdateByPosition(cu.shortChannelId, cu.position)
+      // Will be queried again on next sync
+      // Will get excluded if max is not there
+      store.removeChannelUpdate(cu.shortChannelId)
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isOld) {
       // We have a newer one or this one is stale

@@ -9,7 +9,6 @@ import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
-import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.crypto.Tools
@@ -28,9 +27,9 @@ object LNParams {
   val minPayment = MilliSatoshi(5000L)
 
   lazy val routerConf =
-    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01,
-      firstPassMaxCltv = CltvExpiryDelta(1008), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
-      maxLocalAttempts = 6, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
+    RouterConf(searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
+      firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L), maxLocalAttempts = 6, maxRemoteAttempts = 12,
+      maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   private[this] val localFeatures = Set(
     ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Optional),
@@ -144,10 +143,13 @@ trait NetworkDataStore {
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit
   def listChannelUpdates: Vector[ChannelUpdate]
-  def listExcludedChannels: Set[PositionalId]
+
+  // We disregard position and always exclude channel as a whole
+  def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit
+  def listExcludedChannels: Set[Long]
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
-  def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit
+  def removeChannelUpdate(shortId: ShortChannelId): Unit
   def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit
   def getRoutingData: Map[ShortChannelId, PublicChannel]
   def processPureData(data: PureRoutingData): Unit

@@ -4,7 +4,6 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
-import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector64
@@ -12,15 +11,11 @@ import scodec.bits.ByteVector
 
 
 class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me =>
-  def positionalIdAsString(shortId: ShortChannelId, position: java.lang.Integer): String = shortId.id + "/" + position
-  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(params = positionalIdAsString(cu.shortChannelId, cu.position), sql = ChannelUpdateTable.updScoreSql)
-  def removeChannelUpdateByPosition(shortId: ShortChannelId, position: java.lang.Integer): Unit = db.change(params = positionalIdAsString(shortId, position), sql = ChannelUpdateTable.killByPositionalIdSql)
+  def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(ChannelUpdateTable.killSql, shortId.toJavaLong)
+  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(ChannelUpdateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.position)
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(ChannelAnnouncementTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
-
-  def listExcludedChannels: Set[PositionalId] =
-    db.select(ExcludedChannelTable.selectSql, System.currentTimeMillis.toString) set { rc =>
-      (rc long ExcludedChannelTable.shortChannelId, rc int ExcludedChannelTable.position)
-    }
+  def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit = db.change(ExcludedChannelTable.newSql, shortId.toJavaLong, System.currentTimeMillis + untilStamp: java.lang.Long)
+  def listExcludedChannels: Set[Long] = db.select(ExcludedChannelTable.selectSql, System.currentTimeMillis.toString).set(_ long ExcludedChannelTable.shortChannelId)
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] =
     db select ChannelAnnouncementTable.selectAllSql vec { rc =>
@@ -42,8 +37,7 @@ class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me 
     val feeBaseMsat: java.lang.Long = cu.feeBaseMsat.toLong
     val timestamp: java.lang.Long = cu.timestamp
 
-    val dbPositionalId: String = positionalIdAsString(cu.shortChannelId, cu.position)
-    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, dbPositionalId)
+    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.position)
     db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
@@ -71,41 +65,35 @@ class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me 
 
     val tuples = listChannelAnnouncements flatMap { ann =>
       chanUpdatesByShortId get ann.shortChannelId collectFirst {
-        case Vector(update1, update2) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
-        case Vector(update2, update1) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), Some(update2), ann)
-        case Vector(update1) if ChannelUpdate.POSITION_NODE_1 == update1.position => ann.shortChannelId -> PublicChannel(Some(update1), None, ann)
-        case Vector(update2) => ann.shortChannelId -> PublicChannel(None, Some(update2), ann)
+        // We disregard channels with one update since that state signals something is wrong with one of peers
+        case Vector(u1, u2) if ChannelUpdate.POSITION_NODE_1 == u1.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
+        case Vector(u2, u1) if ChannelUpdate.POSITION_NODE_2 == u2.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
       }
     }
 
     tuples.toMap
   }
 
-  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit = {
-    // Once sync is complete we may have shortIds which our peers know nothing about
-    // this means related channels have been closed and we need to remove them locally
-    db txWrap {
-      for (shortId <- ghostIds) {
-        db.change(ChannelAnnouncementTable.killSql, shortId.toJavaLong)
-        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_1)
-        removeChannelUpdateByPosition(shortId, ChannelUpdate.POSITION_NODE_2)
-      }
+  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit = db txWrap {
+    // Once sync is complete we may have shortIds which our peers know nothing about, we may also have channels with one update, remove all of them
+    val chansWithOneUpdate = db.select(ChannelUpdateTable.selectHavingOneUpdate).set(_ long ChannelUpdateTable.shortChannelId).map(ShortChannelId.apply)
+    println(s"chansWithOneUpdate.size: ${chansWithOneUpdate.size}")
+    for (shortId <- chansWithOneUpdate) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then
+    for (shortId <- ghostIds ++ chansWithOneUpdate) removeChannelUpdate(shortId) // Make sure we only have channels with both updates
 
-      db.change(ExcludedChannelTable.killPresentInChans) // Remove from excluded if present in channels (minority says it's bad, majority says it's good)
-      db.change(ChannelAnnouncementTable.killNotPresentInChans) // Remove from announces if not present in channels (announce for excluded channel)
-      db.change(ExcludedChannelTable.killOldSql, System.currentTimeMillis: java.lang.Long) // Give old excluded channels a second chance
-    }
+    db.change(ExcludedChannelTable.killPresentInChans) // Remove from excluded if present in channels (minority says it's bad, majority says it's good)
+    db.change(ChannelAnnouncementTable.killNotPresentInChans) // Remove from announces if not present in channels (announce for excluded channel)
+    db.change(ExcludedChannelTable.killOldSql, System.currentTimeMillis: java.lang.Long) // Give old excluded channels a second chance
   }
 
   def processPureData(pure: PureRoutingData): Unit = db txWrap {
     for (announce <- pure.announces) addChannelAnnouncement(announce)
     for (update <- pure.updates) addChannelUpdateByPosition(update)
 
-    for (update <- pure.excluded) {
-      val dbPositionalId: String = positionalIdAsString(update.shortChannelId, update.position)
-      val until = if (update.htlcMaximumMsat.isEmpty) 1000L * 3600 * 24 * 30 else 1000L * 3600 * 24 * 300
-      // If htlcMaximumMsat is empty then peer uses an old software and may update it soon, otherwise capacity is unlikely to increase so ban it for a longer time
-      db.change(ExcludedChannelTable.newSql, update.shortChannelId.toJavaLong, System.currentTimeMillis + until: java.lang.Long, update.position, dbPositionalId)
+    for (core <- pure.excluded) {
+      // If max is empty then peer uses an old software and may update it soon, otherwise capacity is unlikely to increase
+      val untilStamp = if (core.htlcMaximumMsat.isEmpty) 1000L * 3600 * 24 * 30 else 1000L * 3600 * 24 * 300
+      addExcludedChannel(core.shortChannelId, untilStamp)
     }
   }
 }

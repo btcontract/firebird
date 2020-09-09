@@ -28,7 +28,6 @@ import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrde
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
 import fr.acinq.eclair.dummyPubKey
-import fr.acinq.eclair.wire.ChannelUpdate.PositionalId
 import scodec.bits.ByteVector
 
 /**
@@ -181,9 +180,8 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
 
   // Point useless fields to same object, db-restored should be the same
   def lite: ChannelAnnouncement = copy(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes,
-    bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
-    features = Features.empty, chainHash = LNParams.chainHash,
-    bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
+    bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes, features = Features.empty,
+    chainHash = LNParams.chainHash, bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
 }
 
 case class Color(r: Byte, g: Byte, b: Byte) {
@@ -261,7 +259,6 @@ case class NodeAnnouncement(signature: ByteVector64,
                             unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp
 
 object ChannelUpdate {
-  type PositionalId = (Long, java.lang.Integer)
   final val POSITION_NODE_1: java.lang.Integer = 1
   final val POSITION_NODE_2: java.lang.Integer = 2
 }
@@ -294,7 +291,7 @@ case class ChannelUpdate(signature: ByteVector64,
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
 
   // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
-  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, timestamp = System.currentTimeMillis, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
+  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
 
   var score: Long = 1L // Used internally for score estimation, can not be exposed as class field
 }
