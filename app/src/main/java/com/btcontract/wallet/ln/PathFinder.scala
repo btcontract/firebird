@@ -24,14 +24,14 @@ object PathFinder {
   val CMDResync = "cmd-resync"
 }
 
-abstract class PathFinder(store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
+abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   var listeners: Set[CanBeRepliedTo] = Set.empty
 
   // We don't load routing data on every startup but when user (or system) actually needs it
   become(freshData = Data(channels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.apply), WAITING)
-  RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 48).subscribe(none)
+  RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24 * 2).subscribe(none)
 
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit

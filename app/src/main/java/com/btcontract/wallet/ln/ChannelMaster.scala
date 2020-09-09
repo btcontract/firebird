@@ -13,7 +13,6 @@ import com.btcontract.wallet.helper.ThrottledWork
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import rx.lang.scala.Observable
-import scala.concurrent.Future
 import scodec.bits.ByteVector
 import scodec.Attempt
 
@@ -27,8 +26,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   val paymentMaster = new PaymentMaster(me)
 
   val events: ChannelMasterListener = new ChannelMasterListener {
-    override def outgoingSucceeded(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentHash)
-    override def outgoingFailed(paymentHash: ByteVector32): Unit = for (lst <- listeners) lst.outgoingFailed(paymentHash)
+    override def outgoingFailed(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(data)
+    override def outgoingSucceeded(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingSucceeded(data)
 
     override def incomingSucceeded(paymentHash: ByteVector32): Unit = {
       // Clear for correct access to payments updated to PaymentInfo.SUCCESS
@@ -153,6 +152,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
 trait ChannelMasterListener {
   def incomingSucceeded(paymentHash: ByteVector32): Unit = none
-  def outgoingSucceeded(paymentHash: ByteVector32): Unit = none
-  def outgoingFailed(paymentHash: ByteVector32): Unit = none
+  def outgoingSucceeded(data: PaymentSenderData): Unit = none
+  def outgoingFailed(data: PaymentSenderData): Unit = none
 }

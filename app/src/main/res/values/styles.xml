@@ -99,4 +99,14 @@
         <item name="step_error_highlight_color">@color/material_red_500</item>
         <item name="step_animation_duration">@android:integer/config_shortAnimTime</item>
     </style>
+
+    <!-- nachos -->
+
+    <style name="DefaultChipSuggestionTextView">
+        <item name="chipVerticalSpacing">4dp</item>
+        <item name="chipHorizontalSpacing">6dp</item>
+        <item name="chipBackground">@color/chip_material_background</item>
+        <item name="chipTextSize">14sp</item>
+        <item name="chipHeight">32dp</item>
+    </style>
 </resources>

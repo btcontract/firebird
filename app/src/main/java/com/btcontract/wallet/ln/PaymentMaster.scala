@@ -107,18 +107,18 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
 
     case (reject: RemoteReject, INIT) =>
       // Only catches if this is a new PaymentSender waiting for commands and having a null data
-      val data1 = PaymentSenderData(CMD_SEND_MPP(reject.ourAdd.paymentHash, 0.msat, null), parts = Map.empty)
+      val data1 = PaymentSenderData(CMD_SEND_MPP(reject.ourAdd.paymentHash, 0.msat, dummyPubKey), parts = Map.empty)
       me abortAndNotify data1.withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
 
     case (fulfill: UpdateFulfillHtlc, INIT) =>
       // Only catches if this is a new PaymentSender waiting for commands and having a null data
-      val data1 = PaymentSenderData(CMD_SEND_MPP(fulfill.paymentHash, 0.msat, null), parts = Map.empty)
-      master.cm.events.outgoingSucceeded(fulfill.paymentHash)
+      val data1 = PaymentSenderData(CMD_SEND_MPP(fulfill.paymentHash, 0.msat, dummyPubKey), parts = Map.empty)
+      master.cm.events.outgoingSucceeded(data1)
       become(data1, SUCCEEDED)
 
-    case (fulfill: UpdateFulfillHtlc, PENDING | ABORTED) =>
-      // An idempotent transition which also fires a success event
-      master.cm.events.outgoingSucceeded(fulfill.paymentHash)
+    case (_: UpdateFulfillHtlc, PENDING | ABORTED) =>
+      // An idempotent transition, fires a success event
+      master.cm.events.outgoingSucceeded(data)
       become(data, SUCCEEDED)
 
     case (CMDChanGotOnline, PENDING) =>
@@ -291,7 +291,7 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
 
   private def abortAndNotify(data1: PaymentSenderData): Unit = {
     // An idempotent transition, fires a failure event once no more in-flight parts are left
-    if (data1.inFlights.isEmpty) master.cm.events.outgoingFailed(data1.cmd.paymentHash)
+    if (data1.inFlights.isEmpty) master.cm.events.outgoingFailed(data1)
     become(data1, ABORTED)
   }
 }
