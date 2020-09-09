@@ -9,6 +9,8 @@ import org.ndeftools.util.activity.NfcReaderActivity
 import com.btcontract.wallet.WalletApp.app
 import org.ndeftools.Message
 import android.os.Bundle
+import android.view.View
+
 import scala.util.Try
 
 
@@ -16,6 +18,10 @@ class MainActivity extends NfcReaderActivity with WalletActivity { me =>
   def INIT(state: Bundle): Unit = setContentView(R.layout.activity_main)
 
   def checkExternalData: Unit = println(s"WalletApp.value: ${WalletApp.value}")
+
+  def showCookie(view: View): Unit = {
+    toast("and now some bitcoiners claim eth peeps shouldn't release half made stuff")
+  }
 
   // NFC AND SHARE
 

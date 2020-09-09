@@ -3,16 +3,16 @@ apply plugin: "jp.leafytree.android-scala"
 
 android {
     compileSdkVersion 29
-    buildToolsVersion "30.0.1"
+    buildToolsVersion '30.0.1'
 
     defaultConfig {
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        applicationId "com.btcontract.wallet"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        applicationId 'com.btcontract.wallet'
         multiDexEnabled true
         targetSdkVersion 29
         minSdkVersion 21
 
-        versionName "1.0"
+        versionName '1.0'
         versionCode 1
 
         ndk {
@@ -21,7 +21,7 @@ android {
     }
 
     dexOptions {
-        javaMaxHeapSize "12g"
+        javaMaxHeapSize '12g'
     }
 
     externalNativeBuild {
