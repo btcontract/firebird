@@ -4,7 +4,7 @@
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/bg</item>
         <item name="android:textColor">#CFDAE6</item>
-        <item name="android:textSize">18sp</item>
+        <item name="android:textSize">16sp</item>
     </style>
 
     <style name="AppThemeNoActionBar" parent="AppTheme">
@@ -32,7 +32,6 @@
         <item name="android:paddingRight">14dp</item>
         <item name="android:paddingLeft">14dp</item>
         <item name="android:paddingTop">9dp</item>
-        <item name="android:textSize">16sp</item>
         <item name="fb_borderWidth">2dp</item>
         <item name="fb_radius">6dp</item>
     </style>
@@ -65,7 +64,7 @@
 
     <style name="BoundedText">
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_width">fill_parent</item>
         <item name="android:maxWidth">500dp</item>
     </style>
 
@@ -77,23 +76,17 @@
     <!-- material stepper -->
 
     <style name="TextAppearance"/>
-
     <style name="TextAppearance.MaterialCompat"/>
-
     <style name="TextAppearance.MaterialCompat.Body1">
         <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:textSize">16sp</item>
     </style>
 
     <style name="TextAppearance.MaterialCompat.Body2">
         <item name="android:textColor">?android:attr/textColorPrimary</item>
-        <item name="android:textSize">16sp</item>
     </style>
 
     <style name="TextAppearance.Widget.Stepper.Done" parent="TextAppearance.MaterialCompat.Body1"/>
-
     <style name="TextAppearance.Widget.Stepper.Selected" parent="TextAppearance.MaterialCompat.Body2"/>
-
     <style name="TextAppearance.Widget.Stepper.Normal" parent="TextAppearance.MaterialCompat.Body1">
         <item name="android:textColor">?android:textColorSecondary</item>
     </style>

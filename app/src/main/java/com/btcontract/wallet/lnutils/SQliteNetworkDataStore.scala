@@ -37,8 +37,11 @@ class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me 
     val feeBaseMsat: java.lang.Long = cu.feeBaseMsat.toLong
     val timestamp: java.lang.Long = cu.timestamp
 
-    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.position)
-    db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
+    db.change(ChannelUpdateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags,
+      cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.position)
+
+    db.change(ChannelUpdateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta,
+      htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat)
   }
 
   def listChannelUpdates: Vector[ChannelUpdate] =
@@ -77,7 +80,6 @@ class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me 
   def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit = db txWrap {
     // Once sync is complete we may have shortIds which our peers know nothing about, we may also have channels with one update, remove all of them
     val chansWithOneUpdate = db.select(ChannelUpdateTable.selectHavingOneUpdate).set(_ long ChannelUpdateTable.shortChannelId).map(ShortChannelId.apply)
-    println(s"chansWithOneUpdate.size: ${chansWithOneUpdate.size}")
     for (shortId <- chansWithOneUpdate) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then
     for (shortId <- ghostIds ++ chansWithOneUpdate) removeChannelUpdate(shortId) // Make sure we only have channels with both updates
 

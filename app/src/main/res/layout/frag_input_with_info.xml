@@ -1,0 +1,16 @@
+<FrameLayout
+    style="@style/FillingText"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:id="@+id/info"
+        android:layout_marginEnd="4sp"
+        android:layout_marginTop="5sp"
+        android:layout_gravity="center|end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <com.google.android.material.textfield.TextInputLayout style="@style/FillingText">
+        <EditText android:id="@+id/input" style="@style/FillingText"/>
+    </com.google.android.material.textfield.TextInputLayout>
+</FrameLayout>
