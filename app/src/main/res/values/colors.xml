@@ -1,18 +1,12 @@
 <resources>
     <color name="bg">#282B30</color>
+    <color name="ln">#0099FE</color>
     <color name="bgfloat">#49616B</color>
     <color name="colorAccent">#FAFAFA</color>
     <color name="buttonDisableDefault">#444444</color>
     <color name="buttonDisableBorder">#555555</color>
     <color name="buttonDefault">#3B5998</color>
     <color name="buttonBorder">#576DB8</color>
-
-    <!-- material stepper -->
-
-    <color name="material_grey_500">#9E9E9E</color>
-	<color name="material_grey_400">#BDBDBD</color>
-    <color name="material_blue_500">#2196F3</color>
-	<color name="material_red_500">#F44336</color>
 
     <!-- nachos -->
 
