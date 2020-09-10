@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <TextView
-        style="@style/MarginBoundedText"
+        style="@style/MarginFillingText"
         android:layout_width="wrap_content"
         android:id="@+id/titleTip"/>
 

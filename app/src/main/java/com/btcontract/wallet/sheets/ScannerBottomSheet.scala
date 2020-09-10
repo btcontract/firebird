@@ -1,7 +1,7 @@
 package com.btcontract.wallet.sheets
 
 import android.view.{LayoutInflater, View, ViewGroup}
-import com.btcontract.wallet.{R, WalletActivity, WalletApp}
+import com.btcontract.wallet.{ExternalDataChecker, R, WalletActivity, WalletApp}
 import com.journeyapps.barcodescanner.{BarcodeCallback, BarcodeResult, BarcodeView}
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.btcontract.wallet.ln.crypto.Tools
@@ -9,7 +9,9 @@ import android.widget.ImageButton
 import android.os.Bundle
 
 
-class ScannerBottomSheet(host: WalletActivity) extends BottomSheetDialogFragment with BarcodeCallback { me =>
+class ScannerBottomSheet(host: WalletActivity, checker: ExternalDataChecker)
+  extends BottomSheetDialogFragment with BarcodeCallback { me =>
+
   var lastAttempt: Long = System.currentTimeMillis
   var barcodeReader: BarcodeView = _
   var flashlight: ImageButton = _
@@ -35,7 +37,7 @@ class ScannerBottomSheet(host: WalletActivity) extends BottomSheetDialogFragment
   }
 
   def tryParseQR(scannedText: String): Unit = {
-    def successfulDecode: Unit = Tools.runAnd(dismiss)(host.checkExternalData)
+    def successfulDecode: Unit = Tools.runAnd(dismiss)(checker.checkExternalData)
     def fail(err: Throwable): Unit = Tools.runAnd(WalletApp.app quickToast err.getMessage)(barcodeReader.resume)
     host.runInFutureProcessOnUI(WalletApp recordValue scannedText, fail)(_ => successfulDecode)
     lastAttempt = System.currentTimeMillis

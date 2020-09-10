@@ -36,6 +36,7 @@ object SyncMaster {
   val cheese: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0276e09a267592e7451a939c932cf685f0754de382a3ca85d2fb3a864d4c365ad5"), NodeAddress.unresolved(9735, host = 94, 177, 171, 73), "Cheese")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
   val syncNodes: Set[NodeAnnouncement] = Set(lightning, conductor, cheese, acinq)
+  val hostedChanNodes: Set[NodeAnnouncement] = Set(conductor, acinq)
   val minCapacity = MilliSatoshi(500000000L)
   val chunksToWait = 3
 }

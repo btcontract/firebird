@@ -6,8 +6,8 @@ import android.text.{Html, Spanned}
 import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
 import android.app.{AlertDialog, Dialog}
-import android.widget.{LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
+import android.widget.{ArrayAdapter, LinearLayout, ListView, TextView}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import com.btcontract.wallet.WalletActivity.StringOps
 import concurrent.ExecutionContext.Implicits.global
@@ -33,6 +33,10 @@ object WalletActivity {
   }
 }
 
+trait ExternalDataChecker {
+  def checkExternalData: Unit
+}
+
 trait WalletActivity extends AppCompatActivity { me =>
   override def onCreate(savedActivityState: Bundle): Unit = {
     Thread setDefaultUncaughtExceptionHandler new UncaughtHandler(this)
@@ -56,7 +60,6 @@ trait WalletActivity extends AppCompatActivity { me =>
     runAnd(WalletApp.DoNotEraseValue)(finish)
   }
 
-  def checkExternalData: Unit
   def INIT(state: Bundle): Unit
 
   def toast(code: Int): Unit =
@@ -121,9 +124,7 @@ trait WalletActivity extends AppCompatActivity { me =>
   def onFail(error: CharSequence): Unit = UITask(me showForm titleBodyAsViewWithNegBuilder(dialog_ok, null, error).create).run
   def onFail(error: Throwable): Unit = onFail(error.getMessage)
 
-  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: Builder,
-                  okRes: Int, noRes: Int): AlertDialog = {
-
+  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: Builder, okRes: Int, noRes: Int): AlertDialog = {
     // Create alert dialog where NEGATIVE button removes a dialog AND calls a respected provided function
     // both POSITIVE and NEGATIVE buttons may be omitted by providing -1 as their resource ids
     if (-1 != noRes) bld.setNegativeButton(noRes, null)
@@ -160,6 +161,13 @@ trait WalletActivity extends AppCompatActivity { me =>
     alertDialog
   }
 
+  def makeChoiceList[T <: Object](choiceItems: Array[T], title: CharSequence): (ListView, AlertDialog) = {
+    val lst: ListView = getLayoutInflater.inflate(R.layout.frag_list, null).asInstanceOf[ListView]
+    lst setAdapter new ArrayAdapter(me, R.layout.frag_top_tip, R.id.titleTip, choiceItems)
+    val alert = showForm(titleBodyAsViewWithNegBuilder(dialog_cancel, title, lst).create)
+    lst -> alert
+  }
+
   // Scanner
 
   final val scannerRequestCode = 101
@@ -169,9 +177,9 @@ trait WalletActivity extends AppCompatActivity { me =>
     if (reqCode == scannerRequestCode && grantResults.nonEmpty && grantResults.head == PackageManager.PERMISSION_GRANTED) callScanner(null)
   }
 
-  def callScanner(nullableView: View): Unit = {
+  def callScanner(checker: ExternalDataChecker): Unit = {
     val allowed = ContextCompat.checkSelfPermission(me, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-    if (allowed) new sheets.ScannerBottomSheet(me).show(getSupportFragmentManager, "scanner-bottom-sheet-fragment")
+    if (allowed) new sheets.ScannerBottomSheet(me, checker).show(getSupportFragmentManager, "scanner-bottom-sheet-fragment")
     else ActivityCompat.requestPermissions(me, Array(android.Manifest.permission.CAMERA), scannerRequestCode)
   }
 }

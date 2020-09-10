@@ -1,0 +1,30 @@
+<LinearLayout style="@style/StandardLinearLayout"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        android:text="@string/step_account_email_pass"
+        style="@style/FillingText"/>
+
+    <com.ornach.nobobutton.NoboButton
+        android:layout_marginTop="25dp"
+        app:nb_text="@string/action_email_password"
+        android:id="@+id/useEmailPassword"
+        style="@style/ActionButton"/>
+
+    <View
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="20dp"
+        style="@style/GrayDivider"/>
+
+    <TextView
+        android:text="@string/step_account_recovery_phrase"
+        style="@style/FillingText"/>
+
+    <com.ornach.nobobutton.NoboButton
+        android:layout_marginTop="25dp"
+        app:nb_text="@string/action_recovery_phrase"
+        android:id="@+id/useRecoveryPhrase"
+        style="@style/ActionButton"/>
+
+</LinearLayout>

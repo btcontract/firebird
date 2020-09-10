@@ -1,10 +1,10 @@
 <resources>
-    <style name="AppTheme" parent="Theme.AppCompat">
+    <style name="AppTheme" parent="Theme.MaterialComponents">
         <item name="android:fontFamily">@font/lato_regular</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/bg</item>
         <item name="android:textColor">#CFDAE6</item>
-        <item name="android:textSize">16sp</item>
+        <item name="android:textSize">18sp</item>
     </style>
 
     <style name="AppThemeNoActionBar" parent="AppTheme">
@@ -19,21 +19,18 @@
     <!-- item styles -->
 
     <style name="ActionButton">
+        <item name="nb_focusColor">@color/ln</item>
+        <item name="nb_textColor">@color/white</item>
+        <item name="nb_borderColor">@color/buttonBorder</item>
+        <item name="nb_backgroundColor">@color/buttonDefault</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">wrap_content</item>
-        <item name="fb_textColor">@color/white</item>
-        <item name="fb_disabledTextColor">@color/white</item>
-        <item name="fb_borderColor">@color/buttonBorder</item>
-        <item name="fb_disabledBorderColor">@color/buttonDisableBorder</item>
-        <item name="fb_defaultColor">@color/buttonDefault</item>
-        <item name="fb_disabledColor">@color/buttonDisableDefault</item>
-        <item name="fb_focusColor">@color/ln</item>
         <item name="android:paddingBottom">11dp</item>
         <item name="android:paddingRight">14dp</item>
         <item name="android:paddingLeft">14dp</item>
         <item name="android:paddingTop">9dp</item>
-        <item name="fb_borderWidth">2dp</item>
-        <item name="fb_radius">6dp</item>
+        <item name="nb_borderWidth">2dp</item>
+        <item name="nb_radius">6dp</item>
     </style>
 
     <style name="SlidingDialog">
@@ -62,13 +59,7 @@
         <item name="android:layout_width">fill_parent</item>
     </style>
 
-    <style name="BoundedText">
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_width">fill_parent</item>
-        <item name="android:maxWidth">500dp</item>
-    </style>
-
-    <style name="MarginBoundedText" parent="BoundedText">
+    <style name="MarginFillingText" parent="FillingText">
         <item name="android:layout_marginBottom">25dp</item>
         <item name="android:layout_marginTop">25dp</item>
     </style>

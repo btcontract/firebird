@@ -10,17 +10,34 @@ import com.btcontract.wallet.WalletApp.app
 import org.ndeftools.Message
 import android.os.Bundle
 import android.view.View
+import com.btcontract.wallet.steps.{ChooseProviders, SetupAccount}
+import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
+import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
 
 import scala.util.Try
 
 
-class MainActivity extends NfcReaderActivity with WalletActivity { me =>
-  def INIT(state: Bundle): Unit = setContentView(R.layout.activity_main)
+class MainActivity extends NfcReaderActivity with WalletActivity with StepperFormListener { me =>
 
-  def checkExternalData: Unit = println(s"WalletApp.value: ${WalletApp.value}")
+  def INIT(state: Bundle): Unit = {
+    setContentView(R.layout.activity_main)
+    val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
+    val setupAccount = new SetupAccount(me, me getString step_title_account)
+
+    val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
+    stepper.setup(this, chooseProviders, setupAccount).init
+  }
 
   def showCookie(view: View): Unit = {
     toast("and now some bitcoiners claim eth peeps shouldn't release half made stuff")
+  }
+
+  def onCompletedForm: Unit = {
+    println("onCompletedForm")
+  }
+
+  def onCancelledForm: Unit = {
+    println("onCancelledForm")
   }
 
   // NFC AND SHARE

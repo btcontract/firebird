@@ -1,10 +1,23 @@
-<LinearLayout style="@style/StandardLinearLayout"
-    xmlns:fancy="http://schemas.android.com/apk/res-auto"
+<LinearLayout
+    style="@style/StandardLinearLayout"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <mehdi.sakout.fancybuttons.FancyButton
-        style="@style/ActionButton"
-        fancy:fb_text="New recovery code"
-        android:onClick="callScanner"/>
+    <TextView
+        style="@style/FillingText"
+        android:text="@string/welcome"
+        android:layout_margin="10sp"
+        android:textSize="20sp"/>
+
+    <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
+        app:form_next_button_background_color="@color/stepperNextButton"
+        app:form_next_button_pressed_background_color="@color/stepperNextButtonTapped"
+        app:form_title_text_color="@color/colorAccent"
+        app:form_circle_background_color="@color/ln"
+        app:form_allow_non_linear_navigation="false"
+        app:form_display_bottom_navigation="false"
+        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        android:id="@+id/stepper"/>
 
 </LinearLayout>

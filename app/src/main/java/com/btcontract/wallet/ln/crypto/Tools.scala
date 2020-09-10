@@ -55,9 +55,8 @@ object Tools {
   }
 
   def mkNodeAnnouncement(id: PublicKey, na: NodeAddress, alias: String) =
-    NodeAnnouncement(signature = ByteVector64.Zeroes, features = Features.empty,
-      timestamp = 0L, nodeId = id, rgbColor = Color(-128, -128, -128),
-      alias = alias take 16, addresses = na :: Nil)
+    NodeAnnouncement(signature = ByteVector64.Zeroes, features = Features.empty, timestamp = 0L,
+      nodeId = id, rgbColor = Color(-128, -128, -128), alias, addresses = na :: Nil)
 
   def randomKeyPair: KeyPair = {
     val pk = PrivateKey(random getBytes 32)
