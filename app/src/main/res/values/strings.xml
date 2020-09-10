@@ -9,8 +9,8 @@
     <string name="step_title_create_restore">Create or restore</string>
 
     <string name="step_choose_or_scan">Start with choosing default providers or scan a QR code to set up your own.</string>
-    <string name="step_account_email_pass"><b>Option #1: provide your email and password</b>. Payment providers will know your email and will be able to provide assistance in case of password loss.</string>
-    <string name="step_account_recovery_phrase"><b>Option #2 for advanced users: provide your BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
+    <string name="step_account_email_pass"><b>Option 1: provide your email and password</b>. Payment providers will know your email and will be able to provide assistance in case of password loss.</string>
+    <string name="step_account_recovery_phrase"><b>Option 2 for advanced users: provide your BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
 
     <string name="action_scan_qr">Scan QR code</string>
     <string name="action_email_password">Use email and password</string>

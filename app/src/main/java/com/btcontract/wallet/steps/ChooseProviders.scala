@@ -8,9 +8,9 @@ import com.btcontract.wallet.helper.OnListItemClickListener
 import ernestoyaquello.com.verticalstepperform.Step
 import fr.acinq.eclair.wire.NodeAnnouncement
 import com.btcontract.wallet.ln.SyncMaster
+import com.ornach.nobobutton.NoboButton
 import android.util.SparseBooleanArray
 import android.view.View
-import com.ornach.nobobutton.NoboButton
 
 
 case class Providers(list: List[NodeAnnouncement] = Nil)

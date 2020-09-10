@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- why 160sp: see `multi_choice_item_left` -->
+    <!-- why 80sp: see `multi_choice_item_left` -->
 
     <ListView
         android:layout_height="80sp"
