@@ -6,8 +6,8 @@ import android.text.{Html, Spanned}
 import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
 import android.app.{AlertDialog, Dialog}
+import android.widget.{LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
-import android.widget.{ArrayAdapter, LinearLayout, ListView, TextView}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import com.btcontract.wallet.WalletActivity.StringOps
 import concurrent.ExecutionContext.Implicits.global
@@ -159,13 +159,6 @@ trait WalletActivity extends AppCompatActivity { me =>
     try alertDialog.show catch none finally if (WalletApp.app.scrWidth > 2.3) alertDialog.getWindow.setLayout(WalletApp.app.maxDialog.toInt, ViewGroup.LayoutParams.WRAP_CONTENT)
     try clickableTextField(alertDialog findViewById android.R.id.message) catch none
     alertDialog
-  }
-
-  def makeChoiceList[T <: Object](choiceItems: Array[T], title: CharSequence): (ListView, AlertDialog) = {
-    val lst: ListView = getLayoutInflater.inflate(R.layout.frag_list, null).asInstanceOf[ListView]
-    lst setAdapter new ArrayAdapter(me, R.layout.frag_top_tip, R.id.titleTip, choiceItems)
-    val alert = showForm(titleBodyAsViewWithNegBuilder(dialog_cancel, title, lst).create)
-    lst -> alert
   }
 
   // Scanner
