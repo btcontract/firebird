@@ -80,7 +80,7 @@ object Tools {
 
   def randomPassword(length: Int): String = {
     val alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    (0 until length).map(_ => random nextInt alphabet.length).map(alphabet).mkString
+    List.fill(12)(random nextInt alphabet.length).map(alphabet).mkString
   }
 
   object \ {

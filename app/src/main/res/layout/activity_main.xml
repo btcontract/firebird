@@ -10,12 +10,10 @@
         android:textSize="20sp"/>
 
     <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
-        app:form_next_button_background_color="@color/stepperNextButton"
-        app:form_next_button_pressed_background_color="@color/stepperNextButtonTapped"
         app:form_title_text_color="@color/colorAccent"
         app:form_circle_background_color="@color/ln"
         app:form_allow_non_linear_navigation="false"
-        app:form_display_bottom_navigation="false"
+        app:form_display_step_buttons="false"
         android:layout_height="match_parent"
         android:layout_width="match_parent"
         android:id="@+id/stepper"/>

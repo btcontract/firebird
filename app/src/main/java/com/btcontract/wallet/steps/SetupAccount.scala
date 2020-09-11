@@ -9,10 +9,10 @@ import com.btcontract.wallet.ln.crypto.Tools.none
 import ernestoyaquello.com.verticalstepperform.Step
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
 
-class SetupAccount(host: WalletActivity, title: String) extends Step[StorageFormat](title) {
+class SetupAccount(host: WalletActivity, title: String) extends Step[StorageFormat](title, false) {
   override def createStepContentLayout: View = {
     val view = host.getLayoutInflater.inflate(R.layout.frag_step_account, null).asInstanceOf[LinearLayout]
-    getFormView.hideBottomNavigation()
+    getStepData
     view
   }
 

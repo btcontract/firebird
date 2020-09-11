@@ -3,8 +3,6 @@
     <color name="ln">#0099FE</color>
     <color name="bgfloat">#49616B</color>
     <color name="colorAccent">#FAFAFA</color>
-    <color name="stepperNextButton">#348524</color>
-    <color name="stepperNextButtonTapped">#51AD45</color>
     <color name="buttonDefault">#3B5998</color>
     <color name="buttonBorder">#576DB8</color>
 
@@ -13,4 +11,21 @@
     <color name="chip_default_text_color">#DE000000</color>
     <color name="chip_default_icon_background_color">#517FA4</color>
     <color name="chip_material_background">#F0F0F0</color>
+
+    <!-- stepper -->
+
+    <color name="vertical_stepper_form_background_color_disabled_elements">#c8c8c8</color>
+    <color name="vertical_stepper_form_background_color_circle">#1976d2</color>
+    <color name="vertical_stepper_form_background_color_next_button">#1976d2</color>
+    <color name="vertical_stepper_form_background_color_next_button_pressed">#004ba0</color>
+    <color name="vertical_stepper_form_background_color_cancel_button">#9b9b9b</color>
+    <color name="vertical_stepper_form_background_color_cancel_button_pressed">#878787</color>
+    <color name="vertical_stepper_form_text_color_circle">#ffffff</color>
+    <color name="vertical_stepper_form_text_color_title">#212121</color>
+    <color name="vertical_stepper_form_text_color_subtitle">#9b9b9b</color>
+    <color name="vertical_stepper_form_text_color_next_button">#ffffff</color>
+    <color name="vertical_stepper_form_text_color_next_button_pressed">#ffffff</color>
+    <color name="vertical_stepper_form_text_color_cancel_button">#ffffff</color>
+    <color name="vertical_stepper_form_text_color_cancel_button_pressed">#ffffff</color>
+    <color name="vertical_stepper_form_text_color_error_message">#af1212</color>
 </resources>

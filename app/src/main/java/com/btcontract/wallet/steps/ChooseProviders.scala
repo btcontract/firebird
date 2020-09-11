@@ -14,7 +14,7 @@ import android.view.View
 
 
 case class Providers(list: List[NodeAnnouncement] = Nil)
-class ChooseProviders(host: WalletActivity, title: String) extends Step[Providers](title) with ExternalDataChecker { me =>
+class ChooseProviders(host: WalletActivity, title: String) extends Step[Providers](title, true) with ExternalDataChecker { me =>
   val availableProviders: Array[NodeAnnouncement] = SyncMaster.hostedChanNodes.toArray
   var chosenProviders: Providers = Providers(Nil)
   var list: ListView = _
