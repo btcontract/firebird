@@ -114,7 +114,7 @@ class WalletApp extends Application {
 
   private[this] lazy val metrics = getResources.getDisplayMetrics
   lazy val scrWidth: Double = metrics.widthPixels.toDouble / metrics.densityDpi
-  lazy val maxDialog: Double = metrics.densityDpi * 2.1
+  lazy val maxDialog: Double = metrics.densityDpi * 2.2
   lazy val isTablet: Boolean = scrWidth > 3.5
 
   lazy val plur: (Array[String], Long) => String = getString(lang) match {

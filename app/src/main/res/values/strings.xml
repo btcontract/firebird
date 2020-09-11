@@ -4,31 +4,24 @@
     <string name="welcome">Welcome to <b>Firebird</b></string>
     <string name="err_nothing_useful">No useful data found</string>
 
-    <!-- stepper -->
-
-    <string name="vertical_stepper_form_continue_button">Continue</string>
-    <string name="vertical_stepper_form_cancel_button">Cancel</string>
-    <string name="vertical_stepper_form_confirm_button">Confirm</string>
-    <string name="vertical_stepper_form_confirmation_step_title">OK</string>
-
-    <!-- /stepper -->
-
     <string name="step_title_choose">Choose payment providers</string>
-    <string name="step_title_account">Setup wallet account</string>
-    <string name="step_title_create_restore">Create or restore</string>
+    <string name="step_title_account">Setup an account</string>
+    <string name="step_title_open">Go to wallet</string>
 
     <string name="step_choose_or_scan">Start with choosing default providers or scan a QR code to set up your own.</string>
     <string name="step_account_email_pass"><b>Option 1: provide your email and password</b>. Payment providers will know your email and will be able to provide assistance in case of password loss.</string>
     <string name="step_account_recovery_phrase"><b>Option 2 for advanced users: provide your BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
+    <string name="step_account_recovery_phrase_note">Note that Firebird will never store a provided phrase.\n\nEven if this wallet gets compromised the rest of funds attached to phrase will remain safe.</string>
 
     <string name="action_scan_qr">Scan QR code</string>
-    <string name="action_email_password">Use email and password</string>
-    <string name="action_recovery_phrase">Use BIP32 recovery phrase</string>
+    <string name="action_email_password">Email and password</string>
+    <string name="action_recovery_phrase">BIP32 recovery phrase</string>
+    <string name="action_recovery_phrase_hint">Type recovery phrase words</string>
 
     <string name="error_pr_expired">Expired payment request</string>
     <string name="error_sum_small">Amount is too small</string>
     <string name="error_sum_big">Amount is too large</string>
-
+    <string name="dialog_continue">Continue</string>
     <string name="dialog_close">Close app</string>
     <string name="dialog_cancel">Cancel</string>
     <string name="dialog_share">Share</string>

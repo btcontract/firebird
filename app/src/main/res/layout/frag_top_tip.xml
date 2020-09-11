@@ -3,8 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <TextView
-        style="@style/MarginFillingText"
-        android:layout_width="wrap_content"
+        style="@style/XYMarginFillingText"
+        android:textColor="@color/colorAccent"
         android:id="@+id/titleTip"/>
 
     <View style="@style/GrayDivider"/>

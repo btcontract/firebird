@@ -1,0 +1,17 @@
+<LinearLayout
+    style="@style/StandardLinearLayout"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.hootsuite.nachos.NachoTextView
+        style="@style/XYSmallMarginFillingText"
+        android:hint="@string/action_recovery_phrase_hint"
+        android:id="@+id/restoreCode"/>
+
+    <TextView
+        android:text="@string/step_account_recovery_phrase_note"
+        style="@style/XMarginFillingText"/>
+
+    <View
+        android:layout_marginTop="25dp"
+        style="@style/GrayDivider"/>
+</LinearLayout>

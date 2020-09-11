@@ -5,7 +5,6 @@ import android.content.res.TypedArray;
 import android.graphics.Rect;
 
 import androidx.annotation.LayoutRes;
-import androidx.appcompat.widget.AppCompatImageButton;
 
 import android.os.Bundle;
 import android.os.Parcelable;
@@ -14,7 +13,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.ScrollView;
 
 import java.util.ArrayList;
@@ -418,8 +416,6 @@ public class VerticalStepperFormView extends LinearLayout {
 
         if ((openedStepPosition + 1) < stepHelpers.size() || areAllStepsCompleted()) {
             stepHelper.enableAllButtons();
-        } else {
-            stepHelper.enableCancelButton();
         }
 
         formCompleted = false;
@@ -552,13 +548,11 @@ public class VerticalStepperFormView extends LinearLayout {
 
         // Set the default values for all the style properties
         style.stepNextButtonText =
-                getResources().getString(R.string.vertical_stepper_form_continue_button);
+                getResources().getString(R.string.dialog_continue);
         style.lastStepNextButtonText =
-                getResources().getString(R.string.vertical_stepper_form_confirm_button);
-        style.lastStepCancelButtonText =
-                getResources().getString(R.string.vertical_stepper_form_cancel_button);
+                getResources().getString(R.string.dialog_ok);
         style.confirmationStepTitle =
-                getResources().getString(R.string.vertical_stepper_form_confirmation_step_title);
+                getResources().getString(R.string.dialog_ok);
         style.confirmationStepSubtitle = "";
         style.leftCircleSizeInPx =
                 getResources().getDimensionPixelSize(R.dimen.vertical_stepper_form_width_circle);
@@ -629,10 +623,6 @@ public class VerticalStepperFormView extends LinearLayout {
             if (vars.hasValue(R.styleable.VerticalStepperFormView_form_last_button_text)) {
                 style.lastStepNextButtonText = vars.getString(
                         R.styleable.VerticalStepperFormView_form_last_button_text);
-            }
-            if (vars.hasValue(R.styleable.VerticalStepperFormView_form_cancel_button_text)) {
-                style.lastStepCancelButtonText = vars.getString(
-                        R.styleable.VerticalStepperFormView_form_cancel_button_text);
             }
             if (vars.hasValue(R.styleable.VerticalStepperFormView_form_confirmation_step_title_text)) {
                 style.confirmationStepTitle = vars.getString(
@@ -1030,7 +1020,6 @@ public class VerticalStepperFormView extends LinearLayout {
     class FormStyle {
         String stepNextButtonText;
         String lastStepNextButtonText;
-        String lastStepCancelButtonText;
         String confirmationStepTitle;
         String confirmationStepSubtitle;
         int leftCircleSizeInPx;
@@ -1054,7 +1043,6 @@ public class VerticalStepperFormView extends LinearLayout {
         int lastStepCancelButtonTextColor;
         int lastStepCancelButtonPressedTextColor;
         int errorMessageTextColor;
-        int bottomNavigationBackgroundColor;
         boolean displayBottomNavigation;
         boolean displayStepButtons;
         boolean displayCancelButtonInLastStep;

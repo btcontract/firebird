@@ -5,23 +5,24 @@ import java.util.{Timer, TimerTask}
 import android.text.{Html, Spanned}
 import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
-import android.app.{AlertDialog, Dialog}
 import android.widget.{LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.btcontract.wallet.WalletActivity.StringOps
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
 import android.text.method.LinkMovementMethod
 import androidx.core.content.ContextCompat
+import androidx.appcompat.app.AlertDialog
 import scala.language.implicitConversions
 import android.content.pm.PackageManager
 import android.view.View.OnClickListener
 import androidx.core.app.ActivityCompat
 import org.aviran.cookiebar2.CookieBar
-import android.app.AlertDialog.Builder
 import scala.concurrent.Future
 import scodec.bits.ByteVector
+import android.app.Dialog
 import android.os.Bundle
 
 
@@ -116,15 +117,15 @@ trait WalletActivity extends AppCompatActivity { me =>
     oldView
   }
 
-  def simpleTextBuilder(msg: CharSequence): Builder = new Builder(me).setMessage(msg)
-  def simpleTextWithNegBuilder(neg: Int, msg: CharSequence): Builder = simpleTextBuilder(msg).setNegativeButton(neg, null)
+  def simpleTextBuilder(msg: CharSequence): MaterialAlertDialogBuilder = new MaterialAlertDialogBuilder(me, R.style.AlertDialog).setMessage(msg)
+  def simpleTextWithNegBuilder(neg: Int, msg: CharSequence): MaterialAlertDialogBuilder = simpleTextBuilder(msg).setNegativeButton(neg, null)
 
-  def titleBodyAsViewBuilder(title: View, body: View): Builder = new Builder(me).setCustomTitle(title).setView(body)
-  def titleBodyAsViewWithNegBuilder(neg: Int, title: View, body: View): Builder = titleBodyAsViewBuilder(title, body).setNegativeButton(neg, null)
+  def titleBodyAsViewBuilder(title: View, body: View): MaterialAlertDialogBuilder = new MaterialAlertDialogBuilder(me, R.style.AlertDialog).setCustomTitle(title).setView(body)
+  def titleBodyAsViewWithNegBuilder(neg: Int, title: View, body: View): MaterialAlertDialogBuilder = titleBodyAsViewBuilder(title, body).setNegativeButton(neg, null)
   def onFail(error: CharSequence): Unit = UITask(me showForm titleBodyAsViewWithNegBuilder(dialog_ok, null, error).create).run
   def onFail(error: Throwable): Unit = onFail(error.getMessage)
 
-  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: Builder, okRes: Int, noRes: Int): AlertDialog = {
+  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: MaterialAlertDialogBuilder, okRes: Int, noRes: Int): AlertDialog = {
     // Create alert dialog where NEGATIVE button removes a dialog AND calls a respected provided function
     // both POSITIVE and NEGATIVE buttons may be omitted by providing -1 as their resource ids
     if (-1 != noRes) bld.setNegativeButton(noRes, null)
@@ -139,7 +140,8 @@ trait WalletActivity extends AppCompatActivity { me =>
   }
 
   def mkCheckFormNeutral(ok: AlertDialog => Unit, no: => Unit, neutral: AlertDialog => Unit,
-                         bld: Builder, okRes: Int, noRes: Int, neutralRes: Int): AlertDialog = {
+                         bld: MaterialAlertDialogBuilder, okRes: Int, noRes: Int,
+                         neutralRes: Int): AlertDialog = {
 
     if (-1 != neutralRes) bld.setNeutralButton(neutralRes, null)
     val alert = mkCheckForm(ok, no, bld, okRes, noRes)
@@ -151,8 +153,7 @@ trait WalletActivity extends AppCompatActivity { me =>
   }
 
   def showForm(alertDialog: AlertDialog): AlertDialog = {
-    // This may be called after a host activity is destroyed and thus it may throw
-    alertDialog.getWindow.getAttributes.windowAnimations = R.style.SlidingDialog
+    // This may be called after a host activity is destroyed!
     alertDialog setCanceledOnTouchOutside false
 
     // First, make sure it does not blow up if called on destroyed activity, then bound its width in case if this is a tablet, finally attempt to make dialog links clickable

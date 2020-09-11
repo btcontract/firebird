@@ -20,9 +20,9 @@
 
     <style name="ActionButton">
         <item name="nb_focusColor">@color/ln</item>
-        <item name="nb_textColor">@color/white</item>
-        <item name="nb_borderColor">@color/buttonBorder</item>
-        <item name="nb_backgroundColor">@color/buttonDefault</item>
+        <item name="nb_textColor">@color/colorAccent</item>
+        <item name="nb_borderColor">@color/buttonBlueBorder</item>
+        <item name="nb_backgroundColor">@color/buttonBlue</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">wrap_content</item>
         <item name="android:paddingBottom">11dp</item>
@@ -33,9 +33,11 @@
         <item name="nb_radius">6dp</item>
     </style>
 
-    <style name="SlidingDialog">
-        <item name="android:windowEnterAnimation">@android:anim/fade_in</item>
-        <item name="android:windowExitAnimation">@anim/slide_hide</item>
+    <style name="StepperButton" parent="ActionButton">
+        <item name="nb_focusColor">@color/buttonGreenRipple</item>
+        <item name="nb_textColor">@color/colorAccent</item>
+        <item name="nb_borderColor">@color/buttonGreenBorder</item>
+        <item name="nb_backgroundColor">@color/buttonGreen</item>
     </style>
 
     <style name="GrayDivider">
@@ -47,7 +49,6 @@
     <style name="StandardLinearLayout" parent="AppTheme">
         <item name="android:layout_height">fill_parent</item>
         <item name="android:layout_width">fill_parent</item>
-        <item name="android:background">@color/bg</item>
         <item name="android:orientation">vertical</item>
         <item name="android:gravity">top</item>
     </style>
@@ -59,18 +60,50 @@
         <item name="android:layout_width">fill_parent</item>
     </style>
 
-    <style name="MarginFillingText" parent="FillingText">
+    <style name="YMarginFillingText" parent="FillingText">
         <item name="android:layout_marginBottom">25dp</item>
         <item name="android:layout_marginTop">25dp</item>
+    </style>
+
+    <style name="XMarginFillingText" parent="FillingText">
+        <item name="android:layout_marginRight">15dp</item>
+        <item name="android:layout_marginLeft">15dp</item>
+    </style>
+
+    <style name="XYMarginFillingText" parent="YMarginFillingText">
+        <item name="android:layout_marginRight">15dp</item>
+        <item name="android:layout_marginLeft">15dp</item>
+    </style>
+
+    <style name="XYSmallMarginFillingText" parent="YMarginFillingText">
+        <item name="android:layout_marginRight">12dp</item>
+        <item name="android:layout_marginLeft">12dp</item>
     </style>
 
     <!-- nachos -->
 
     <style name="DefaultChipSuggestionTextView">
-        <item name="chipVerticalSpacing">4dp</item>
-        <item name="chipHorizontalSpacing">6dp</item>
-        <item name="chipBackground">@color/chip_material_background</item>
-        <item name="chipTextSize">14sp</item>
-        <item name="chipHeight">32dp</item>
+        <item name="chipVerticalSpacing">6dp</item>
+        <item name="chipHorizontalSpacing">4dp</item>
+        <item name="chipBackground">@color/colorAccent</item>
+        <item name="android:inputType">textMultiLine|textVisiblePassword</item>
+        <item name="android:completionThreshold">1</item>
+        <item name="chipTextSize">18sp</item>
+        <item name="chipHeight">28dp</item>
+    </style>
+
+    <!-- material alert -->
+
+    <style name="AlertDialog" parent="@style/ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="buttonBarPositiveButtonStyle">@style/ButtonStyle</item>
+        <item name="buttonBarNegativeButtonStyle">@style/ButtonStyle</item>
+        <item name="buttonBarNeutralButtonStyle">@style/ButtonStyle</item>
+        <item name="android:backgroundDimAmount">0.7</item>
+    </style>
+
+    <style name="ButtonStyle" parent="@style/Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/colorAccent</item>
+        <item name="rippleColor">@color/colorRipple</item>
+        <item name="android:textSize">14sp</item>
     </style>
 </resources>

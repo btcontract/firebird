@@ -13,7 +13,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.btcontract.wallet.R;
-import com.google.android.material.button.MaterialButton;
+import com.ornach.nobobutton.NoboButton;
 
 import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
@@ -40,8 +40,7 @@ class StepHelper implements Step.InternalFormStepListener {
     private TextView errorMessageView;
     private ImageView errorIconView;
     private View headerView;
-    private MaterialButton nextButtonView;
-    private MaterialButton cancelButtonView;
+    private NoboButton nextButtonView;
     private View lineView1;
     private View lineView2;
     private View stepAndButtonView;
@@ -94,7 +93,6 @@ class StepHelper implements Step.InternalFormStepListener {
         errorIconView = stepLayout.findViewById(R.id.step_error_icon);
         headerView = stepLayout.findViewById(R.id.step_header);
         nextButtonView = stepLayout.findViewById(R.id.step_button);
-        cancelButtonView = stepLayout.findViewById(R.id.step_cancel_button);
         lineView1 = stepLayout.findViewById(R.id.line1);
         lineView2 = stepLayout.findViewById(R.id.line2);
         stepAndButtonView = step.getEntireStepLayout().findViewById(R.id.step_content_and_button);
@@ -113,19 +111,6 @@ class StepHelper implements Step.InternalFormStepListener {
         circleDrawable.setColorFilter(
                 new PorterDuffColorFilter(formStyle.stepNumberBackgroundColor, PorterDuff.Mode.SRC_IN));
         stepNumberCircleView.setBackground(circleDrawable);
-
-        UIHelper.setButtonColor(
-                nextButtonView,
-                formStyle.nextButtonBackgroundColor,
-                formStyle.nextButtonTextColor,
-                formStyle.nextButtonPressedBackgroundColor,
-                formStyle.nextButtonPressedTextColor);
-        UIHelper.setButtonColor(
-                cancelButtonView,
-                formStyle.lastStepCancelButtonBackgroundColor,
-                formStyle.lastStepCancelButtonTextColor,
-                formStyle.lastStepCancelButtonPressedBackgroundColor,
-                formStyle.lastStepCancelButtonPressedTextColor);
 
         ViewGroup.LayoutParams layoutParamsCircle = stepNumberCircleView.getLayoutParams();
         layoutParamsCircle.width = formStyle.leftCircleSizeInPx;
@@ -169,12 +154,6 @@ class StepHelper implements Step.InternalFormStepListener {
                 form.goToStep(form.getStepPosition(step) + 1, true);
             }
         });
-        cancelButtonView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                form.cancelForm();
-            }
-        });
 
         int position = form.getStepPosition(step);
         boolean isLast = (position + 1) == form.getTotalNumberOfSteps();
@@ -193,13 +172,6 @@ class StepHelper implements Step.InternalFormStepListener {
         step.updateTitle(title, false);
         step.updateSubtitle(subtitle, false);
         step.updateNextButtonText(stepNextButtonText, false);
-
-        if (formStyle.displayCancelButtonInLastStep && isLast) {
-            String cancelButtonText = formStyle.lastStepCancelButtonText == null
-                    ? "" : formStyle.lastStepCancelButtonText;
-            cancelButtonView.setText(cancelButtonText);
-            cancelButtonView.setVisibility(View.VISIBLE);
-        }
 
         if (!formStyle.displayStepButtons && !step.forceShowConfirmation) {
             nextButtonView.setVisibility(View.GONE);
@@ -224,15 +196,6 @@ class StepHelper implements Step.InternalFormStepListener {
                 ? step.getOriginalNextButtonText()
                 : isLast ? formStyle.lastStepNextButtonText : formStyle.stepNextButtonText;
         step.updateNextButtonText(stepNextButtonText, false);
-
-        if (formStyle.displayCancelButtonInLastStep && isLast) {
-            String cancelButtonText = formStyle.lastStepCancelButtonText == null
-                    ? "" : formStyle.lastStepCancelButtonText;
-            cancelButtonView.setText(cancelButtonText);
-            cancelButtonView.setVisibility(View.VISIBLE);
-        } else {
-            cancelButtonView.setVisibility(View.GONE);
-        }
 
         lineView1.setVisibility(isLast ? View.GONE : View.VISIBLE);
         lineView2.setVisibility(isLast ? View.GONE : View.VISIBLE);
@@ -353,69 +316,21 @@ class StepHelper implements Step.InternalFormStepListener {
     void enableNextButton() {
         nextButtonView.setEnabled(true);
         nextButtonView.setAlpha(1f);
-
-        if (formStyle.displayDifferentBackgroundColorOnDisabledElements) {
-            UIHelper.setButtonColor(
-                    nextButtonView,
-                    formStyle.nextButtonBackgroundColor,
-                    formStyle.nextButtonTextColor,
-                    formStyle.nextButtonPressedBackgroundColor,
-                    formStyle.nextButtonPressedTextColor);
-        }
     }
 
     void disableNextButton() {
         nextButtonView.setEnabled(false);
         nextButtonView.setAlpha(formStyle.alphaOfDisabledElements);
-
-        if (formStyle.displayDifferentBackgroundColorOnDisabledElements) {
-            UIHelper.setButtonColor(
-                    nextButtonView,
-                    formStyle.backgroundColorOfDisabledElements,
-                    formStyle.nextButtonTextColor,
-                    formStyle.backgroundColorOfDisabledElements,
-                    formStyle.nextButtonPressedTextColor);
-        }
-    }
-
-    void enableCancelButton() {
-        cancelButtonView.setEnabled(true);
-        cancelButtonView.setAlpha(1f);
-
-        if (formStyle.displayDifferentBackgroundColorOnDisabledElements) {
-            UIHelper.setButtonColor(
-                    cancelButtonView,
-                    formStyle.lastStepCancelButtonBackgroundColor,
-                    formStyle.lastStepCancelButtonTextColor,
-                    formStyle.lastStepCancelButtonPressedBackgroundColor,
-                    formStyle.lastStepCancelButtonPressedTextColor);
-        }
-    }
-
-    void disableCancelButton() {
-        cancelButtonView.setEnabled(false);
-        cancelButtonView.setAlpha(formStyle.alphaOfDisabledElements);
-
-        if (formStyle.displayDifferentBackgroundColorOnDisabledElements) {
-            UIHelper.setButtonColor(
-                    cancelButtonView,
-                    formStyle.backgroundColorOfDisabledElements,
-                    formStyle.lastStepCancelButtonTextColor,
-                    formStyle.backgroundColorOfDisabledElements,
-                    formStyle.lastStepCancelButtonPressedTextColor);
-        }
     }
 
     void enableAllButtons() {
         if (step.isCompleted()) {
             enableNextButton();
         }
-        enableCancelButton();
     }
 
     void disableAllButtons() {
         disableNextButton();
-        disableCancelButton();
     }
 
     private boolean updateTitleTextViewValue() {

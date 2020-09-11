@@ -47,19 +47,6 @@ public class Builder {
     }
 
     /**
-     * Sets the text to be displayed in the "Cancel" button of the last step.
-     * To display this button in the last step, use displayCancelButtonInLastStep().
-     *
-     * @param lastStepCancelButtonText The text to display in the "Cancel" button of the last step.
-     * @return The builder instance.
-     */
-    public Builder lastStepCancelButtonText(String lastStepCancelButtonText) {
-        formView.style.lastStepCancelButtonText = lastStepCancelButtonText;
-
-        return this;
-    }
-
-    /**
      * Sets the title to be displayed on the confirmation step.
      *
      * @param confirmationStepTitle The title of the confirmation step.
