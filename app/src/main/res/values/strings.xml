@@ -3,6 +3,8 @@
     <string name="app_name">Firebird</string>
     <string name="welcome">Welcome to <b>Firebird</b></string>
     <string name="err_nothing_useful">No useful data found</string>
+    <string name="emergency_mode">Something went wrong</string>
+    <string name="emergency_share">Share error report</string>
 
     <string name="step_title_choose">Choose payment providers</string>
     <string name="step_title_account">Setup an account</string>

@@ -39,7 +39,7 @@ trait ExternalDataChecker {
 
 trait WalletActivity extends AppCompatActivity { me =>
   override def onCreate(savedActivityState: Bundle): Unit = {
-    Thread setDefaultUncaughtExceptionHandler new UncaughtHandler(this)
+    Thread setDefaultUncaughtExceptionHandler new UncaughtHandler(me)
     super.onCreate(savedActivityState)
     INIT(savedActivityState)
   }

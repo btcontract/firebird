@@ -7,7 +7,7 @@ import android.app.Activity
 
 
 object UncaughtHandler {
-  val ERROR_REPORT = "error-report"
+  val ERROR_REPORT = "errorReport"
   def toText(exc: Throwable): String = {
     val stackTraceWriter = new StringWriter
     exc printStackTrace new PrintWriter(stackTraceWriter)
@@ -16,10 +16,10 @@ object UncaughtHandler {
 }
 
 class UncaughtHandler(ctxt: Activity) extends UncaughtExceptionHandler {
-  def uncaughtException(thread: Thread, exc: Throwable): Unit = {
-    // TODO: replace null in Intent with emergency activity
-    val content = UncaughtHandler toText exc
-    val intent = new Intent(ctxt, null)
+  def uncaughtException(thread: Thread, exception: Throwable): Unit = {
+    val emerge: Class[EmergencyActivity] = classOf[EmergencyActivity]
+    val content = UncaughtHandler toText exception
+    val intent = new Intent(ctxt, emerge)
 
     ctxt startActivity intent.putExtra(UncaughtHandler.ERROR_REPORT, content)
     android.os.Process killProcess android.os.Process.myPid

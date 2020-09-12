@@ -35,9 +35,9 @@
 
     <style name="StepperButton" parent="ActionButton">
         <item name="nb_focusColor">@color/buttonGreenRipple</item>
-        <item name="nb_textColor">@color/colorAccent</item>
         <item name="nb_borderColor">@color/buttonGreenBorder</item>
         <item name="nb_backgroundColor">@color/buttonGreen</item>
+        <item name="nb_textColor">@color/colorAccent</item>
     </style>
 
     <style name="GrayDivider">
@@ -51,6 +51,10 @@
         <item name="android:layout_width">fill_parent</item>
         <item name="android:orientation">vertical</item>
         <item name="android:gravity">top</item>
+    </style>
+
+    <style name="StandardXYMarginLinearLayout" parent="StandardLinearLayout">
+        <item name="android:layout_margin">15dp</item>
     </style>
 
     <!-- view styles -->
@@ -73,11 +77,6 @@
     <style name="XYMarginFillingView" parent="YMarginFillingView">
         <item name="android:layout_marginRight">15dp</item>
         <item name="android:layout_marginLeft">15dp</item>
-    </style>
-
-    <style name="XMarginSmallFillingView" parent="FillingView">
-        <item name="android:layout_marginRight">12dp</item>
-        <item name="android:layout_marginLeft">12dp</item>
     </style>
 
     <style name="XYSmallMarginFillingView" parent="YMarginFillingView">
