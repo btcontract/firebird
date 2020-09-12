@@ -2,13 +2,12 @@ package com.btcontract.wallet
 
 import R.string._
 import java.util.{Timer, TimerTask}
-import android.text.{Html, Spanned}
 import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
 import android.widget.{LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
+import android.text.{Editable, Html, Spanned, TextWatcher}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.btcontract.wallet.WalletActivity.StringOps
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
@@ -76,6 +75,12 @@ trait WalletActivity extends AppCompatActivity { me =>
     share.setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
   }
 
+  def onTextChange(exec: CharSequence => Unit): TextWatcher = new TextWatcher {
+    override def onTextChanged(c: CharSequence, x: Int, y: Int, z: Int): Unit = exec(c)
+    override def beforeTextChanged(s: CharSequence, x: Int, y: Int, z: Int): Unit = none
+    override def afterTextChanged(e: Editable): Unit = none
+  }
+
   def onButtonTap(exec: => Unit): OnClickListener = new OnClickListener {
     def onClick(view: View): Unit = exec
   }
@@ -117,15 +122,15 @@ trait WalletActivity extends AppCompatActivity { me =>
     oldView
   }
 
-  def simpleTextBuilder(msg: CharSequence): MaterialAlertDialogBuilder = new MaterialAlertDialogBuilder(me, R.style.AlertDialog).setMessage(msg)
-  def simpleTextWithNegBuilder(neg: Int, msg: CharSequence): MaterialAlertDialogBuilder = simpleTextBuilder(msg).setNegativeButton(neg, null)
+  def simpleTextBuilder(msg: CharSequence): AlertDialog.Builder = new AlertDialog.Builder(me).setMessage(msg)
+  def simpleTextWithNegBuilder(neg: Int, msg: CharSequence): AlertDialog.Builder = simpleTextBuilder(msg).setNegativeButton(neg, null)
 
-  def titleBodyAsViewBuilder(title: View, body: View): MaterialAlertDialogBuilder = new MaterialAlertDialogBuilder(me, R.style.AlertDialog).setCustomTitle(title).setView(body)
-  def titleBodyAsViewWithNegBuilder(neg: Int, title: View, body: View): MaterialAlertDialogBuilder = titleBodyAsViewBuilder(title, body).setNegativeButton(neg, null)
+  def titleBodyAsViewBuilder(title: View, body: View): AlertDialog.Builder = new AlertDialog.Builder(me).setCustomTitle(title).setView(body)
+  def titleBodyAsViewWithNegBuilder(neg: Int, title: View, body: View): AlertDialog.Builder = titleBodyAsViewBuilder(title, body).setNegativeButton(neg, null)
   def onFail(error: CharSequence): Unit = UITask(me showForm titleBodyAsViewWithNegBuilder(dialog_ok, null, error).create).run
   def onFail(error: Throwable): Unit = onFail(error.getMessage)
 
-  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: MaterialAlertDialogBuilder, okRes: Int, noRes: Int): AlertDialog = {
+  def mkCheckForm(ok: AlertDialog => Unit, no: => Unit, bld: AlertDialog.Builder, okRes: Int, noRes: Int): AlertDialog = {
     // Create alert dialog where NEGATIVE button removes a dialog AND calls a respected provided function
     // both POSITIVE and NEGATIVE buttons may be omitted by providing -1 as their resource ids
     if (-1 != noRes) bld.setNegativeButton(noRes, null)
@@ -140,8 +145,7 @@ trait WalletActivity extends AppCompatActivity { me =>
   }
 
   def mkCheckFormNeutral(ok: AlertDialog => Unit, no: => Unit, neutral: AlertDialog => Unit,
-                         bld: MaterialAlertDialogBuilder, okRes: Int, noRes: Int,
-                         neutralRes: Int): AlertDialog = {
+                         bld: AlertDialog.Builder, okRes: Int, noRes: Int, neutralRes: Int): AlertDialog = {
 
     if (-1 != neutralRes) bld.setNeutralButton(neutralRes, null)
     val alert = mkCheckForm(ok, no, bld, okRes, noRes)

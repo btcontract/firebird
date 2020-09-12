@@ -1,0 +1,16 @@
+<LinearLayout
+    style="@style/StandardLinearLayout"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <TextView
+        style="@style/FillingView"
+        android:text="@string/step_open_note"/>
+
+    <CheckBox
+        style="@style/FillingView"
+        android:layout_marginTop="25dp"
+        android:layout_marginStart="-6dp"
+        android:text="@string/action_open_restore"
+        android:id="@+id/restoreExistingAccount"/>
+
+</LinearLayout>

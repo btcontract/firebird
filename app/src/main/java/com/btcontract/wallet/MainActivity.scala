@@ -10,7 +10,7 @@ import com.btcontract.wallet.WalletApp.app
 import org.ndeftools.Message
 import android.os.Bundle
 import android.view.View
-import com.btcontract.wallet.steps.{ChooseProviders, SetupAccount}
+import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
 
@@ -23,9 +23,10 @@ class MainActivity extends NfcReaderActivity with WalletActivity with StepperFor
     setContentView(R.layout.activity_main)
     val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
     val setupAccount = new SetupAccount(me, me getString step_title_account)
+    val openWallet = new OpenWallet(me, me getString step_title_open)
 
     val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
-    stepper.setup(this, chooseProviders, setupAccount).init
+    stepper.setup(this, chooseProviders, setupAccount, openWallet).init
   }
 
   def showCookie(view: View): Unit = {

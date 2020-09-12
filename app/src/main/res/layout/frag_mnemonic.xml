@@ -3,13 +3,13 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <com.hootsuite.nachos.NachoTextView
-        style="@style/XYSmallMarginFillingText"
+        style="@style/XYSmallMarginFillingView"
         android:hint="@string/action_recovery_phrase_hint"
         android:id="@+id/restoreCode"/>
 
     <TextView
         android:text="@string/step_account_recovery_phrase_note"
-        style="@style/XMarginFillingText"/>
+        style="@style/XMarginFillingView"/>
 
     <View
         android:layout_marginTop="25dp"

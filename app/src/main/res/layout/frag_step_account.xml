@@ -4,7 +4,7 @@
 
     <TextView
         android:text="@string/step_account_email_pass"
-        style="@style/FillingText"/>
+        style="@style/FillingView"/>
 
     <com.ornach.nobobutton.NoboButton
         android:layout_marginTop="25dp"
@@ -19,7 +19,7 @@
 
     <TextView
         android:text="@string/step_account_recovery_phrase"
-        style="@style/FillingText"/>
+        style="@style/FillingView"/>
 
     <com.ornach.nobobutton.NoboButton
         android:layout_marginTop="25dp"

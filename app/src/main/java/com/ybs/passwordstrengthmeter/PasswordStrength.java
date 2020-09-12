@@ -5,7 +5,12 @@ import android.graphics.Color;
 import com.btcontract.wallet.R;
 
 public enum PasswordStrength {
+  EMPTY(R.string.password_strength_good, Color.TRANSPARENT),
+  EMAIL_INVALID(R.string.email_invalid, Color.RED),
+  MATCH(R.string.password_match, Color.GREEN),
+  MISMATCH(R.string.password_mismatch, Color.RED),
 
+  SHORT(R.string.password_strength_short, Color.GRAY),
   WEAK(R.string.password_strength_weak, Color.RED),
   MEDIUM(R.string.password_strength_medium, Color.argb(255, 220, 185, 0)),
   GOOD(R.string.password_strength_good, Color.GREEN);
@@ -18,15 +23,15 @@ public enum PasswordStrength {
     this.color = color;
   }
 
-  public CharSequence getText(android.content.Context ctx) {
-    return ctx.getText(resId);
+  public int getTextRes() {
+    return resId;
   }
 
   public int getColor() {
     return color;
   }
 
-  public static PasswordStrength calculateStrength(String password) {
+  public static PasswordStrength calculate(CharSequence password) {
     boolean sawUpper = false;
     boolean sawLower = false;
     boolean sawDigit = false;
@@ -45,7 +50,9 @@ public enum PasswordStrength {
       }
     }
 
-    if (length == 8 && sawUpper && sawLower && sawDigit)  {
+    if (length < 8) {
+      return SHORT;
+    } else if (length == 8 && sawUpper && sawLower && sawDigit)  {
       return MEDIUM;
     } else if (length > 8 && sawUpper && sawLower && sawDigit) {
       return GOOD;

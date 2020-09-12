@@ -78,11 +78,6 @@ object Tools {
     case _ => false
   }
 
-  def randomPassword(length: Int): String = {
-    val alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    List.fill(12)(random nextInt alphabet.length).map(alphabet).mkString
-  }
-
   object \ {
     // Matching Tuple2 via arrows with much less noise
     def unapply[A, B](t2: (A, B) /* Got a tuple */) = Some(t2)

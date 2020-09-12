@@ -601,7 +601,7 @@ public class VerticalStepperFormView extends LinearLayout {
         style.displayCancelButtonInLastStep = false;
         style.displayStepDataInSubtitleOfClosedSteps = true;
         style.displayDifferentBackgroundColorOnDisabledElements = false;
-        style.includeConfirmationStep = true;
+        style.includeConfirmationStep = false;
         style.allowNonLinearNavigation = false;
         style.allowStepOpeningOnHeaderClick = true;
         style.closeLastStepOnCompletion = false;

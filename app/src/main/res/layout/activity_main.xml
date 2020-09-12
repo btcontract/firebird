@@ -4,9 +4,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <TextView
-        style="@style/FillingText"
+        style="@style/XYMarginFillingView"
         android:text="@string/welcome"
-        android:layout_margin="10sp"
         android:textSize="20sp"/>
 
     <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView

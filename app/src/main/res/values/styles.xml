@@ -1,5 +1,5 @@
 <resources>
-    <style name="AppTheme" parent="Theme.MaterialComponents">
+    <style name="AppTheme" parent="Theme.AppCompat">
         <item name="android:fontFamily">@font/lato_regular</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/bg</item>
@@ -53,29 +53,34 @@
         <item name="android:gravity">top</item>
     </style>
 
-    <!-- text styles -->
+    <!-- view styles -->
 
-    <style name="FillingText">
+    <style name="FillingView">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">fill_parent</item>
     </style>
 
-    <style name="YMarginFillingText" parent="FillingText">
+    <style name="YMarginFillingView" parent="FillingView">
         <item name="android:layout_marginBottom">25dp</item>
         <item name="android:layout_marginTop">25dp</item>
     </style>
 
-    <style name="XMarginFillingText" parent="FillingText">
+    <style name="XMarginFillingView" parent="FillingView">
         <item name="android:layout_marginRight">15dp</item>
         <item name="android:layout_marginLeft">15dp</item>
     </style>
 
-    <style name="XYMarginFillingText" parent="YMarginFillingText">
+    <style name="XYMarginFillingView" parent="YMarginFillingView">
         <item name="android:layout_marginRight">15dp</item>
         <item name="android:layout_marginLeft">15dp</item>
     </style>
 
-    <style name="XYSmallMarginFillingText" parent="YMarginFillingText">
+    <style name="XMarginSmallFillingView" parent="FillingView">
+        <item name="android:layout_marginRight">12dp</item>
+        <item name="android:layout_marginLeft">12dp</item>
+    </style>
+
+    <style name="XYSmallMarginFillingView" parent="YMarginFillingView">
         <item name="android:layout_marginRight">12dp</item>
         <item name="android:layout_marginLeft">12dp</item>
     </style>
@@ -90,20 +95,5 @@
         <item name="android:completionThreshold">1</item>
         <item name="chipTextSize">18sp</item>
         <item name="chipHeight">28dp</item>
-    </style>
-
-    <!-- material alert -->
-
-    <style name="AlertDialog" parent="@style/ThemeOverlay.MaterialComponents.MaterialAlertDialog">
-        <item name="buttonBarPositiveButtonStyle">@style/ButtonStyle</item>
-        <item name="buttonBarNegativeButtonStyle">@style/ButtonStyle</item>
-        <item name="buttonBarNeutralButtonStyle">@style/ButtonStyle</item>
-        <item name="android:backgroundDimAmount">0.7</item>
-    </style>
-
-    <style name="ButtonStyle" parent="@style/Widget.MaterialComponents.Button.TextButton.Dialog">
-        <item name="android:textColor">@color/colorAccent</item>
-        <item name="rippleColor">@color/colorRipple</item>
-        <item name="android:textSize">14sp</item>
     </style>
 </resources>
