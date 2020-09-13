@@ -16,13 +16,13 @@ case class Htlc(incoming: Boolean, add: UpdateAddHtlc) {
   require(incoming || add.internalId.isDefined, "Outgoing add must contain an internal id")
 }
 
-trait RemoteReject {
+trait RemoteFailed {
   val ourAdd: UpdateAddHtlc
   val partId: ByteVector = ourAdd.internalId.get.data
 }
 
-case class FailAndAdd(theirFail: UpdateFailHtlc, ourAdd: UpdateAddHtlc) extends RemoteReject
-case class MalformAndAdd(theirMalform: UpdateFailMalformedHtlc, ourAdd: UpdateAddHtlc) extends RemoteReject
+case class FailAndAdd(theirFail: UpdateFailHtlc, ourAdd: UpdateAddHtlc) extends RemoteFailed
+case class MalformAndAdd(theirMalform: UpdateFailMalformedHtlc, ourAdd: UpdateAddHtlc) extends RemoteFailed
 
 case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: MilliSatoshi, htlcs: Set[Htlc] = Set.empty,
                           remoteFailed: Set[FailAndAdd] = Set.empty, remoteMalformed: Set[MalformAndAdd] = Set.empty,

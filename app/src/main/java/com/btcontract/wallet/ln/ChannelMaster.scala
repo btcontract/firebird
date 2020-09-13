@@ -4,6 +4,7 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.channel._
 import scala.concurrent.duration._
+import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
@@ -16,7 +17,6 @@ import com.btcontract.wallet.ln.HostedChannel.{isOperational, isOperationalAndOp
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
 import com.btcontract.wallet.helper.ThrottledWork
-import fr.acinq.eclair.router.Graph.RichWeight
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -46,15 +46,12 @@ object PaymentFailure {
   final val RUN_OUT_OF_RETRY_ATTEMPTS = 2
   final val PEER_COULD_NOT_PARSE_ONION = 3
   final val TOO_MANY_TIMES = 1000
-
-  final val NOWEIGHT = RichWeight(Vector.empty, 0, CltvExpiryDelta(0), 0D)
-  final val NOROUTE = Route(weight = NOWEIGHT, hops = Nil)
 }
 
-sealed trait PaymentFailure { def route: Route }
-case class LocalFailure(route: Route, errorStatus: Int) extends PaymentFailure
-case class RemoteFailure(route: Route, packet: Sphinx.DecryptedFailurePacket) extends PaymentFailure
+sealed trait PaymentFailure
 case class UnreadableRemoteFailure(route: Route) extends PaymentFailure
+case class RemoteFailure(route: Route, packet: Sphinx.DecryptedFailurePacket) extends PaymentFailure
+case class LocalFailure(errorStatus: Int) extends PaymentFailure
 
 sealed trait PartStatus {
   def tuple = Tuple2(partId, this)
@@ -70,7 +67,7 @@ case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan
 
 case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Vector[PaymentFailure] = Vector.empty) {
   def withRemoteFailure(route: Route, pkt: Sphinx.DecryptedFailurePacket): PaymentSenderData = copy(failures = RemoteFailure(route, pkt) +: failures)
-  def withLocalFailure(route: Route, reason: Int): PaymentSenderData = copy(failures = LocalFailure(route, reason) +: failures)
+  def withLocalFailure(reason: Int): PaymentSenderData = copy(failures = LocalFailure(reason) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
   def inFlights: Iterable[InFlightInfo] = parts.values collect { case wait: WaitForRouteOrInFlight if wait.flight.isDefined => wait.flight.get }
@@ -79,7 +76,7 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
 
-case class HalveSplit(amount: MilliSatoshi)
+case class SplitIntoHalves(amount: MilliSatoshi)
 case class NodeFailed(failedNodeId: PublicKey, increment: Int)
 case class ChannelFailed(failedDescAndCap: DescAndCapacity, increment: Int)
 
@@ -89,11 +86,12 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
 
 
 class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
-  var all: Vector[HostedChannel] = chanBag.all.map(createHostedChannel)
-  var listeners: Set[ChannelMasterListener] = Set.empty
+  private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, 0.msat, dummyPubKey), Map.empty)
+  private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
+  private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
 
-  private val preliminaryResolveMemo = memoize(preliminaryResolve)
-  private val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
+  var all: Vector[HostedChannel] = chanBag.all.map(mkHostedChannel)
+  var listeners: Set[ChannelMasterListener] = Set.empty
 
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(data)
@@ -125,7 +123,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     }
   }
 
-  def createHostedChannel(cd: ChannelData): HostedChannel = new HostedChannel {
+  def mkHostedChannel(cd: ChannelData): HostedChannel = new HostedChannel {
     def SEND(msg: LightningMessage *): Unit = for (work <- CommsTower.workers get data.announce.nodeSpecificPkap) msg foreach work.handler.process
     def STORE(channelData: HostedCommits): HostedCommits = chanBag.put(channelData.announce.nodeSpecificHostedChanId, channelData)
     def currentBlockDay: Long = cl.currentChainTip / LNParams.blocksPerDay
@@ -230,12 +228,12 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
                                nodeFailedWithUnknownUpdateTimes: Map[PublicKey, Int] = Map.empty withDefaultValue 0,
                                chanFailedTimes: Map[ChannelDesc, Int] = Map.empty withDefaultValue 0)
 
-  object PaymentMaster extends StateMachine[PaymentMasterData] with CanBeRepliedTo with ChannelListener {
+  object PaymentMaster extends StateMachine[PaymentMasterData] with CanBeRepliedTo with ChannelListener { self =>
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
-    def process(changeMessage: Any): Unit = scala.concurrent.Future(PaymentMaster doProcess changeMessage)
+    def process(changeMessage: Any): Unit = scala.concurrent.Future(self doProcess changeMessage)
     become(PaymentMasterData(Map.empty), EXPECTING_PAYMENTS)
     // Listen to NotifyOperational events
-    pf.listeners += PaymentMaster
+    pf.listeners += self
 
     def doProcess(change: Any): Unit = (change, state) match {
       case (cmd: CMD_SEND_MPP, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
@@ -252,16 +250,16 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         // Make pathfinder aware of payee-provided routing hints
         for (edge <- cmd.assistedEdges) pf process edge
         relayOrCreateSender(cmd.paymentHash, cmd)
-        PaymentMaster process CMDAskForRoute
+        self process CMDAskForRoute
 
       case (CMDChanGotOnline, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         // Payments may still have awaiting parts due to offline channels
         data.payments.values.foreach(_ doProcess CMDChanGotOnline)
-        PaymentMaster process CMDAskForRoute
+        self process CMDAskForRoute
 
       case (CMDAskForRoute | PathFinder.NotifyOperational, EXPECTING_PAYMENTS) =>
         // This is a proxy to always send command in payment master thread
-        // IMPLICIT GUARD: this message is ignored in other states
+        // IMPLICIT GUARD: this message is ignored in all other states
         data.payments.values.foreach(_ doProcess CMDAskForRoute)
 
       case (req: RouteRequest, EXPECTING_PAYMENTS) =>
@@ -274,7 +272,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         val ignoreNodes = data.nodeFailedWithUnknownUpdateTimes collect { case nodeId \ failTimes if failTimes >= pf.routerConf.maxStrangeNodeFailures => nodeId }
         val ignoreChans = ignoreChansFailedTimes.toSet ++ ignoreChansCanNotHandle ++ ignoreChansFailedAtAmount
         val request1 = req.copy(ignoreNodes = ignoreNodes.toSet, ignoreChannels = ignoreChans)
-        pf process Tuple2(PaymentMaster, request1)
+        pf process Tuple2(self, request1)
         become(data, WAITING_FOR_ROUTE)
 
       case (PathFinder.NotifyRejected, WAITING_FOR_ROUTE) =>
@@ -285,8 +283,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case (response: RouteResponse, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         data.payments.get(response.paymentHash).foreach(_ doProcess response)
         // Switch state to allow new route requests to come through
-        become(freshData = data, EXPECTING_PAYMENTS)
-        PaymentMaster process CMDAskForRoute
+        become(data, EXPECTING_PAYMENTS)
+        self process CMDAskForRoute
 
       case (ChannelFailed(descAndCapacity, increment), EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         // At this point an affected InFlight status IS STILL PRESENT so failedAtAmount = sum(inFlight)
@@ -302,15 +300,15 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
       case (error: CMDAddImpossible, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         data.payments.get(error.cmd.paymentHash).foreach(_ doProcess error)
-        PaymentMaster process CMDAskForRoute
+        self process CMDAskForRoute
 
       case (fulfill: UpdateFulfillHtlc, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         relayOrCreateSender(fulfill.paymentHash, fulfill)
-        PaymentMaster process CMDAskForRoute
+        self process CMDAskForRoute
 
-      case (fail: RemoteReject, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
+      case (fail: RemoteFailed, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         relayOrCreateSender(fail.ourAdd.paymentHash, fail)
-        PaymentMaster process CMDAskForRoute
+        self process CMDAskForRoute
 
       case _ =>
     }
@@ -321,9 +319,9 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       hc.localSpec.remoteFailed.foreach(process)
     }
 
-    override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit = PaymentMaster process fulfill
-    override def onException: PartialFunction[Malfunction, Unit] = { case (_, error: CMDAddImpossible) => PaymentMaster process error }
-    override def onBecome: PartialFunction[Transition, Unit] = { case (_, _, SLEEPING | SUSPENDED, OPEN) => PaymentMaster process CMDChanGotOnline }
+    override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit = self process fulfill
+    override def onException: PartialFunction[Malfunction, Unit] = { case (_, error: CMDAddImpossible) => self process error }
+    override def onBecome: PartialFunction[Transition, Unit] = { case (_, _, SLEEPING | SUSPENDED, OPEN) => self process CMDChanGotOnline }
 
     private def relayOrCreateSender(paymentHash: ByteVector32, msg: Any): Unit = data.payments.get(paymentHash) match {
       case None => withSender(new PaymentSender, paymentHash, msg) // Can happen after restart with leftoverts in channels
@@ -346,11 +344,9 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     }
 
     // What can be sent after fees and in-flight payments are taken into account
-    def canSendNow: MilliSatoshi = getSendable(all filter isOperationalAndOpen).values.sum
     def canSendInPrinciple: MilliSatoshi = getSendable(all filter isOperational).values.sum
-
     def currentSendable: mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all filter isOperationalAndOpen)
-    def currentSendableExcept(chan: HostedChannel): mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all diff List(chan) filter isOperationalAndOpen)
+    def currentSendableExcept(chan: HostedChannel): mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all.diff(chan :: Nil) filter isOperationalAndOpen)
 
     // This gets what can be sent through given channels with waiting parts taken into account
     def getSendable(chans: Vector[HostedChannel] = Vector.empty): mutable.Map[ChanAndCommits, MilliSatoshi] = {
@@ -370,24 +366,23 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     }
   }
 
-  class PaymentSender extends StateMachine[PaymentSenderData] { me =>
+  class PaymentSender extends StateMachine[PaymentSenderData] { self =>
     private[this] val maxRemote = pf.routerConf.maxRemoteAttempts
     private[this] val maxLocal = pf.routerConf.maxLocalAttempts
-    become(null, INIT)
+    become(dummyPaymentSenderData, INIT)
 
     def doProcess(msg: Any): Unit = (msg, state) match {
       case (cmd: CMD_SEND_MPP, INIT | ABORTED) => assignToChans(PaymentMaster.currentSendable, PaymentSenderData(cmd, Map.empty), cmd.totalAmount)
-      case (localError: CMDAddImpossible, ABORTED) => me abortAndNotify data.withoutPartId(localError.cmd.internalId)
-      case (reject: RemoteReject, ABORTED) => me abortAndNotify data.withoutPartId(reject.partId)
+      case (localError: CMDAddImpossible, ABORTED) => self abortAndNotify data.withoutPartId(localError.cmd.internalId)
+      case (reject: RemoteFailed, ABORTED) => self abortAndNotify data.withoutPartId(reject.partId)
 
-      case (reject: RemoteReject, INIT) =>
-        // Only catches if this is a new PaymentSender waiting for commands and having a null data
-        val data1 = PaymentSenderData(CMD_SEND_MPP(reject.ourAdd.paymentHash, 0.msat, dummyPubKey), Map.empty)
-        me abortAndNotify data1.withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
+      case (reject: RemoteFailed, INIT) =>
+        val data1 = data.modify(_.cmd.paymentHash).setTo(reject.ourAdd.paymentHash)
+        self abortAndNotify data1.withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
 
       case (fulfill: UpdateFulfillHtlc, INIT) =>
-        // Only catches if this is a new PaymentSender waiting for commands and having a null data
-        val data1 = PaymentSenderData(CMD_SEND_MPP(fulfill.paymentHash, 0.msat, dummyPubKey), parts = Map.empty)
+        // An idempotent transition, fires a success event with implanted hash
+        val data1 = data.modify(_.cmd.paymentHash).setTo(fulfill.paymentHash)
         events.outgoingSucceeded(data1)
         become(data1, SUCCEEDED)
 
@@ -403,7 +398,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
       case (CMDAskForRoute, PENDING) =>
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
-          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, to = wait.chan.data.announce.na.nodeId)
+          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
           val params = RouteParams(pf.routerConf.searchMaxFeeBase, pf.routerConf.searchMaxFeePct, pf.routerConf.firstPassMaxRouteLength, pf.routerConf.firstPassMaxCltv)
           PaymentMaster process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), fakeLocalEdge, params)
         }
@@ -412,8 +407,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty && wait.partId == fail.partId =>
           PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
             case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
-            case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess HalveSplit(wait.amount)
-            case _ => me abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
+            case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
+            case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
           }
         }
 
@@ -437,7 +432,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == malform.partId =>
           PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
             case Some(anotherCapableChan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
-            case _ => assignToChans(PaymentMaster.currentSendableExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(wait.flight.get.route, PEER_COULD_NOT_PARSE_ONION), wait.amount)
+            case _ => assignToChans(PaymentMaster.currentSendableExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(PEER_COULD_NOT_PARSE_ONION), wait.amount)
           }
         }
 
@@ -445,7 +440,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         data.parts.values collectFirst { case wait @ WaitForRouteOrInFlight(partId, _, _, Some(info), _, _) if partId == fail.partId =>
           Sphinx.FailurePacket.decrypt(packet = fail.theirFail.reason, info.cmd.packetAndSecrets.sharedSecrets) map {
             case finalPkt: Sphinx.DecryptedFailurePacket if finalPkt.originNode == data.cmd.targetNodeId =>
-              me abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, finalPkt)
+              self abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, finalPkt)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, failure: Update) =>
               val isSignatureFine = Announcements.checkSig(failure.update, nodeId)
@@ -494,7 +489,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
             if (nodesInBetween.isEmpty) {
               // Garbage is sent by our peer or final payee, fail a payment
               val data1 = data.copy(failures = failure +: data.failures)
-              me abortAndNotify data1.withoutPartId(partId)
+              self abortAndNotify data1.withoutPartId(partId)
             } else {
               // We don't know which exact remote node is sending garbage, exclude a random one
               PaymentMaster doProcess NodeFailed(shuffle(nodesInBetween).head, increment = TOO_MANY_TIMES)
@@ -503,10 +498,11 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
           }
         }
 
-      case (split: HalveSplit, PENDING) =>
+      case (split: SplitIntoHalves, PENDING) =>
         val partOne: MilliSatoshi = split.amount / 2
         val partTwo: MilliSatoshi = split.amount - partOne
         // Must be run sequentially as these methods mutate data
+        // as a result, both `currentSendable` and `data` are updated
         assignToChans(PaymentMaster.currentSendable, data, partOne)
         assignToChans(PaymentMaster.currentSendable, data, partTwo)
 
@@ -546,23 +542,23 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
           // leftover may be slightly negative due to min sendable corrections
           become(data1.copy(parts = data1.parts ++ parts), PENDING)
 
-        case _ \ rest if PaymentMaster.canSendInPrinciple - PaymentMaster.canSendNow >= rest =>
-          // Amount has not been fully split, but can be split later once any channel becomes OPEN
-          // Instead of partial-sending a whole part is set out to wait for better local conditions
+        case _ \ rest if PaymentMaster.canSendInPrinciple - PaymentMaster.currentSendable.values.sum >= rest =>
+          // Amount has not been fully split, but it is possible to split it once some channel becomes OPEN
+          // Do not partial-send this part but instead put a whole sum on hold for better local conditions
           become(data1.copy(parts = data1.parts + WaitForBetterConditions(randomId, amt).tuple), PENDING)
 
         case _ =>
           // A non-zero leftover is present with no more channels left
           // partId should already have been removed upstream at this point
-          me abortAndNotify data1.withLocalFailure(NOROUTE, NOT_ENOUGH_CAPACITY)
+          self abortAndNotify data1.withLocalFailure(NOT_ENOUGH_CAPACITY)
       }
     }
 
     private def resolveRemoteFail(data1: PaymentSenderData, wait: WaitForRouteOrInFlight): Unit =
       PaymentMaster.currentSendable collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
         case Some(chan) if wait.remoteAttempts < maxRemote => become(data.copy(parts = data.parts + wait.oneMoreRemoteAttempt(chan).tuple), PENDING)
-        case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess HalveSplit(wait.amount)
-        case _ => me abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(NOROUTE, RUN_OUT_OF_RETRY_ATTEMPTS)
+        case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
+        case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
       }
 
     private def abortAndNotify(data1: PaymentSenderData): Unit = {

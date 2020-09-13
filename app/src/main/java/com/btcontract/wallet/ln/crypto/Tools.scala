@@ -65,16 +65,15 @@ object Tools {
     NodeAnnouncement(signature = ByteVector64.Zeroes, features = Features.empty, timestamp = 0L,
       nodeId = id, rgbColor = Color(-128, -128, -128), alias, addresses = na :: Nil)
 
-  def mkFakeLocalEdge(from: PublicKey, to: PublicKey): GraphEdge = {
+  def mkFakeLocalEdge(from: PublicKey, toPeer: PublicKey): GraphEdge = {
     // Augments a graph with local edge corresponding to our hosted channel
     // Parameters do not matter except that it must point from us to peer
 
     val zeroCltvDelta = CltvExpiryDelta(0)
     val randomShortChannelId = ShortChannelId(random.nextLong)
+    val fakeDesc = ChannelDesc(randomShortChannelId, from, toPeer)
     val fakeHop = ExtraHop(from, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
-    val fakeDesc = ChannelDesc(randomShortChannelId, from, to)
-    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop)
-    GraphEdge(fakeDesc, fakeUpdate)
+    GraphEdge(update = RouteCalculation.toFakeUpdate(fakeHop), desc = fakeDesc)
   }
 
   def randomKeyPair: KeyPair = {

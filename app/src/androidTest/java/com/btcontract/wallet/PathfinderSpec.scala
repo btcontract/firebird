@@ -65,7 +65,7 @@ class PathfinderSpec {
       override def process(reply: Any): Unit = response = reply
     }
 
-    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, to = a)
+    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, toPeer = a)
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge))
     synchronized(wait(2000L))
     assertTrue(response == PathFinder.NotifyRejected)
@@ -91,7 +91,7 @@ class PathfinderSpec {
       override def process(reply: Any): Unit = response2 = reply
     }
 
-    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, to = a)
+    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, toPeer = a)
 
     pf.listeners += listener
     pf process PathFinder.CMDLoadGraph
@@ -117,7 +117,7 @@ class PathfinderSpec {
       override def process(reply: Any): Unit = response2 = reply
     }
 
-    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, to = a)
+    val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, toPeer = a)
 
     // Assisted channel is now reachable
     pf process edgeDSFromD
