@@ -128,8 +128,9 @@ class PaymentSender(master: PaymentMaster) extends StateMachine[PaymentSenderDat
 
     case (CMDAskForRoute, PENDING) =>
       data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
+        val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, to = wait.chan.data.announce.na.nodeId)
         val params = RouteParams(master.cm.pf.routerConf.searchMaxFeeBase, master.cm.pf.routerConf.searchMaxFeePct, master.cm.pf.routerConf.firstPassMaxRouteLength, master.cm.pf.routerConf.firstPassMaxCltv)
-        master process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), wait.chan.fakeEdge, params)
+        master process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), fakeLocalEdge, params)
       }
 
     case (fail: NoRouteAvailable, PENDING) =>

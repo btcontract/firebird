@@ -5,14 +5,21 @@ import com.btcontract.wallet.ln.crypto.Tools._
 
 import scala.util.{Success, Try}
 import java.nio.{ByteBuffer, ByteOrder}
+
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.LightningMessageExt
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
+
 import language.implicitConversions
 import java.security.SecureRandom
-import fr.acinq.eclair.Features
+
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
+import fr.acinq.eclair.{CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId}
+import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
+import fr.acinq.eclair.router.RouteCalculation
+import fr.acinq.eclair.router.Router.ChannelDesc
 import scodec.bits.ByteVector
 
 
@@ -57,6 +64,18 @@ object Tools {
   def mkNodeAnnouncement(id: PublicKey, na: NodeAddress, alias: String) =
     NodeAnnouncement(signature = ByteVector64.Zeroes, features = Features.empty, timestamp = 0L,
       nodeId = id, rgbColor = Color(-128, -128, -128), alias, addresses = na :: Nil)
+
+  def mkFakeLocalEdge(from: PublicKey, to: PublicKey): GraphEdge = {
+    // Augments a graph with local edge corresponding to our hosted channel
+    // Parameters do not matter except that it must point from us to peer
+
+    val zeroCltvDelta = CltvExpiryDelta(0)
+    val randomShortChannelId = ShortChannelId(random.nextLong)
+    val fakeHop = ExtraHop(from, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
+    val fakeDesc = ChannelDesc(randomShortChannelId, from, to)
+    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop)
+    GraphEdge(fakeDesc, fakeUpdate)
+  }
 
   def randomKeyPair: KeyPair = {
     val pk = PrivateKey(random getBytes 32)

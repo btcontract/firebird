@@ -1,6 +1,7 @@
 package com.btcontract.wallet
 
 import org.junit.Assert._
+import com.btcontract.wallet.GraphSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -9,28 +10,25 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.router.{Announcements, RouteCalculation}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest, RouterConf}
-import fr.acinq.eclair.wire.ChannelUpdate
+import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import org.junit.runner.RunWith
 import org.junit.Test
 import scodec.bits.ByteVector
 
-@RunWith(classOf[AndroidJUnit4])
-class GraphSpec {
+object GraphSpec {
   val DEFAULT_CAPACITY: Satoshi = 100000.sat
   val PlaceHolderSig = ByteVector64(ByteVector.fill(64)(0xaa))
   def randomPubKey = PublicKey(Tools.randomKeyPair.pub)
 
-  def makeEdge(shortChannelId: ShortChannelId,
-               nodeId1: PublicKey,
-               nodeId2: PublicKey,
-               feeBase: MilliSatoshi,
-               feeProportionalMillionth: Int,
-               minHtlc: MilliSatoshi = 10000.msat,
-               maxHtlc: MilliSatoshi,
-               cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
-               capacity: Satoshi = DEFAULT_CAPACITY,
-               balance_opt: Option[MilliSatoshi] = None,
-               score: Int = 1): GraphEdge = {
+  def makeUpdate(shortChannelId: ShortChannelId,
+                 nodeId1: PublicKey,
+                 nodeId2: PublicKey,
+                 feeBase: MilliSatoshi,
+                 feeProportionalMillionth: Int,
+                 minHtlc: MilliSatoshi = 10000.msat,
+                 maxHtlc: MilliSatoshi,
+                 cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
+                 score: Int = 1): ChannelUpdate = {
     val update = ChannelUpdate(
       signature = PlaceHolderSig,
       chainHash = Block.RegtestGenesisBlock.hash,
@@ -45,26 +43,53 @@ class GraphSpec {
       htlcMaximumMsat = Some(maxHtlc)
     )
     update.score = score
+    update
+  }
+
+  def makeEdge(shortChannelId: ShortChannelId,
+               nodeId1: PublicKey,
+               nodeId2: PublicKey,
+               feeBase: MilliSatoshi,
+               feeProportionalMillionth: Int,
+               minHtlc: MilliSatoshi = 10000.msat,
+               maxHtlc: MilliSatoshi,
+               cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
+               score: Int = 1): GraphEdge = {
+    val update = makeUpdate(shortChannelId, nodeId1, nodeId2, feeBase, feeProportionalMillionth, minHtlc, maxHtlc, cltvDelta, score)
     GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), update)
   }
 
-  val (s, a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey)
+  def makeChannel(shortChannelId: Long, nodeIdA: PublicKey, nodeIdB: PublicKey): ChannelAnnouncement = {
+    val (nodeId1, nodeId2) = if (Announcements.isNode1(nodeIdA, nodeIdB)) (nodeIdA, nodeIdB) else (nodeIdB, nodeIdA)
+    ChannelAnnouncement(PlaceHolderSig, PlaceHolderSig, PlaceHolderSig, PlaceHolderSig, Features.empty, Block.RegtestGenesisBlock.hash,
+      ShortChannelId(shortChannelId), nodeId1, nodeId2, randomKey.publicKey, randomKey.publicKey)
+  }
 
   val routerConf =
-    RouterConf(channelQueryChunkSize = 100, searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
+    RouterConf(searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
       firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(40000000L),
       maxLocalAttempts = 12, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
+  val (s, a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey)
+
   val params = RouteParams(maxFeeBase = routerConf.searchMaxFeeBase, maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength, routeMaxCltv = routerConf.firstPassMaxCltv)
-  val r = RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
-    partId = ByteVector.empty,
-    source = a,
-    target = d,
-    amount = 100000.msat,
-    maxFee = params.getMaxFee(300.msat),
-    localEdge = null,
-    params)
+
+  def makeRouteRequest(fromNode: PublicKey, fromLocalEdge: GraphEdge): RouteRequest = {
+    RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
+      partId = ByteVector.empty,
+      source = fromNode,
+      target = d,
+      amount = 100000.msat,
+      maxFee = params.getMaxFee(300.msat),
+      localEdge = fromLocalEdge,
+      params)
+  }
+}
+
+@RunWith(classOf[AndroidJUnit4])
+class GraphSpec {
+  val r: RouteRequest = makeRouteRequest(fromNode = a, fromLocalEdge = null)
 
   @Test
   def calculateRoute(): Unit = {

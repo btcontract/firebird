@@ -1,5 +1,6 @@
 package com.btcontract.wallet
 
+import com.btcontract.wallet.SyncSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
@@ -9,12 +10,17 @@ import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
 
+object SyncSpec {
+  def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  def randomDbName: String = List.fill(12)(Tools.random nextInt alphabet.length).map(alphabet).mkString
+  def db = new SQLiteInterface(WalletApp.app, randomDbName)
+  def getStore = new SQliteNetworkDataStore(db)
+}
+
 @RunWith(classOf[AndroidJUnit4])
 class SyncSpec {
-  val db = new SQLiteInterface(WalletApp.app, new String(Tools.random.getBytes(8)))
-  val store = new SQliteNetworkDataStore(db)
-
   def run: Unit = {
+    val store = getStore
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
     new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 0, LNParams.routerConf) {

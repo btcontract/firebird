@@ -8,12 +8,9 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
 import com.btcontract.wallet.ln.ChanErrorCodes._
 import com.btcontract.wallet.ln.ChannelListener._
-import fr.acinq.eclair.router.{Announcements, RouteCalculation}
-import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, StateMachine, Tools}
+import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, StateMachine}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
-import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
-import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.router.Router.ChannelDesc
+import fr.acinq.eclair.router.Announcements
 import java.util.concurrent.Executors
 import fr.acinq.bitcoin.ByteVector64
 import scala.concurrent.Future
@@ -41,16 +38,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
   def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException me -> failure }
   def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => ChanAndCommits(me, hc).toSome case _ => None }
-
-  lazy val fakeEdge: GraphEdge = {
-    val zeroCltvDelta = CltvExpiryDelta(0)
-    val randomShortChannelId = ShortChannelId(Tools.random.nextLong)
-    // Parameters do not matter except that it must point from us to peer
-    val fakeHop = ExtraHop(LNParams.keys.routingPubKey, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
-    val fakeDesc = ChannelDesc(randomShortChannelId, LNParams.keys.routingPubKey, data.announce.na.nodeId)
-    val fakeUpdate = RouteCalculation.toFakeUpdate(fakeHop)
-    GraphEdge(fakeDesc, fakeUpdate)
-  }
 
   def currentBlockDay: Long
   def SEND(msg: LightningMessage *): Unit
