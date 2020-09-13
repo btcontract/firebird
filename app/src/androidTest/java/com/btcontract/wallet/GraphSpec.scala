@@ -4,6 +4,7 @@ import org.junit.Assert._
 import com.btcontract.wallet.GraphSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
+import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
@@ -67,10 +68,10 @@ object GraphSpec {
 
   val routerConf =
     RouterConf(searchMaxFeeBase = MilliSatoshi(60000L), searchMaxFeePct = 0.01,
-      firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(40000000L),
+      firstPassMaxCltv = CltvExpiryDelta(1008 + 504), firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000L),
       maxLocalAttempts = 12, maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
-  val (s, a, b, c, d) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey)
+  val (a, b, c, d, s, e) = (randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey, randomPubKey)
 
   val params = RouteParams(maxFeeBase = routerConf.searchMaxFeeBase, maxFeePct = routerConf.searchMaxFeePct,
     routeMaxLength = routerConf.firstPassMaxRouteLength, routeMaxCltv = routerConf.firstPassMaxCltv)
@@ -84,6 +85,44 @@ object GraphSpec {
       maxFee = params.getMaxFee(300.msat),
       localEdge = fromLocalEdge,
       params)
+  }
+
+  def fillBasicGraph(store: SQliteNetworkDataStore): Unit = {
+    val channelAB: ChannelAnnouncement = makeChannel(1L, a, b)
+    val channelAC: ChannelAnnouncement = makeChannel(2L, a, c)
+    val channelBD: ChannelAnnouncement = makeChannel(3L, b, d)
+    val channelCD: ChannelAnnouncement = makeChannel(4L, c, d)
+
+    val updateABFromA: ChannelUpdate = makeUpdate(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+    val updateABFromB: ChannelUpdate = makeUpdate(ShortChannelId(1L), b, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+
+    val updateACFromA: ChannelUpdate = makeUpdate(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(134), maxHtlc = 500000.msat)
+    val updateACFromC: ChannelUpdate = makeUpdate(ShortChannelId(2L), c, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(134), maxHtlc = 500000.msat)
+
+    val updateBDFromB: ChannelUpdate = makeUpdate(ShortChannelId(3L), b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+    val updateBDFromD: ChannelUpdate = makeUpdate(ShortChannelId(3L), d, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+
+    val updateCDFromC: ChannelUpdate = makeUpdate(ShortChannelId(4L), c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+    val updateCDFromD: ChannelUpdate = makeUpdate(ShortChannelId(4L), d, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
+
+    store.db txWrap {
+      store.addChannelAnnouncement(channelAB)
+      store.addChannelAnnouncement(channelAC)
+      store.addChannelAnnouncement(channelBD)
+      store.addChannelAnnouncement(channelCD)
+
+      store.addChannelUpdateByPosition(updateABFromA)
+      store.addChannelUpdateByPosition(updateABFromB)
+
+      store.addChannelUpdateByPosition(updateACFromA)
+      store.addChannelUpdateByPosition(updateACFromC)
+
+      store.addChannelUpdateByPosition(updateBDFromB)
+      store.addChannelUpdateByPosition(updateBDFromD)
+
+      store.addChannelUpdateByPosition(updateCDFromC)
+      store.addChannelUpdateByPosition(updateCDFromD)
+    }
   }
 }
 

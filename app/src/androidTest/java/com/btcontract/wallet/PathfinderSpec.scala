@@ -20,48 +20,15 @@ class PathfinderSpec {
   LNParams.keys = LightningNodeKeys.makeFromSeed(Tools.random.getBytes(32))
   val store: SQliteNetworkDataStore = getStore
 
-  val channelAB: ChannelAnnouncement = makeChannel(1L, a, b)
-  val channelAC: ChannelAnnouncement = makeChannel(2L, a, c)
-  val channelBD: ChannelAnnouncement = makeChannel(3L, b, d)
-  val channelCD: ChannelAnnouncement = makeChannel(4L, c, d)
+  fillBasicGraph(store)
+
   val channelAS: ChannelAnnouncement = makeChannel(5L, a, s) // To be excluded
   val channelASOneSideUpdate: ChannelAnnouncement = makeChannel(6L, a, s) // To be excluded
-
-  val updateABFromA: ChannelUpdate = makeUpdate(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-  val updateABFromB: ChannelUpdate = makeUpdate(ShortChannelId(1L), b, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-
-  val updateACFromA: ChannelUpdate = makeUpdate(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(134), maxHtlc = 500000.msat)
-  val updateACFromC: ChannelUpdate = makeUpdate(ShortChannelId(2L), c, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(134), maxHtlc = 500000.msat)
-
-  val updateBDFromB: ChannelUpdate = makeUpdate(ShortChannelId(3L), b, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-  val updateBDFromD: ChannelUpdate = makeUpdate(ShortChannelId(3L), d, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-
-  val updateCDFromC: ChannelUpdate = makeUpdate(ShortChannelId(4L), c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-  val updateCDFromD: ChannelUpdate = makeUpdate(ShortChannelId(4L), d, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
 
   val updateASFromA: ChannelUpdate = makeUpdate(ShortChannelId(5L), a, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
   val updateASFromS: ChannelUpdate = makeUpdate(ShortChannelId(5L), s, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
 
   val updateASFromSOneSide: ChannelUpdate = makeUpdate(ShortChannelId(6L), s, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
-
-  db txWrap {
-    store.addChannelAnnouncement(channelAB)
-    store.addChannelAnnouncement(channelAC)
-    store.addChannelAnnouncement(channelBD)
-    store.addChannelAnnouncement(channelCD)
-
-    store.addChannelUpdateByPosition(updateABFromA)
-    store.addChannelUpdateByPosition(updateABFromB)
-
-    store.addChannelUpdateByPosition(updateACFromA)
-    store.addChannelUpdateByPosition(updateACFromC)
-
-    store.addChannelUpdateByPosition(updateBDFromB)
-    store.addChannelUpdateByPosition(updateBDFromD)
-
-    store.addChannelUpdateByPosition(updateCDFromC)
-    store.addChannelUpdateByPosition(updateCDFromD)
-  }
 
   @Test
   def restoreChannelMap(): Unit = {

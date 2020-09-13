@@ -10,7 +10,7 @@ import fr.acinq.bitcoin.ByteVector64
 import scodec.bits.ByteVector
 
 
-class SQliteNetworkDataStore(db: SQLiteInterface) extends NetworkDataStore { me =>
+class SQliteNetworkDataStore(val db: SQLiteInterface) extends NetworkDataStore { me =>
   def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(ChannelUpdateTable.killSql, shortId.toJavaLong)
   def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(ChannelUpdateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.position)
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(ChannelAnnouncementTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
