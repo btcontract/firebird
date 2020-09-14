@@ -11,16 +11,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 object SyncSpec {
-  def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-  def randomDbName: String = List.fill(12)(Tools.random nextInt alphabet.length).map(alphabet).mkString
-  def db = new SQLiteInterface(WalletApp.app, randomDbName)
-  def getStore = new SQliteNetworkDataStore(db)
+  def getRandomStore: SQliteNetworkDataStore = {
+    def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    def randomDbName: String = List.fill(12)(Tools.random nextInt alphabet.length).map(alphabet).mkString
+    def db = new SQLiteInterface(WalletApp.app, randomDbName)
+    new SQliteNetworkDataStore(db)
+  }
 }
 
 @RunWith(classOf[AndroidJUnit4])
 class SyncSpec {
   def run: Unit = {
-    val store = getStore
+    val store = getRandomStore
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
     new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 0, LNParams.routerConf) {

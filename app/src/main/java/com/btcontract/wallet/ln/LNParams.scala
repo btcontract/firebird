@@ -26,16 +26,16 @@ object LNParams {
   val minHostedLiabilityBlockdays = 365
   val minPayment = MilliSatoshi(5000L)
 
-  lazy val routerConf =
-    RouterConf(searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
-      firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L), maxLocalAttempts = 6, maxRemoteAttempts = 12,
-      maxChannelFailures = 12, maxStrangeNodeFailures = 12)
-
   private[this] val localFeatures = Set(
     ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Optional),
     ActivatedFeature(ChannelRangeQueries, FeatureSupport.Optional),
     ActivatedFeature(VariableLengthOnion, FeatureSupport.Optional)
   )
+
+  var routerConf =
+    RouterConf(searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
+      firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L), maxLocalAttempts = 6, maxRemoteAttempts = 12,
+      maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   var keys: LightningNodeKeys = _
 

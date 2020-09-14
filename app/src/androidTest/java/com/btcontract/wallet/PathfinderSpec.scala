@@ -18,8 +18,9 @@ import org.junit.Test
 
 @RunWith(classOf[AndroidJUnit4])
 class PathfinderSpec {
+  LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
   LNParams.keys = LightningNodeKeys.makeFromSeed(Tools.random.getBytes(32))
-  val store: SQliteNetworkDataStore = getStore
+  val store: SQliteNetworkDataStore = getRandomStore
 
   fillBasicGraph(store)
 
@@ -55,7 +56,7 @@ class PathfinderSpec {
   def rejectSearchWhenNotOperational(): Unit = {
     var response: Any = null
 
-    val pf = new PathFinder(store, routerConf) {
+    val pf = new PathFinder(store, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -77,7 +78,7 @@ class PathfinderSpec {
     var response1: Any = null
     var response2: Any = null
 
-    val pf = new PathFinder(store, routerConf) {
+    val pf = new PathFinder(store, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -107,7 +108,7 @@ class PathfinderSpec {
     val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
     var response2: Any = null
 
-    val pf = new PathFinder(store, routerConf) {
+    val pf = new PathFinder(store, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty

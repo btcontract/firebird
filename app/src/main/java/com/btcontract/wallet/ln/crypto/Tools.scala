@@ -17,6 +17,7 @@ import fr.acinq.eclair.router.RouteCalculation
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import language.implicitConversions
 import java.security.SecureRandom
+import scala.collection.mutable
 import scodec.bits.ByteVector
 
 
@@ -36,9 +37,10 @@ object Tools {
   implicit def bytes2VecView(underlyingBytes: Bytes): ByteVector = ByteVector.view(underlyingBytes)
   implicit def lightningMessage2Ext(msg: LightningMessage): LightningMessageExt = LightningMessageExt(msg)
 
+  def mapKeys[K, V, K1](m: mutable.Map[K, V], fun: K => K1, defVal: V): mutable.Map[K1, V] = m map { case key \ value => fun(key) -> value } withDefaultValue defVal
   def maxByOption[T, B](items: Iterable[T], mapper: T => B)( implicit cmp: Ordering[B] ): Option[T] = if (items.isEmpty) None else Some(items maxBy mapper)
-  def memoize[In, Out](f: In => Out): collection.mutable.HashMap[In, Out] = new collection.mutable.HashMap[In, Out] { self =>
-    override def apply(key: In): Out = getOrElseUpdate(key, f apply key)
+  def memoize[In, Out](fun: In => Out): collection.mutable.HashMap[In, Out] = new collection.mutable.HashMap[In, Out] { self =>
+    override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
   }
 
   def fromShortId(id: Long): (Int, Int, Int) = {

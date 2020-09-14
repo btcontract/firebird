@@ -63,6 +63,7 @@ case class WaitForBetterConditions(partId: ByteVector, amount: MilliSatoshi) ext
 case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo], localAttempts: Int = 0, remoteAttempts: Int = 0) extends PartStatus {
   def oneMoreRemoteAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, remoteAttempts = remoteAttempts + 1, chan = newHostedChannel)
   def oneMoreLocalAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, localAttempts = localAttempts + 1, chan = newHostedChannel)
+  lazy val amountWithFees: MilliSatoshi = flight match { case Some(info) => info.route.weight.costs.head case None => amount }
 }
 
 case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Vector[PaymentFailure] = Vector.empty) {
@@ -70,7 +71,7 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def withLocalFailure(reason: Int): PaymentSenderData = copy(failures = LocalFailure(reason) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
-  def inFlights: Iterable[InFlightInfo] = parts.values collect { case wait: WaitForRouteOrInFlight if wait.flight.isDefined => wait.flight.get }
+  def inFlights: Iterable[InFlightInfo] = parts.values collect { case WaitForRouteOrInFlight(_, _, _, Some(flight), _, _) => flight }
   def maxCltvExpiryDeltaOpt: Option[InFlightInfo] = maxByOption[InFlightInfo, CltvExpiryDelta](inFlights, _.route.weight.cltv)
   def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.update)
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
@@ -80,6 +81,7 @@ case class SplitIntoHalves(amount: MilliSatoshi)
 case class NodeFailed(failedNodeId: PublicKey, increment: Int)
 case class ChannelFailed(failedDescAndCap: DescAndCapacity, increment: Int)
 
+case object CMD_CLEAR_FAIL_HISTORY
 case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetNodeId: PublicKey, paymentSecret: ByteVector32 = ByteVector32.Zeroes,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
@@ -152,7 +154,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     val inChannels = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
     val absentOrFinalized = PaymentMaster.data.payments.get(paymentHash).forall(_.isFinalized)
 
-    if (PaymentMaster.canSendInPrinciple < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+    if (PaymentMaster.totalSendable < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (inChannels || !absentOrFinalized) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else if (fulfilledLongTimeAgo) PaymentInfo.NOT_SENDABLE_SUCCESS
     else PaymentInfo.SENDABLE
@@ -236,17 +238,12 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     pf.listeners += self
 
     def doProcess(change: Any): Unit = (change, state) match {
+      case (CMD_CLEAR_FAIL_HISTORY, _) if data.payments.values.forall(_.isFinalized) =>
+        val chanFailedTimes1 = data.chanFailedTimes.mapValues(failedTimes => failedTimes / 2)
+        // Rememeber traces of previous failure times to exclude channels faster in subsequent payments
+        become(data.copy(chanFailedTimes = chanFailedTimes1, chanFailedAtAmount = Map.empty), state)
+
       case (cmd: CMD_SEND_MPP, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
-        // Forget previous failures if this is a new round of payment sending
-        // that is, we either have no pending payments or all of them are finalized
-        val noPendingPaymentsLeft = data.payments.values.forall(_.isFinalized)
-
-        if (noPendingPaymentsLeft) {
-          val chanFailedTimes1 = data.chanFailedTimes.mapValues(failedTimes => failedTimes / 2)
-          // Rememeber traces of previous failure times to exclude channels faster in subsequent payments
-          become(data.copy(chanFailedTimes = chanFailedTimes1, chanFailedAtAmount = Map.empty), state)
-        }
-
         // Make pathfinder aware of payee-provided routing hints
         for (edge <- cmd.assistedEdges) pf process edge
         relayOrCreateSender(cmd.paymentHash, cmd)
@@ -265,13 +262,14 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case (req: RouteRequest, EXPECTING_PAYMENTS) =>
         // IMPLICIT GUARD: ignore in other states, payment will be able to re-send later
         val currentUsedCapacities: mutable.Map[DescAndCapacity, MilliSatoshi] = getUsedCapacities
-        val currentUsedDescs: mutable.Map[ChannelDesc, MilliSatoshi] = for (dac \ used <- currentUsedCapacities) yield dac.desc -> used
+        val currentUsedDescs = mapKeys[DescAndCapacity, MilliSatoshi, ChannelDesc](currentUsedCapacities, _.desc, defVal = 0L.msat)
         val ignoreChansFailedTimes = data.chanFailedTimes collect { case desc \ failTimes if failTimes >= pf.routerConf.maxChannelFailures => desc }
         val ignoreChansCanNotHandle = currentUsedCapacities collect { case DescAndCapacity(desc, capacity) \ used if used + req.amount >= capacity => desc }
         val ignoreChansFailedAtAmount = data.chanFailedAtAmount collect { case desc \ failedAt if failedAt - currentUsedDescs(desc) - req.reserve <= req.amount => desc }
         val ignoreNodes = data.nodeFailedWithUnknownUpdateTimes collect { case nodeId \ failTimes if failTimes >= pf.routerConf.maxStrangeNodeFailures => nodeId }
         val ignoreChans = ignoreChansFailedTimes.toSet ++ ignoreChansCanNotHandle ++ ignoreChansFailedAtAmount
         val request1 = req.copy(ignoreNodes = ignoreNodes.toSet, ignoreChannels = ignoreChans)
+        println(req.amount)
         pf process Tuple2(self, request1)
         become(data, WAITING_FOR_ROUTE)
 
@@ -344,16 +342,20 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     }
 
     // What can be sent after fees and in-flight payments are taken into account
-    def canSendInPrinciple: MilliSatoshi = getSendable(all filter isOperational).values.sum
+    def totalSendable: MilliSatoshi = getSendable(all filter isOperational).values.sum
     def currentSendable: mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all filter isOperationalAndOpen)
-    def currentSendableExcept(chan: HostedChannel): mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all.diff(chan :: Nil) filter isOperationalAndOpen)
+
+    def currentSendableExcept(chan: HostedChannel): mutable.Map[ChanAndCommits, MilliSatoshi] = {
+      val filteredChans = all.diff(chan :: Nil) filter isOperationalAndOpen
+      getSendable(filteredChans)
+    }
 
     // This gets what can be sent through given channels with waiting parts taken into account
     def getSendable(chans: Vector[HostedChannel] = Vector.empty): mutable.Map[ChanAndCommits, MilliSatoshi] = {
       val waits: mutable.Map[HostedChannel, MilliSatoshi] = mutable.Map.empty[HostedChannel, MilliSatoshi] withDefaultValue 0L.msat
       val finals: mutable.Map[ChanAndCommits, MilliSatoshi] = mutable.Map.empty[ChanAndCommits, MilliSatoshi] withDefaultValue 0L.msat
 
-      data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amount }
+      data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amountWithFees }
       // Adding waiting amounts and then removing outgoing adds is necessary to always have an accurate view because access to channel data is concurrent
       shuffle(chans).flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
       finals filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
@@ -424,7 +426,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == err.cmd.internalId =>
           PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
             case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
-            case _ => assignToChans(PaymentMaster.currentSendableExcept(wait.chan), data.withoutPartId(wait.partId), wait.amount)
+            case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
           }
         }
 
@@ -542,7 +544,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
           // leftover may be slightly negative due to min sendable corrections
           become(data1.copy(parts = data1.parts ++ parts), PENDING)
 
-        case _ \ rest if PaymentMaster.canSendInPrinciple - PaymentMaster.currentSendable.values.sum >= rest =>
+        case _ \ rest if PaymentMaster.totalSendable - PaymentMaster.currentSendable.values.sum >= rest =>
           // Amount has not been fully split, but it is possible to split it once some channel becomes OPEN
           // Do not partial-send this part but instead put a whole sum on hold for better local conditions
           become(data1.copy(parts = data1.parts + WaitForBetterConditions(randomId, amt).tuple), PENDING)
