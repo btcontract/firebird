@@ -3,13 +3,14 @@ package com.btcontract.wallet
 import fr.acinq.eclair._
 import com.btcontract.wallet.SyncSpec._
 import com.btcontract.wallet.GraphSpec._
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import fr.acinq.eclair.{CltvExpiryDelta, ShortChannelId}
 import com.btcontract.wallet.ln.{LNParams, LightningNodeKeys, PathFinder}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, Tools}
-import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
-import fr.acinq.eclair.router.Router.RouteFound
-import fr.acinq.eclair.{CltvExpiryDelta, ShortChannelId}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate, NodeAnnouncement}
+import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import fr.acinq.eclair.router.Announcements
+import fr.acinq.eclair.router.Router.{NoRouteAvailable, RouteFound}
 import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -123,7 +124,7 @@ class PathfinderSpec {
     pf process edgeDSFromD
     pf process PathFinder.CMDLoadGraph
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge).copy(target = s))
-    synchronized(wait(2000L))
+    synchronized(wait(1000L))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, c, d))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.b).take(4) == Seq(a, c, d, s))
 
@@ -131,7 +132,7 @@ class PathfinderSpec {
     val updateDSFromD = makeEdge(ShortChannelId(6L), d, s, 2.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
     pf process updateDSFromD
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge).copy(target = s))
-    synchronized(wait(2000L))
+    synchronized(wait(1000L))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, c, d))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.last.update.feeBaseMsat == 2.msat)
 
@@ -139,7 +140,23 @@ class PathfinderSpec {
     val updateACFromA1: ChannelUpdate = makeUpdate(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(154), maxHtlc = 500000.msat) // It got worse because of CLTV
     pf process updateACFromA1
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge).copy(target = s))
-    synchronized(wait(2000L))
+    synchronized(wait(1000L))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, b, d))
+
+    // Another public channel has been updated
+    val disabled = Announcements.makeChannelFlags(isNode1 = Announcements.isNode1(a, b), enable = false)
+    val updateABFromA1 = makeUpdate(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(14), maxHtlc = 500000.msat).copy(channelFlags = disabled) // Better one is now disabled
+    pf process updateABFromA1
+    pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge).copy(target = s))
+    synchronized(wait(1000L))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, c, d))
+
+    // The only assisted channel got disabled, payee is now unreachable
+    val disabled1 = Announcements.makeChannelFlags(isNode1 = Announcements.isNode1(d, s), enable = false)
+    val updateDSFromD1 = makeUpdate(ShortChannelId(6L), d, s, 2.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat).copy(channelFlags = disabled1) // Assisted one is now disabled
+    pf process updateDSFromD1
+    pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.keys.routingPubKey, fakeLocalEdge).copy(target = s))
+    synchronized(wait(1000L))
+    assertTrue(response2.isInstanceOf[NoRouteAvailable])
   }
 }

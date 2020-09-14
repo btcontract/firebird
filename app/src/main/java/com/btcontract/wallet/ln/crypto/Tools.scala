@@ -5,21 +5,18 @@ import com.btcontract.wallet.ln.crypto.Tools._
 
 import scala.util.{Success, Try}
 import java.nio.{ByteBuffer, ByteOrder}
-
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.eclair.{CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId}
 import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
+import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
+import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import com.btcontract.wallet.ln.LightningMessageExt
+import fr.acinq.eclair.router.Router.ChannelDesc
+import fr.acinq.eclair.router.RouteCalculation
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
-
 import language.implicitConversions
 import java.security.SecureRandom
-
-import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
-import fr.acinq.eclair.{CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId}
-import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
-import fr.acinq.eclair.router.RouteCalculation
-import fr.acinq.eclair.router.Router.ChannelDesc
 import scodec.bits.ByteVector
 
 
@@ -119,7 +116,10 @@ abstract class StateMachine[T] {
   var data: T = _
 }
 
-trait ByteStream { def getBytes(size: Int): Bytes }
+trait ByteStream {
+  def getBytes(size: Int): Bytes
+}
+
 class RandomGenerator extends SecureRandom with ByteStream {
   def getBytes(size: Int): Bytes = {
     val array = new Bytes(size)

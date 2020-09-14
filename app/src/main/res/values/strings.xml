@@ -11,9 +11,9 @@
     <string name="step_title_open">Go to wallet</string>
 
     <string name="step_choose_or_scan">Start with choosing default providers or scan a QR code to set up your own.</string>
-    <string name="step_account_email_pass_random_note">Firebird will generate and store a strong password, you will be able to export it at any time.</string>
+    <string name="step_account_email_pass_random_note">Firebird will generate and store a strong password, you can export it any time.</string>
     <string name="step_account_email_pass"><b>Option 1: provide your email and password</b>. Payment providers will know your email and will be able to provide assistance in case of password loss.</string>
-    <string name="step_account_recovery_phrase"><b>Option 2 for advanced users: provide your BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
+    <string name="step_account_recovery_phrase"><b>Option 2: provide your BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
     <string name="step_account_recovery_phrase_note">Note that Firebird will neither store a provided phrase nor use any standard derivation paths.\n\nEven if this wallet gets compromised the rest of funds attached to phrase will remain safe.</string>
     <string name="step_open_note">Everything is set up. You are now ready to expirience <b>fast</b>, <b>effortless</b>, <b>private</b> and <b>cheap</b> Bitcoin payments.</string>
 
@@ -26,7 +26,7 @@
     <string name="action_email_password_hint_password_again">Retype a password</string>
     <string name="action_email_password_checkbox">Use random password</string>
     <string name="action_recovery_phrase_hint">Type 12 phrase words</string>
-    <string name="action_open_restore">Restore an existing account</string>
+    <string name="action_open_restore">Restore existing account</string>
 
     <string name="password_match">MATCH</string>
     <string name="password_mismatch">MISMATCH</string>

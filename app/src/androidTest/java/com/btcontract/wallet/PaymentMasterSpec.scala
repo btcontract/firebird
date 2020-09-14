@@ -4,16 +4,12 @@ import fr.acinq.eclair._
 import com.btcontract.wallet.SyncSpec._
 import com.btcontract.wallet.GraphSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.btcontract.wallet.ln.{CMD_SEND_MPP, ChainLink, ChannelBag, ChannelMaster, CommitmentSpec, FailAndAdd, HostedChannel, HostedCommits, Htlc, LNParams, LightningNodeKeys, MalformAndAdd, NodeAnnouncementExt, PathFinder, PaymentInfo, PaymentInfoBag, WaitForBetterConditions, WaitForRouteOrInFlight}
-import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, Tools}
-import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteDataBag, SQliteNetworkDataStore}
-import fr.acinq.bitcoin.Crypto.PublicKey
+import com.btcontract.wallet.ln._
+import com.btcontract.wallet.ln.crypto.Tools
+import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteNetworkDataStore}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
-import fr.acinq.eclair.channel.CMD_SOCKET_ONLINE
-import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
-import fr.acinq.eclair.router.Router.RouteFound
 import fr.acinq.eclair.{CltvExpiryDelta, ShortChannelId}
-import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate, InitHostedChannel, LastCrossSignedState, NodeAddress, NodeAnnouncement}
+import fr.acinq.eclair.wire.{InitHostedChannel, LastCrossSignedState, NodeAddress, NodeAnnouncement}
 import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -65,6 +61,7 @@ class PaymentMasterSpec {
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))
 
+    // First route is now overloaded, so another one is chosen
     val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList
     assertTrue(w1.asInstanceOf[WaitForRouteOrInFlight].flight.get.route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, c, d))
     assertTrue(w2.asInstanceOf[WaitForRouteOrInFlight].flight.get.route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, b, d))
