@@ -60,10 +60,13 @@ sealed trait PartStatus {
 
 case class InFlightInfo(cmd: CMD_ADD_HTLC, route: Route)
 case class WaitForBetterConditions(partId: ByteVector, amount: MilliSatoshi) extends PartStatus
-case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo], localAttempts: Int = 0, remoteAttempts: Int = 0) extends PartStatus {
+case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo],
+                                  localFailed: List[HostedChannel] = Nil, remoteAttempts: Int = 0) extends PartStatus {
+
   def oneMoreRemoteAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, remoteAttempts = remoteAttempts + 1, chan = newHostedChannel)
-  def oneMoreLocalAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, localAttempts = localAttempts + 1, chan = newHostedChannel)
+  def oneMoreLocalAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, localFailed = allFailedChans, chan = newHostedChannel)
   lazy val amountWithFees: MilliSatoshi = flight match { case Some(info) => info.route.weight.costs.head case None => amount }
+  lazy val allFailedChans: List[HostedChannel] = chan :: localFailed
 }
 
 case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Vector[PaymentFailure] = Vector.empty) {
@@ -269,7 +272,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
         val ignoreNodes = data.nodeFailedWithUnknownUpdateTimes collect { case nodeId \ failTimes if failTimes >= pf.routerConf.maxStrangeNodeFailures => nodeId }
         val ignoreChans = ignoreChansFailedTimes.toSet ++ ignoreChansCanNotHandle ++ ignoreChansFailedAtAmount
         val request1 = req.copy(ignoreNodes = ignoreNodes.toSet, ignoreChannels = ignoreChans)
-        println(req.amount)
         pf process Tuple2(self, request1)
         become(data, WAITING_FOR_ROUTE)
 
@@ -341,14 +343,14 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       accum
     }
 
-    // What can be sent after fees and in-flight payments are taken into account
-    def totalSendable: MilliSatoshi = getSendable(all filter isOperational).values.sum
-    def currentSendable: mutable.Map[ChanAndCommits, MilliSatoshi] = getSendable(all filter isOperationalAndOpen)
+    def totalSendable: MilliSatoshi =
+      getSendable(all filter isOperational).values.sum
 
-    def currentSendableExcept(chan: HostedChannel): mutable.Map[ChanAndCommits, MilliSatoshi] = {
-      val filteredChans = all.diff(chan :: Nil) filter isOperationalAndOpen
-      getSendable(filteredChans)
-    }
+    def currentSendable: mutable.Map[ChanAndCommits, MilliSatoshi] =
+      getSendable(all filter isOperationalAndOpen)
+
+    def currentSendableExcept(wait: WaitForRouteOrInFlight): mutable.Map[ChanAndCommits, MilliSatoshi] =
+      getSendable(all diff wait.allFailedChans filter isOperationalAndOpen)
 
     // This gets what can be sent through given channels with waiting parts taken into account
     def getSendable(chans: Vector[HostedChannel] = Vector.empty): mutable.Map[ChanAndCommits, MilliSatoshi] = {
@@ -370,7 +372,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
   class PaymentSender extends StateMachine[PaymentSenderData] { self =>
     private[this] val maxRemote = pf.routerConf.maxRemoteAttempts
-    private[this] val maxLocal = pf.routerConf.maxLocalAttempts
     become(dummyPaymentSenderData, INIT)
 
     def doProcess(msg: Any): Unit = (msg, state) match {
@@ -407,10 +408,10 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
       case (fail: NoRouteAvailable, PENDING) =>
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty && wait.partId == fail.partId =>
-          PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
-            case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
-            case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
-            case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
+          PaymentMaster currentSendableExcept wait collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
+            case Some(anotherCapableChan) => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
+            case None if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
+            case None => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
           }
         }
 
@@ -422,19 +423,19 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
           wait.chan.process(inFlightInfo.cmd, CMD_PROCEED)
         }
 
-      case (err: CMDAddImpossible, PENDING) =>
+      case (err: CMDAddImpossible, PENDING) => // TODO: make an exception for offline channels, retry them?
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == err.cmd.internalId =>
-          PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
-            case Some(chan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(chan).tuple), PENDING)
-            case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
+          PaymentMaster currentSendableExcept wait collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
+            case Some(anotherCapableChan) => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
+            case None => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
           }
         }
 
       case (malform: MalformAndAdd, PENDING) =>
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isDefined && wait.partId == malform.partId =>
-          PaymentMaster.currentSendableExcept(wait.chan) collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
-            case Some(anotherCapableChan) if wait.localAttempts < maxLocal => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
-            case _ => assignToChans(PaymentMaster.currentSendableExcept(wait.chan), data.withoutPartId(wait.partId).withLocalFailure(PEER_COULD_NOT_PARSE_ONION), wait.amount)
+          PaymentMaster currentSendableExcept wait collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
+            case Some(anotherCapableChan) => become(data.copy(parts = data.parts + wait.oneMoreLocalAttempt(anotherCapableChan).tuple), PENDING)
+            case None => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(PEER_COULD_NOT_PARSE_ONION)
           }
         }
 

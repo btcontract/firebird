@@ -119,7 +119,6 @@ class PaymentMasterSpec {
     synchronized(wait(1000L))
 
     assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).data.inFlights.isEmpty)
-    assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.head.asInstanceOf[WaitForRouteOrInFlight].localAttempts == pf.routerConf.maxLocalAttempts)
     assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).state == PaymentMaster.ABORTED)
   }
 
@@ -167,42 +166,43 @@ class PaymentMasterSpec {
     assertTrue(waits.size == 2)
   }
 
-//  @Test
-//  def reRoutedBecauseFailedAtAmount(): Unit = {
-//    val store: SQliteNetworkDataStore = getRandomStore
-//    fillBasicGraph(store)
-//    val pf = new PathFinder(store, LNParams.routerConf) {
-//      def getLastResyncStamp: Long = System.currentTimeMillis
-//      def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-//      def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-//      def getChainTip: Long = 400000L
-//    }
-//
-//    val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
-//    val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-//    val channelBag = new SQliteChannelBag(store.db)
-//    channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
-//    channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
-//
-//    val cl = new BitcoinJChainLink(WalletApp.params)
-//    val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-//    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
-//
-//    pf process PathFinder.CMDLoadGraph
-//    synchronized(wait(500L))
-//
-//    val desc = ChannelDesc(ShortChannelId(3L), b, d)
-//    master.PaymentMaster.data = master.PaymentMaster.data.copy(chanFailedAtAmount = Map(desc -> 200000L.msat))
-//
-//    master.all.foreach(chan => chan.BECOME(chan.data, HostedChannel.OPEN))
-//    synchronized(wait(500L))
-//
-//    val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = Long.MaxValue.msat)
-//    val cmd = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 600000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
-//    master.PaymentMaster process cmd
-//    synchronized(wait(1000L))
-//
-//    println(master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.head.asInstanceOf[WaitForRouteOrInFlight].flight)
-//    master.PaymentMaster.data.payments(cmd.paymentHash).data.inFlights.foreach(info => println(info.route.hops.map(_.desc.shortChannelId), info.route.weight.costs.head))
-//  }
+  @Test
+  def reRoutedBecauseFailedAtAmount(): Unit = {
+    val store: SQliteNetworkDataStore = getRandomStore
+    fillBasicGraph(store)
+    val pf = new PathFinder(store, LNParams.routerConf) {
+      def getLastResyncStamp: Long = System.currentTimeMillis
+      def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
+      def getExtraNodes: Set[NodeAnnouncement] = Set.empty
+      def getChainTip: Long = 400000L
+    }
+
+    val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
+    val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
+    val channelBag = new SQliteChannelBag(store.db)
+    channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
+    channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
+
+    val cl = new BitcoinJChainLink(WalletApp.params)
+    val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+
+    pf process PathFinder.CMDLoadGraph
+    synchronized(wait(500L))
+
+    val desc = ChannelDesc(ShortChannelId(3L), b, d)
+    master.PaymentMaster.data = master.PaymentMaster.data.copy(chanFailedAtAmount = Map(desc -> 200000L.msat))
+
+    master.all.foreach(chan => chan.BECOME(chan.data, HostedChannel.OPEN))
+    synchronized(wait(500L))
+
+    val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = Long.MaxValue.msat)
+    val cmd = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 600000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
+    master.PaymentMaster process cmd
+    synchronized(wait(1000L))
+
+    val ws = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.map(_.asInstanceOf[WaitForRouteOrInFlight])
+    // A single 600 payment has been split into three payments such that failed at 200 channel can handle one of the parts
+    assertTrue(ws.map(_.amount).toList.sorted == List(150000.msat, 150000.msat, 300000.msat))
+  }
 }

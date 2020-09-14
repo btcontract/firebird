@@ -34,7 +34,6 @@ object Router {
                         mppMinPartAmount: MilliSatoshi,
                         maxChannelFailures: Int,
                         maxStrangeNodeFailures: Int,
-                        maxLocalAttempts: Int,
                         maxRemoteAttempts: Int)
 
   // @formatter:off

@@ -33,9 +33,10 @@ object LNParams {
   )
 
   var routerConf =
-    RouterConf(searchMaxFeeBase = MilliSatoshi(25000L), searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
-      firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L), maxLocalAttempts = 6, maxRemoteAttempts = 12,
-      maxChannelFailures = 12, maxStrangeNodeFailures = 12)
+    RouterConf(searchMaxFeeBase = MilliSatoshi(25000L),
+      searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
+      firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
+      maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
   var keys: LightningNodeKeys = _
 
