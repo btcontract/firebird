@@ -3,35 +3,30 @@ package com.btcontract.wallet
 import R.string._
 import fr.acinq.eclair._
 import java.util.{Timer, TimerTask}
-
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
-import android.widget.{EditText, LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
+import android.widget.{EditText, LinearLayout, TextView}
 import android.text.{Editable, Html, Spanned, TextWatcher}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import com.cottacush.android.currencyedittext.CurrencyEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.btcontract.wallet.WalletActivity.StringOps
-
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
 import android.text.method.LinkMovementMethod
+import com.btcontract.wallet.FiatRates.Rates
 import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AlertDialog
-
 import scala.language.implicitConversions
 import android.content.pm.PackageManager
 import android.view.View.OnClickListener
 import androidx.core.app.ActivityCompat
 import org.aviran.cookiebar2.CookieBar
-
 import scala.concurrent.Future
 import scodec.bits.ByteVector
 import android.app.Dialog
 import android.os.Bundle
-import com.btcontract.wallet.FiatRates.Rates
-import com.cottacush.android.currencyedittext.CurrencyEditText
-import com.google.android.material.textfield.TextInputLayout
-
 
 
 object WalletActivity {

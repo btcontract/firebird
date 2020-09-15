@@ -37,4 +37,4 @@ case class BitpayItem(code: String, rate: Double)
 
 case class Bitpay(data: BitpayItemList)
 case class CoinGecko(rates: CoinGeckoItemMap)
-case class RatesInfo(rates: Rates, stamp: Long)
+case class RatesInfo(rates: Rates, oldRates: Rates, stamp: Long)

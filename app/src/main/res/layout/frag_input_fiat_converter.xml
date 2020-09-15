@@ -9,6 +9,7 @@
             android:id="@+id/fiatInputAmount"
             android:imeOptions="actionDone"
             android:layout_marginTop="25dp"
+            android:textStyle="bold"
             android:textSize="24sp"/>
 
         <TextView
@@ -30,6 +31,7 @@
             style="@style/XSmallMarginFillingView"
             android:imeOptions="actionDone"
             android:id="@+id/inputAmount"
+            android:textStyle="bold"
             android:textSize="24sp"/>
 
         <TextView

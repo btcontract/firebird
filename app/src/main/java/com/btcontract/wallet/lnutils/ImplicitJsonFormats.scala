@@ -71,7 +71,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   // Fiat feerates
 
-  implicit val ratesInfoFmt: JsonFormat[RatesInfo] = jsonFormat[Rates, Long, RatesInfo](RatesInfo.apply, "rates", "stamp")
+  implicit val ratesInfoFmt: JsonFormat[RatesInfo] = jsonFormat[Rates, Rates, Long, RatesInfo](RatesInfo.apply, "rates", "oldRates", "stamp")
   implicit val BlockchainInfoItemFmt: JsonFormat[BlockchainInfoItem] = jsonFormat[Double, BlockchainInfoItem](BlockchainInfoItem.apply, "last")
   implicit val bitpayItemFmt: JsonFormat[BitpayItem] = jsonFormat[String, Double, BitpayItem](BitpayItem.apply, "code", "rate")
   implicit val coinGeckoItemFmt: JsonFormat[CoinGeckoItem] = jsonFormat[Double, CoinGeckoItem](CoinGeckoItem.apply, "value")

@@ -86,7 +86,6 @@ object WalletApp {
   // Mnemonic
 
   type SeedWordSeq = Seq[String]
-  def getRandomMnemonic: SeedWordSeq = getMnemonic(random getBytes 16)
   def getMnemonic(seed: Bytes): SeedWordSeq = MnemonicCode.INSTANCE.toMnemonic(seed).asScala
   def getSeedFromMnemonic(words: SeedWordSeq): Bytes = MnemonicCode.toSeed(words.asJava, new String)
 
@@ -139,11 +138,11 @@ class WalletApp extends Application {
 
     FiatRates.ratesInfo = {
       val raw = prefs.getString(WalletApp.FIAT_RATES_DATA, new String)
-      Try(raw) map to[RatesInfo] getOrElse RatesInfo(Map.empty, stamp = 0L)
+      Try(raw) map to[RatesInfo] getOrElse RatesInfo(Map.empty, Map.empty, stamp = 0L)
     }
 
     FiatRates.observable(FiatRates.ratesInfo.stamp).subscribe(newFiatRates => {
-      val newRatesInfo = RatesInfo(rates = newFiatRates, System.currentTimeMillis)
+      val newRatesInfo = RatesInfo(newFiatRates, FiatRates.ratesInfo.rates, System.currentTimeMillis)
       prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.toString).commit
       FiatRates.ratesInfo = newRatesInfo
     }, none)
