@@ -1,7 +1,7 @@
 package com.btcontract.wallet.lnutils
 
 import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
-import com.btcontract.wallet.ln.PaymentInfo.SUCCESS
+import com.btcontract.wallet.ln.PaymentMaster.SUCCEEDED
 import com.btcontract.wallet.ln.crypto.Tools.runAnd
 import com.btcontract.wallet.helper.RichCursor
 import android.content.Context
@@ -110,16 +110,16 @@ object PaymentTable extends Table {
   val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 50)"
 
   // Updating
-  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCESS, $preimage = ?, $sentMsat = ?, $feeMsat = ?, $balanceSnap = ?, $fiatRateSnap = ? WHERE $hash = ?"
+  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ?, $balanceSnap = ?, $fiatRateSnap = ? WHERE $hash = ?"
   val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ?, $balanceSnap = ?, $fiatRateSnap = ? WHERE $hash = ?"
-  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCESS"
+  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED"
 
   // Once incoming or outgoing payment is settled we can search it by various metadata
   val createVSql = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $hash)"
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $pr STRING NOT NULL, $preimage BLOB NOT NULL, $status INTEGER NOT NULL,
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $pr STRING NOT NULL, $preimage BLOB NOT NULL, $status STRING NOT NULL,
       $stamp INTEGER NOT NULL, $description STRING NOT NULL, $action STRING NOT NULL, $hash BLOB NOT NULL UNIQUE,
       $receivedMsat INTEGER NOT NULL, $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL,
       $balanceSnap INTEGER NOT NULL, $fiatRateSnap STRING NOT NULL, $ext BLOB NOT NULL
