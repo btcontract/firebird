@@ -13,6 +13,7 @@ import android.view.View
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
+import fr.acinq.eclair.MilliSatoshi
 
 import scala.util.Try
 
@@ -27,6 +28,14 @@ class MainActivity extends NfcReaderActivity with WalletActivity with StepperFor
 
     val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
     stepper.setup(this, chooseProviders, setupAccount, openWallet).init
+
+    val content = getLayoutInflater.inflate(R.layout.frag_input_fiat_converter, null, false)
+    val rateManager = new RateManager(content, Some("Add a comment"), FiatRates.ratesInfo.rates, WalletApp.fiatCode)
+    val bld = titleBodyAsViewBuilder(me getString amount_send_title, content)
+    mkCheckForm(_.dismiss, none, bld, dialog_ok, dialog_cancel)
+
+    rateManager.hintDenom.setText(getString(amount_hint_can_send).format(WalletApp.denom.parsedWithSign(MilliSatoshi(10000000000L))))
+    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
   }
 
   def showCookie(view: View): Unit = {

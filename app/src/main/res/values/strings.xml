@@ -50,8 +50,11 @@
     <string name="dialog_max">Max</string>
     <string name="dialog_ok">OK</string>
 
-    <string name="amount_hint_sat"><![CDATA[Amount in Satoshi%1$s]]></string>
-    <string name="amount_hint_btc"><![CDATA[Amount in Bitcoin%1$s]]></string>
+    <string name="amount_receive_title">Receive Payment</string>
+    <string name="amount_send_title">Send Payment</string>
+
+    <string name="amount_hint_can_receive">Can receive %1$s</string>
+    <string name="amount_hint_can_send">Can send %1$s</string>
 
     <!-- orbot -->
 

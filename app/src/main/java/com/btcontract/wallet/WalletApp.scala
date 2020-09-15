@@ -56,12 +56,7 @@ object WalletApp {
 
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
-  def checkAndMaybeErase(check: Checker): Unit = check(value) match {
-    // Sometimes we need to forward a value between activity switches
-    case DoNotEraseValue => log("WalletApp.value retained")
-    case _ => value = null
-  }
-
+  def checkAndMaybeErase(check: Checker): Unit = check(value) match { case DoNotEraseValue => case _ => value = null }
   def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != LNParams.keys
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
@@ -83,8 +78,9 @@ object WalletApp {
 
   // Fiat conversion
 
-  def msatInFiat(rates: Rates, code: String, msat: MilliSatoshi): Try[Double] = Try(rates apply code) map { ratePerOneBtc => msat.toLong * ratePerOneBtc / BtcDenomination.factor }
-  def msatInFiatHuman(rates: Rates, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code, msat) match { case Success(amt) => s"≈ ${Denomination.formatFiat format amt} $code" case _ => s"≈ ? $code" }
+  def currentRate(rates: Rates, code: String): Try[Double] = Try(rates apply code)
+  def msatInFiat(rates: Rates, code: String)(msat: MilliSatoshi): Try[Double] = currentRate(rates, code) map { ratePerOneBtc => msat.toLong * ratePerOneBtc / BtcDenomination.factor }
+  def msatInFiatHuman(rates: Rates, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code)(msat) match { case Success(amt) => s"≈ ${Denomination.formatFiat format amt} $code" case _ => s"≈ ? $code" }
   val currentMsatInFiatHuman: MilliSatoshi => String = msat => msatInFiatHuman(FiatRates.ratesInfo.rates, fiatCode, msat)
 
   // Mnemonic

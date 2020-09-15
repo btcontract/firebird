@@ -1,28 +1,37 @@
 package com.btcontract.wallet
 
 import R.string._
+import fr.acinq.eclair._
 import java.util.{Timer, TimerTask}
-import scala.util.{Failure, Success}
+
+import scala.util.{Failure, Success, Try}
 import android.view.{View, ViewGroup}
-import android.widget.{LinearLayout, TextView}
+import android.widget.{EditText, LinearLayout, TextView}
 import android.content.{DialogInterface, Intent}
 import android.text.{Editable, Html, Spanned, TextWatcher}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import com.btcontract.wallet.WalletActivity.StringOps
+
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
 import android.text.method.LinkMovementMethod
 import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AlertDialog
+
 import scala.language.implicitConversions
 import android.content.pm.PackageManager
 import android.view.View.OnClickListener
 import androidx.core.app.ActivityCompat
 import org.aviran.cookiebar2.CookieBar
+
 import scala.concurrent.Future
 import scodec.bits.ByteVector
 import android.app.Dialog
 import android.os.Bundle
+import com.btcontract.wallet.FiatRates.Rates
+import com.cottacush.android.currencyedittext.CurrencyEditText
+import com.google.android.material.textfield.TextInputLayout
+
 
 
 object WalletActivity {
@@ -179,5 +188,36 @@ trait WalletActivity extends AppCompatActivity { me =>
     val allowed = ContextCompat.checkSelfPermission(me, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     if (allowed) new sheets.ScannerBottomSheet(me, checker).show(getSupportFragmentManager, "scanner-bottom-sheet-fragment")
     else ActivityCompat.requestPermissions(me, Array(android.Manifest.permission.CAMERA), scannerRequestCode)
+  }
+
+  // Fiat / BTC converter
+
+  val bigDecimalValue: CurrencyEditText => BigDecimal = _.getNumericValueBigDecimal
+  class RateManager(val content: View, extraHint: Option[String], rates: Rates, fiatCode: String) {
+    val inputAmount: CurrencyEditText = content.findViewById(R.id.inputAmount).asInstanceOf[CurrencyEditText]
+    val fiatInputAmount: CurrencyEditText = content.findViewById(R.id.fiatInputAmount).asInstanceOf[CurrencyEditText]
+    val hintFiatDenom: TextView = clickableTextField(content findViewById R.id.hintFiatDenom)
+    val hintDenom: TextView = clickableTextField(content findViewById R.id.hintDenom)
+
+    val inputAmountHint: TextView = content.findViewById(R.id.inputAmountHint).asInstanceOf[TextView]
+    val fiatInputAmountHint: TextView = content.findViewById(R.id.fiatInputAmountHint).asInstanceOf[TextView]
+    val extraInputLayout: TextInputLayout = content.findViewById(R.id.extraInputLayout).asInstanceOf[TextInputLayout]
+    val extraInput: EditText = content.findViewById(R.id.fiatInputAmount).asInstanceOf[EditText]
+    def result: MilliSatoshi = MilliSatoshi(bigDecimalValue(inputAmount).toLong * 1000L)
+
+    def updatedSat: String =
+      WalletApp.currentRate(rates, fiatCode).map(bigDecimalValue(fiatInputAmount) / _).filter(0D.!=)
+        .map(Denomination.btcBigDecimal2MSat).map(WalletApp.denom.asString).getOrElse(null)
+
+    def updatedFiat: String =
+      WalletApp.msatInFiat(rates, fiatCode)(result).filter(0D.!=)
+        .map(Denomination.formatFiat.format).getOrElse(null)
+
+    extraHint match { case Some(hint) => extraInputLayout setHint hint case None => extraInputLayout setVisibility View.GONE }
+    fiatInputAmount addTextChangedListener onTextChange { _ => if (fiatInputAmount.hasFocus) inputAmount setText updatedSat }
+    inputAmount addTextChangedListener onTextChange { _ => if (inputAmount.hasFocus) fiatInputAmount setText updatedFiat }
+    inputAmountHint setText WalletApp.denom.sign.toUpperCase
+    fiatInputAmountHint setText fiatCode.toUpperCase
+    inputAmount.requestFocus
   }
 }
