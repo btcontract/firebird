@@ -5,13 +5,12 @@ import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-
-import com.btcontract.wallet.helper.{AwaitService, BtcDenomination, Denomination, SatDenomination}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import scala.util.{Success, Try}
 
+import com.btcontract.wallet.helper.AwaitService
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates

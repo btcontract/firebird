@@ -39,6 +39,7 @@ object PaymentMaster {
   val EXPECTING_PAYMENTS = "state-expecting-payments"
   val WAITING_FOR_ROUTE = "state-waiting-for-route"
 
+  val CMDClearFailHistory = "cmd-clear-fail-history"
   val CMDChanGotOnline = "cmd-chan-got-online"
   val CMDAskForRoute = "cmd-ask-for-route"
 }
@@ -86,7 +87,6 @@ case class SplitIntoHalves(amount: MilliSatoshi)
 case class NodeFailed(failedNodeId: PublicKey, increment: Int)
 case class ChannelFailed(failedDescAndCap: DescAndCapacity, increment: Int)
 
-case object CMD_CLEAR_FAIL_HISTORY
 case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetNodeId: PublicKey, paymentSecret: ByteVector32 = ByteVector32.Zeroes,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
@@ -245,7 +245,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
     def doProcess(change: Any): Unit = (change, state) match {
       // Rememeber traces of previous failure times to exclude those channels faster if they keep failing
-      case (CMD_CLEAR_FAIL_HISTORY, _) if data.payments.values.forall(fsm => SUCCEEDED == fsm.state || ABORTED == fsm.state) =>
+      case (CMDClearFailHistory, _) if data.payments.values.forall(fsm => SUCCEEDED == fsm.state || ABORTED == fsm.state) =>
         val data1 = data.copy(chanFailedTimes = data.chanFailedTimes.mapValues(_ / 2), chanFailedAtAmount = Map.empty)
         become(data1, state)
 
