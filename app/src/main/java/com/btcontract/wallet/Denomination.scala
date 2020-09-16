@@ -11,8 +11,8 @@ object Denomination {
   val formatFiat = new DecimalFormat("#,###,###.##")
   formatFiat setDecimalFormatSymbols symbols
 
-  def btcBigDecimal2MSat(btc: BigDecimal): MilliSatoshi =
-    (btc * BtcDenomination.factor).toLong.msat
+  def pctChange(fresh: Double, old: Double): Double = (fresh - old) / old * 100
+  def btcBigDecimal2MSat(btc: BigDecimal): MilliSatoshi = (btc * BtcDenomination.factor).toLong.msat
 }
 
 trait Denomination { me =>
@@ -30,15 +30,15 @@ trait Denomination { me =>
 
 object SatDenomination extends Denomination {
   val fmt: DecimalFormat = new DecimalFormat("###,###,###.###")
-  val sign = "sat"
   val factor = 1000L
+  val sign = "sat"
 
   fmt setDecimalFormatSymbols symbols
   def parsed(msat: MilliSatoshi): String = {
-    val basicFormattedSum = asString(msat)
-    val dotIndex = basicFormattedSum.indexOf(".")
-    val (whole, decimal) = basicFormattedSum.splitAt(dotIndex)
-    if (decimal == basicFormattedSum) basicFormattedSum
+    val basicFormattedMsatSum = asString(msat)
+    val dotIndex = basicFormattedMsatSum.indexOf(".")
+    val (whole, decimal) = basicFormattedMsatSum.splitAt(dotIndex)
+    if (decimal == basicFormattedMsatSum) basicFormattedMsatSum
     else s"$whole<small>$decimal</small>"
   }
 }

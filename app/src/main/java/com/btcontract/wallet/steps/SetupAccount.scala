@@ -83,14 +83,21 @@ class SetupAccount(host: WalletActivity, title: String) extends Step[AccountType
       def checkConfirm(any: CharSequence): Unit = {
         val confirmText = confirmPassword.getTrimmedText
         val chunk = password.getTrimmedText.take(confirmText.length)
-        if (confirmText.isEmpty || password.getTrimmedText.isEmpty) confirmPassword.setInfo(PasswordStrength.EMPTY)
-        else if (chunk == confirmText && password.getTrimmedText.length > confirmText.length) confirmPassword.setInfo(PasswordStrength.EMPTY)
-        else if (chunk == confirmText && password.getTrimmedText.length == confirmText.length) confirmPassword.setInfo(PasswordStrength.MATCH)
-        else confirmPassword.setInfo(PasswordStrength.MISMATCH)
+
+        val mode =
+          if (confirmText.isEmpty || password.getTrimmedText.isEmpty) PasswordStrength.EMPTY
+          else if (chunk == confirmText && password.getTrimmedText.length > confirmText.length) PasswordStrength.EMPTY
+          else if (chunk == confirmText && password.getTrimmedText.length == confirmText.length) PasswordStrength.MATCH
+          else PasswordStrength.MISMATCH
+
+        // Only disable checkbox if pass/confirm is a match and checkbox was not checked already
+        val checkboxEnabled = useRandomPassword.isChecked || mode != PasswordStrength.MATCH
+        useRandomPassword.setEnabled(checkboxEnabled)
+        confirmPassword.setInfo(mode)
       }
 
       def maybeProceed(alert: AlertDialog): Unit = {
-        val passResult = PasswordStrength.calculate(password.getTrimmedText)
+        val passResult = PasswordStrength calculate password.getTrimmedText
         val confirmPasswordValidationPassed = confirmPassword.getTrimmedText == password.getTrimmedText
         val emailValidationPassed = android.util.Patterns.EMAIL_ADDRESS.matcher(email.getTrimmedText).matches
         val passwordValidationPassed = passResult == PasswordStrength.MEDIUM || passResult == PasswordStrength.GOOD
