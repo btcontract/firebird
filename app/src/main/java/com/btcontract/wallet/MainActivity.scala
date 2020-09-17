@@ -10,6 +10,7 @@ import com.btcontract.wallet.WalletApp.app
 import org.ndeftools.Message
 import android.os.Bundle
 import android.view.View
+import com.aurelhubert.ahbottomnavigation.{AHBottomNavigation, AHBottomNavigationItem}
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
@@ -22,20 +23,24 @@ class MainActivity extends NfcReaderActivity with WalletActivity with StepperFor
 
   def INIT(state: Bundle): Unit = {
     setContentView(R.layout.activity_main)
-    val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
-    val setupAccount = new SetupAccount(me, me getString step_title_account)
-    val openWallet = new OpenWallet(me, me getString step_title_open)
+//    val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
+//    val setupAccount = new SetupAccount(me, me getString step_title_account)
+//    val openWallet = new OpenWallet(me, me getString step_title_open)
+//
+//    val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
+//    stepper.setup(this, chooseProviders, setupAccount, openWallet).init
+//
+//    val content = getLayoutInflater.inflate(R.layout.frag_input_fiat_converter, null, false)
+//    val rateManager = new RateManager(content, Some("Add a comment"), FiatRates.ratesInfo.rates, WalletApp.fiatCode)
+//    val bld = titleBodyAsViewBuilder(me getString amount_send_title, content)
+//    mkCheckForm(_.dismiss, none, bld, dialog_ok, dialog_cancel)
+//
+//    rateManager.hintDenom.setText(getString(amount_hint_can_send).format(WalletApp.denom.parsedWithSign(MilliSatoshi(10000000000L))))
+//    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
 
-    val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
-    stepper.setup(this, chooseProviders, setupAccount, openWallet).init
-
-    val content = getLayoutInflater.inflate(R.layout.frag_input_fiat_converter, null, false)
-    val rateManager = new RateManager(content, Some("Add a comment"), FiatRates.ratesInfo.rates, WalletApp.fiatCode)
-    val bld = titleBodyAsViewBuilder(me getString amount_send_title, content)
-    mkCheckForm(_.dismiss, none, bld, dialog_ok, dialog_cancel)
-
-    rateManager.hintDenom.setText(getString(amount_hint_can_send).format(WalletApp.denom.parsedWithSign(MilliSatoshi(10000000000L))))
-    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
+    val bottom_navigation = findViewById(R.id.bottom_navigation).asInstanceOf[AHBottomNavigation]
+    val item1 = new AHBottomNavigationItem(dialog_ok, R.drawable.ic_check, R.color.biometric_error_color)
+    bottom_navigation.addItem(item1)
   }
 
   def showCookie(view: View): Unit = {
