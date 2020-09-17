@@ -51,45 +51,42 @@ object LightningNodeKeys {
     val master: ExtendedPrivateKey = generate(ByteVector view seed)
     val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
     val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-    val addressPool = for (num <- 0 to 50) yield buildAddress(master, num, LNParams.chainHash)
-    LightningNodeKeys(addressPool.toSet, buildXPub(master), extendedNodeKey, hashingKey)
+    LightningNodeKeys(buildXPub(master), extendedNodeKey, hashingKey)
   }
 
   // Compatible with Electrum/Phoenix/BLW
-  def buildXPub(master: ExtendedPrivateKey): (String, String) = {
+  def buildXPub(parent: ExtendedPrivateKey): (String, String) = {
     val derivationPath: KeyPath = DeterministicWallet KeyPath "m/84'/0'/0'"
-    val pub = DeterministicWallet publicKey DeterministicWallet.derivePrivateKey(master, derivationPath)
+    val pub = DeterministicWallet publicKey DeterministicWallet.derivePrivateKey(parent, derivationPath)
     (DeterministicWallet.encode(pub, DeterministicWallet.zpub), derivationPath.toString)
-  }
-
-  def buildAddress(master: ExtendedPrivateKey, num: Long, chainHash: ByteVector32): String = {
-    val derivationPath: KeyPath = DeterministicWallet KeyPath s"m/84'/0'/0'/46/$num"
-    val priv = DeterministicWallet.derivePrivateKey(master, derivationPath)
-    fr.acinq.bitcoin.computeBIP84Address(priv.publicKey, chainHash)
   }
 }
 
-case class LightningNodeKeys(addressPool: Set[String], xpub: (String, String), extendedNodeKey: ExtendedPrivateKey, hashingKey: PrivateKey) {
+case class LightningNodeKeys(xpub: (String, String), extendedNodeKey: ExtendedPrivateKey, hashingKey: PrivateKey) {
   lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Used for separate key per domain
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
-    val chain = hardened(138) +: makeKeyPath(pathMaterial)
+    val chain = hardened(138) +: makeKeyPath(material = pathMaterial)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
-  // Our separate node key per peer
-  def makeLightningKey(theirNodeId: PublicKey): PrivateKey = {
-    val chain = hardened(230) +: makeKeyPath(theirNodeId.value)
+  def fakeInvoiceKey(paymentHash: ByteVector): PrivateKey = {
+    val chain = hardened(184) +: makeKeyPath(material = paymentHash)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
-  // Used for fake NodeId in invoices
-  def makeFakeKey(paymentHash: ByteVector): PrivateKey = {
-    val chain = hardened(184) +: makeKeyPath(paymentHash)
+  def ourFakeNodeIdKey(theirNodeId: PublicKey): PrivateKey = {
+    val chain = hardened(230) +: makeKeyPath(material = theirNodeId.value)
     derivePrivateKey(extendedNodeKey, chain).privateKey
+  }
+
+  def refundAddress(theirNodeId: PublicKey, chainHash: ByteVector32): String = {
+    val derivationChain = hardened(276) +: makeKeyPath(material = theirNodeId.value)
+    val pubKey = derivePrivateKey(extendedNodeKey, derivationChain).publicKey
+    fr.acinq.bitcoin.computeBIP84Address(pubKey, chainHash)
   }
 
   def makeKeyPath(material: ByteVector): Vector[Long] = {
@@ -127,10 +124,11 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
     case _: Tor3 => s"<strong>Tor</strong>\u0020${na.nodeId.toString take 12 grouped 3 mkString "\u0020"}"
   } getOrElse "No IP address"
 
+  lazy val nodeSpecificPrivKey: PrivateKey = LNParams.keys.ourFakeNodeIdKey(na.nodeId)
   lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
-  lazy val nodeSpecificPrivKey: PrivateKey = LNParams.keys.makeLightningKey(na.nodeId)
-  lazy val nodeSpecificHostedChanId: ByteVector32 = Tools.hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
+
   lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)
+  lazy val nodeSpecificHostedChanId: ByteVector32 = Tools.hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
 }
 
 case class LightningMessageExt(msg: LightningMessage) {

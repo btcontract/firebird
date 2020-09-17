@@ -194,7 +194,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   }
 
   private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
-    PaymentPacket.peel(LNParams.keys.makeFakeKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
+    PaymentPacket.peel(LNParams.keys.fakeInvoiceKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
       case Right(packet) if packet.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(packet.payload.bits) match {
         case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(packet, InvalidOnionPayload(error.tag, offset = 0), add)
         case _: Attempt.Failure => failHtlc(packet, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
