@@ -40,8 +40,8 @@ case class CoinGecko(rates: CoinGeckoItemMap)
 
 case class RatesInfo(rates: Rates, oldRates: Rates, stamp: Long) {
   def pctDifference(code: String): String = (rates get code, oldRates get code) match {
-    case Some(fresh) \ Some(old) if fresh > old => s"<font color=#5B8F36>▲ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}</font>"
-    case Some(fresh) \ Some(old) if fresh < old => s"<font color=#E35646>▼ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}</font>"
+    case Some(fresh) \ Some(old) if fresh > old => s"<font color=#5B8F36>▲ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
+    case Some(fresh) \ Some(old) if fresh < old => s"<font color=#E35646>▼ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
     case _ => new String
   }
 }

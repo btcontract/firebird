@@ -56,6 +56,25 @@
     <string name="amount_hint_can_receive">Can receive %1$s</string>
     <string name="amount_hint_can_send">Can send %1$s</string>
 
+    <!-- auth -->
+
+    <string name="sets_use_fp">Use authentication</string>
+    <string name="fp_no_support">No authentication support on this phone</string>
+    <string name="fp_not_available">Authentication support is blocked at the moment, try again later</string>
+    <string name="fp_add_auth_method">Register at least one authentication method in system settings</string>
+    <string name="fp_auth_error"><![CDATA[<b>Authentication error</b><br><br><b>Details</b>: %1$s<br><br><b>Code</b>: %2$s]]></string>
+    <string name="fp_title">Firebird authentication</string>
+
+    <!-- /auth -->
+
+    <!-- menu -->
+
+    <string name="item_shopping">Shopping</string>
+    <string name="item_wallet">Wallet</string>
+    <string name="item_addons">Addons</string>
+
+    <!-- /menu -->
+
     <!-- orbot -->
 
     <string name="orbot_status">Checking Orbot status&#8230;</string>

@@ -11,6 +11,7 @@ import org.ndeftools.Message
 import android.os.Bundle
 import android.view.View
 import com.aurelhubert.ahbottomnavigation.{AHBottomNavigation, AHBottomNavigationItem}
+import com.btcontract.wallet.helper.Auth
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
@@ -39,8 +40,27 @@ class MainActivity extends NfcReaderActivity with WalletActivity with StepperFor
 //    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
 
     val bottom_navigation = findViewById(R.id.bottom_navigation).asInstanceOf[AHBottomNavigation]
-    val item1 = new AHBottomNavigationItem(dialog_ok, R.drawable.ic_check_white_24dp, R.color.biometric_error_color)
-    bottom_navigation.addItem(item1)
+    val shopping = new AHBottomNavigationItem(item_shopping, R.drawable.ic_shopping_black_24dp, R.color.accent)
+    val wallet = new AHBottomNavigationItem(item_wallet, R.drawable.ic_wallet_black_24dp, R.color.accent)
+    val addon = new AHBottomNavigationItem(item_addons, R.drawable.ic_add_black_24dp, R.color.accent)
+
+    try {
+      bottom_navigation.addItem(shopping)
+      bottom_navigation.addItem(wallet)
+      bottom_navigation.addItem(addon)
+    } catch {
+      case e: Throwable => e.printStackTrace()
+    }
+
+    val auth = new Auth(me) {
+      def onNoHardware: Unit = WalletApp.app.quickToast(fp_no_support)
+      def onHardwareUnavailable: Unit = WalletApp.app.quickToast(fp_not_available)
+      def onCanAuthenticate: Unit = this.callAuthDialog
+      def onNoneEnrolled: Unit = WalletApp.app.quickToast(fp_add_auth_method)
+      def onAuthSucceeded: Unit = WalletApp.app.quickToast("SUCCESS")
+    }
+
+    auth.checkAuth
   }
 
   def showCookie(view: View): Unit = {
