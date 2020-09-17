@@ -39,7 +39,7 @@ class MainActivity extends NfcReaderActivity with WalletActivity with StepperFor
 //    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
 
     val bottom_navigation = findViewById(R.id.bottom_navigation).asInstanceOf[AHBottomNavigation]
-    val item1 = new AHBottomNavigationItem(dialog_ok, R.drawable.ic_check, R.color.biometric_error_color)
+    val item1 = new AHBottomNavigationItem(dialog_ok, R.drawable.ic_check_white_24dp, R.color.biometric_error_color)
     bottom_navigation.addItem(item1)
   }
 
