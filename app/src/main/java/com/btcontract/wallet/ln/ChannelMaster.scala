@@ -8,12 +8,14 @@ import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
+
+import rx.lang.scala.{Subscription, Observable => Obs}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
 import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateMachine, Tools}
-import com.btcontract.wallet.ln.HostedChannel.{isOperational, isOperationalAndOpen, OPEN, SUSPENDED, WAIT_FOR_ACCEPT, SLEEPING}
+import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED, WAIT_FOR_ACCEPT, isOperational, isOperationalAndOpen}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
 import com.btcontract.wallet.helper.ThrottledWork
@@ -24,7 +26,6 @@ import java.util.concurrent.Executors
 import fr.acinq.bitcoin.ByteVector32
 import fr.acinq.eclair.crypto.Sphinx
 import scala.util.Random.shuffle
-import rx.lang.scala.Observable
 import scala.collection.mutable
 import scodec.bits.ByteVector
 import scodec.Attempt
@@ -114,7 +115,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
   val incomingTimeoutWorker: ThrottledWork[ByteVector, Any] = new ThrottledWork[ByteVector, Any] {
     def process(hash: ByteVector, res: Any): Unit = all.headOption.foreach(_ process CMD_INCOMING_TIMEOUT)
-    def work(hash: ByteVector): Observable[Null] = RxUtils.ioQueue.delay(60.seconds)
+    def work(hash: ByteVector): Obs[Null] = RxUtils.ioQueue.delay(60.seconds)
     def error(canNotHappen: Throwable): Unit = none
   }
 
@@ -240,8 +241,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
     def process(changeMessage: Any): Unit = scala.concurrent.Future(self doProcess changeMessage)
     become(PaymentMasterData(Map.empty), EXPECTING_PAYMENTS)
-    // Listen to NotifyOperational events
-    pf.listeners += self
 
     def doProcess(change: Any): Unit = (change, state) match {
       // Rememeber traces of previous failure times to exclude those channels faster if they keep failing
@@ -572,6 +571,26 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       val haltFailEvent = isPresentInChannels(data1.cmd.paymentHash) || data1.inFlights.nonEmpty
       if (!haltFailEvent) events.outgoingFailed(data1)
       become(data1, ABORTED)
+    }
+  }
+
+  // Wire up everything here
+
+  pf.listeners += PaymentMaster
+  cl.listeners += new ChainLinkListener {
+    var shutdownTimer: Option[Subscription] = None
+
+    override def onChainTipKnown: Unit = {
+      // Remove pending shutdown timer and notify channels
+      for (subscription <- shutdownTimer) subscription.unsubscribe
+      for (chan <- all) chan process CMD_CHAIN_TIP_KNOWN
+    }
+
+    override def onTotalDisconnect: Unit = {
+      // Once we're disconnected, wait for 6 hours and then put channels into SLEEPING state if there's no reconnect
+      // sending CMD_CHAIN_TIP_LOST puts a channel in SLEEPING state where it does not react to new payments
+      val delay = RxUtils.initDelay(Obs from all, System.currentTimeMillis, 3600 * 6 * 1000L)
+      shutdownTimer = delay.subscribe(_ process CMD_CHAIN_TIP_LOST).toSome
     }
   }
 }

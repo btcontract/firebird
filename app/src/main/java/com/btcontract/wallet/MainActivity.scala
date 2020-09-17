@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.view.View
 import com.aurelhubert.ahbottomnavigation.{AHBottomNavigation, AHBottomNavigationItem}
 import com.btcontract.wallet.helper.Auth
+import com.btcontract.wallet.ln.RxUtils
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener

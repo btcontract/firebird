@@ -5,6 +5,7 @@ import fr.acinq.eclair._
 import java.util.{Timer, TimerTask}
 import scala.util.{Failure, Success}
 import android.view.{View, ViewGroup}
+import android.graphics.Color.{BLACK, WHITE}
 import android.content.{DialogInterface, Intent}
 import android.widget.{EditText, LinearLayout, TextView}
 import android.text.{Editable, Html, Spanned, TextWatcher}
@@ -21,6 +22,7 @@ import androidx.appcompat.app.AlertDialog
 import scala.language.implicitConversions
 import android.content.pm.PackageManager
 import android.view.View.OnClickListener
+import androidx.core.graphics.ColorUtils
 import androidx.core.app.ActivityCompat
 import org.aviran.cookiebar2.CookieBar
 import scala.concurrent.Future
@@ -65,6 +67,12 @@ trait WalletActivity extends AppCompatActivity { me =>
   }
 
   def INIT(state: Bundle): Unit
+
+  def contrastedTextColor(color: Int): Int = {
+    val whiteContrast = ColorUtils.calculateContrast(WHITE, color)
+    val blackContrast = ColorUtils.calculateContrast(BLACK, color)
+    if (whiteContrast > blackContrast * 3.75) BLACK else WHITE
+  }
 
   def toast(code: Int): Unit =
     toast(me getString code)

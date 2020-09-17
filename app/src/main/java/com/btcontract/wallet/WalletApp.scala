@@ -8,6 +8,7 @@ import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
+import com.btcontract.wallet.ln.{ChainLink, LNParams}
 import scala.util.{Success, Try}
 
 import com.btcontract.wallet.helper.AwaitService
@@ -15,7 +16,6 @@ import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
 import scala.util.matching.UnanchoredRegex
-import com.btcontract.wallet.ln.LNParams
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.eclair.wire.NodeAddress
@@ -36,17 +36,18 @@ object WalletApp {
   var denom: Denomination = _
   var db: SQLiteInterface = _
   var dataBag: SQliteDataBag = _
+  var chainLink: ChainLink = _
+  var value: Any = new String
 
-  var value: Any = new String // Keep default empty string
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
   val denoms = List(SatDenomination, BtcDenomination)
-  val chainLink = new BitcoinJChainLink(params)
 
   final val FIAT_TYPE = "fiatType"
   final val FIAT_RATES_DATA = "fiatRatesData"
   final val LAST_GOSSIP_SYNC = "lastGossipSync"
   final val ENSURE_TOR = "ensureTor"
   final val DENOM_TYPE = "denomType"
+  final val USE_AUTH = "useAuth"
 
   private[this] val prefixes = PaymentRequest.prefixes.values mkString "|"
   private[this] val lnUrl = s"(?im).*?(lnurl)([0-9]{1,}[a-z0-9]+){1}".r.unanchored
@@ -57,7 +58,7 @@ object WalletApp {
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
   def checkAndMaybeErase(check: Checker): Unit = check(value) match { case DoNotEraseValue => case _ => value = null }
-  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != LNParams.keys
+  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != chainLink && null != LNParams.keys
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)
@@ -131,6 +132,7 @@ class WalletApp extends Application {
     WalletApp.app = this
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
+    WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
     WalletApp.db = new SQLiteInterface(this, "firebird.db")
     WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
 

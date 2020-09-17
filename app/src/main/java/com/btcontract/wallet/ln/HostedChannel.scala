@@ -59,7 +59,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
     BECOME(data1, state1)
   }
 
-  var permanentOffline: Boolean = true
   private var isChainHeightKnown: Boolean = false
   private var isSocketConnected: Boolean = false
   var listeners = Set.empty[ChannelListener]
@@ -78,7 +77,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (isChainHeightKnown) me SEND InvokeHostedChannel(LNParams.chainHash, refundScriptPubKey, secret)
         if (isChainHeightKnown) BECOME(wait, WAIT_FOR_ACCEPT)
         isSocketConnected = true
-        permanentOffline = false
 
 
       case (wait @ WaitRemoteHostedReply(_, refundScriptPubKey, secret), CMD_CHAIN_TIP_KNOWN, WAIT_FOR_INIT) =>
@@ -214,7 +212,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
       case (hc: HostedCommits, CMD_SOCKET_ONLINE, SLEEPING | SUSPENDED) =>
         if (isChainHeightKnown) me SEND hc.getError.getOrElse(hc.invokeMsg)
         isSocketConnected = true
-        permanentOffline = false
 
 
       case (hc: HostedCommits, CMD_CHAIN_TIP_KNOWN, SLEEPING | SUSPENDED) =>
@@ -224,6 +221,11 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, CMD_SOCKET_OFFLINE, OPEN) =>
         isSocketConnected = false
+        BECOME(hc, SLEEPING)
+
+
+      case (hc: HostedCommits, CMD_CHAIN_TIP_LOST, OPEN) =>
+        isChainHeightKnown = false
         BECOME(hc, SLEEPING)
 
 

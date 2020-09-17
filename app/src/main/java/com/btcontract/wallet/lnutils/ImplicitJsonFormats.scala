@@ -129,8 +129,8 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val extendedPrivateKeyFmt: JsonFormat[ExtendedPrivateKey] = jsonFormat[ByteVector32, ByteVector32, Int, KeyPath, Long,
     ExtendedPrivateKey](ExtendedPrivateKey.apply, "secretkeybytes", "chaincode", "depth", "path", "parent")
 
-  implicit val lightningNodeKeysFmt: JsonFormat[LightningNodeKeys] = jsonFormat[Set[String], (String, String), ExtendedPrivateKey, PrivateKey,
-    LightningNodeKeys](LightningNodeKeys.apply, "addressPool", "xpub", "extendedNodeKey", "hashingKey")
+  implicit val lightningNodeKeysFmt: JsonFormat[LightningNodeKeys] = jsonFormat[ExtendedPrivateKey, (String, String), PrivateKey,
+    LightningNodeKeys](LightningNodeKeys.apply, "extendedNodeKey", "xpub", "hashingKey")
 
   implicit object StorageFormatFmt extends JsonFormat[StorageFormat] {
     def write(internal: StorageFormat): JsValue = internal match {

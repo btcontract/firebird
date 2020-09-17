@@ -51,7 +51,7 @@ object LightningNodeKeys {
     val master: ExtendedPrivateKey = generate(ByteVector view seed)
     val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
     val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-    LightningNodeKeys(buildXPub(master), extendedNodeKey, hashingKey)
+    LightningNodeKeys(extendedNodeKey, buildXPub(master), hashingKey)
   }
 
   // Compatible with Electrum/Phoenix/BLW
@@ -62,7 +62,7 @@ object LightningNodeKeys {
   }
 }
 
-case class LightningNodeKeys(xpub: (String, String), extendedNodeKey: ExtendedPrivateKey, hashingKey: PrivateKey) {
+case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String, String), hashingKey: PrivateKey) {
   lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Used for separate key per domain
