@@ -363,7 +363,8 @@ object LightningMessageCodecs {
     ).as[PayLinkTxInfo]
 
   val currentPaymentsInfoCodec: Codec[CurrentPaymentsInfo] = (
-    ("sinceLastCheck" | listOfN(uint16, payLinkTxInfoCodec)) ::
+    ("payments" | listOfN(uint16, payLinkTxInfoCodec)) ::
+      ("sinceStampUnix" | uint32) ::
       ("balance" | millisatoshi)
     ).as[CurrentPaymentsInfo]
 
@@ -431,7 +432,7 @@ object LightningMessageCodecs {
     .typecase(55011, swapInConfirmedCodec)
     //
     .typecase(55013, swapOutRequestCodec)
-    .typecase(55014, swapOutResponseCodec)
+    .typecase(55015, swapOutResponseCodec)
     .typecase(55017, batchedSwapOutPendingCodec)
     .typecase(55019, swapOutPendingCodec)
     .typecase(55021, swapOutConfirmedCodec)
