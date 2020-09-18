@@ -424,31 +424,49 @@ case class StateUpdate(blockDay: Long, localUpdates: Long, remoteUpdates: Long, 
 
 case class StateOverride(blockDay: Long, localBalanceMsat: MilliSatoshi, localUpdates: Long, remoteUpdates: Long, localSigOfRemoteLCSS: ByteVector64) extends HostedChannelMessage
 
-// On-chain
+// SWAP IN-OUT plugin
 
-case class SwapInRequest(chainHash: ByteVector32) extends LightningMessage with HasChainHash
+sealed trait SwapIn extends LightningMessage
 
-case class SwapInResponse(chainHash: ByteVector32, id: String, bitcoinAddress: String) extends LightningMessage with HasChainHash
+case class SwapInRequest(chainHash: ByteVector32) extends SwapIn with HasChainHash
 
-case class SwapInPending(bitcoinAddress: String, id: String, tx: ByteVector, amount: Satoshi) extends LightningMessage
+case class SwapInResponse(chainHash: ByteVector32, id: String, bitcoinAddress: String) extends SwapIn with HasChainHash
 
-case class SwapInConfirmed(bitcoinAddress: String, id: String, tx: ByteVector, amount: MilliSatoshi) extends LightningMessage
+case class SwapInPending(bitcoinAddress: String, id: String, tx: ByteVector, amount: Satoshi) extends SwapIn
 
-
-case class SwapOutFeerateRequest(chainHash: ByteVector32) extends LightningMessage with HasChainHash
-
-case class SwapOutFeerateResponse(chainHash: ByteVector32, feeratesPerKw6to36: List[Long], batchFeeratePerKw: Option[Long] = None) extends LightningMessage with HasChainHash
+case class SwapInConfirmed(bitcoinAddress: String, id: String, tx: ByteVector, amount: Satoshi) extends SwapIn
 
 
-case class SwapOutRequest(chainHash: ByteVector32, amountSatoshis: Satoshi, bitcoinAddress: String, feeratePerKw: Long, useBatch: Boolean) extends LightningMessage with HasChainHash
+sealed trait SwapOut extends LightningMessage
 
-case class SwapOutResponse(chainHash: ByteVector32, amountSatoshis: Satoshi, feeSatoshis: Satoshi, paymentRequest: String, id: String) extends LightningMessage with HasChainHash
+case class SwapOutFeerateRequest(chainHash: ByteVector32) extends SwapOut with HasChainHash
 
-case class BatchedSwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, slotsLeft: Int) extends LightningMessage
+case class SwapOutFeerateResponse(chainHash: ByteVector32, feeratesPerKw6to36: List[Long], batchFeeratePerKw: Option[Long] = None) extends SwapOut with HasChainHash
 
-case class SwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends LightningMessage
+case class SwapOutRequest(chainHash: ByteVector32, amountSatoshis: Satoshi, bitcoinAddress: String, feeratePerKw: Long, useBatch: Boolean) extends SwapOut with HasChainHash
 
-case class SwapOutConfirmed(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends LightningMessage
+case class SwapOutResponse(chainHash: ByteVector32, amountSatoshis: Satoshi, feeSatoshis: Satoshi, paymentRequest: String, id: String) extends SwapOut with HasChainHash
+
+case class BatchedSwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, slotsLeft: Int) extends SwapOut
+
+case class SwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends SwapOut
+
+case class SwapOutConfirmed(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends SwapOut
+
+// LNURL-PAY plugin
+
+sealed trait LNUrlPay extends LightningMessage
+
+case class PayLinkTxInfo(amount: MilliSatoshi, stampUnix: Long, comment: Option[String] = None)
+
+case class CurrentPaymentsInfo(sinceLastCheck: List[PayLinkTxInfo], balance: MilliSatoshi) extends LNUrlPay
+
+case object QueryCurrentPaymentLink extends LNUrlPay
+
+case object ReplyNoCurrentPaymentLink extends LNUrlPay
+
+case class PayLinkSpec(enabled: Boolean, maxSendable: MilliSatoshi, description: String, nickname: Option[String], messageAction: Option[String],
+                       pngImage: Option[ByteVector] = None, commentAllowed: Option[Int] = None) extends LNUrlPay
 
 // NB: blank lines to minimize merge conflicts
 

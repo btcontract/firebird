@@ -279,7 +279,9 @@ object LightningMessageCodecs {
       ("firstTimestamp" | uint32) ::
       ("timestampRange" | uint32)
     ).as[GossipTimestampFilter]
-  //
+
+  // SWAP IN-OUT plugin
+
   val swapInRequestCodec: Codec[SwapInRequest] =
     ("chainHash" | bytes32).as[SwapInRequest]
 
@@ -300,7 +302,7 @@ object LightningMessageCodecs {
     ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
       ("id" | variableSizeBytes(uint16, utf8)) ::
       ("tx" | varsizebinarydata) ::
-      ("amount" | millisatoshi)
+      ("amount" | satoshi)
     ).as[SwapInConfirmed]
   //
   val swapOutRequestCodec: Codec[SwapOutRequest] = (
@@ -351,6 +353,30 @@ object LightningMessageCodecs {
       ("feeratesPerKw6to36" | list(uint32)) ::
       ("batchFeeratePerKw" | optional(bool, uint32))
     ).as[SwapOutFeerateResponse]
+
+  // LNURL-PAY plugin
+
+  val payLinkTxInfoCodec: Codec[PayLinkTxInfo] = (
+    ("amount" | millisatoshi) ::
+      ("stampUnix" | uint32) ::
+      ("comment" | optional(bool, utf8))
+    ).as[PayLinkTxInfo]
+
+  val currentPaymentsInfoCodec: Codec[CurrentPaymentsInfo] = (
+    ("sinceLastCheck" | listOfN(uint16, payLinkTxInfoCodec)) ::
+      ("balance" | millisatoshi)
+    ).as[CurrentPaymentsInfo]
+
+  val payLinkSpecCodec: Codec[PayLinkSpec] = (
+    ("enabled" | bool) ::
+      ("maxSendable" | millisatoshi) ::
+      ("description" | utf8) ::
+      ("nickname" | optional(bool, utf8)) ::
+      ("messageAction" | optional(bool, utf8)) ::
+      ("pngImage" | optional(bool, varsizebinarydata)) ::
+      ("commentAllowed" | optional(bool, uint16))
+    ).as[PayLinkSpec]
+
   // NB: blank lines to minimize merge conflicts
 
   //
@@ -398,20 +424,25 @@ object LightningMessageCodecs {
     .typecase(263, queryChannelRangeCodec)
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
+    // SWAP IN-OUT plugin
+    .typecase(55005, swapInPendingCodec)
+    .typecase(55007, swapInRequestCodec)
+    .typecase(55009, swapInResponseCodec)
+    .typecase(55011, swapInConfirmedCodec)
     //
-    .typecase(35005, swapInPendingCodec)
-    .typecase(35007, swapInRequestCodec)
-    .typecase(35009, swapInResponseCodec)
-    .typecase(35015, swapInConfirmedCodec)
-    //
-    .typecase(35011, swapOutRequestCodec)
-    .typecase(35013, swapOutResponseCodec)
-    .typecase(35015, batchedSwapOutPendingCodec)
-    .typecase(35017, swapOutPendingCodec)
-    .typecase(35019, swapOutConfirmedCodec)
-    .typecase(35021, swapOutFeerateRequestCodec)
-    .typecase(35023, swapOutFeerateResponseCodec)
-    //
+    .typecase(55013, swapOutRequestCodec)
+    .typecase(55014, swapOutResponseCodec)
+    .typecase(55017, batchedSwapOutPendingCodec)
+    .typecase(55019, swapOutPendingCodec)
+    .typecase(55021, swapOutConfirmedCodec)
+    .typecase(55023, swapOutFeerateRequestCodec)
+    .typecase(55025, swapOutFeerateResponseCodec)
+    // LNURL-PAY plugin
+    .typecase(55105, provide(QueryCurrentPaymentLink))
+    .typecase(55107, provide(ReplyNoCurrentPaymentLink))
+    .typecase(55109, currentPaymentsInfoCodec)
+    .typecase(55111, payLinkSpecCodec)
+    // HC
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
     .typecase(65531, HostedMessagesCodecs.lastCrossSignedStateCodec)

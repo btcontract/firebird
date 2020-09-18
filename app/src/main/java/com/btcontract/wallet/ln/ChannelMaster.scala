@@ -588,7 +588,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
     override def onTotalDisconnect: Unit = {
       // Once we're disconnected, wait for 6 hours and then put channels into SLEEPING state if there's no reconnect
-      // sending CMD_CHAIN_TIP_LOST puts a channel in SLEEPING state where it does not react to new payments
+      // sending CMD_CHAIN_TIP_LOST puts a channel into SLEEPING state where it does not react to new payments
       val delay = RxUtils.initDelay(Obs from all, System.currentTimeMillis, 3600 * 6 * 1000L)
       shutdownTimer = delay.subscribe(_ process CMD_CHAIN_TIP_LOST).toSome
     }

@@ -1,25 +1,23 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
+import com.btcontract.wallet.ln.crypto.Tools._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement}
-import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, random}
+import com.btcontract.wallet.ln.{LNParams, PaymentAction, RxUtils}
 import android.graphics.{Bitmap, BitmapFactory}
 import fr.acinq.bitcoin.{Bech32, Crypto}
-import com.btcontract.wallet.ln.crypto.Tools
+
 import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
 import com.btcontract.wallet.lnutils.LNUrl.LNUrlAndData
 import com.github.kevinsawicki.http.HttpRequest
-import com.btcontract.wallet.WalletApp.nodeLink
 import fr.acinq.eclair.payment.PaymentRequest
-import com.btcontract.wallet.ln.{LNParams, PaymentAction, RxUtils}
-import fr.acinq.bitcoin.Crypto.PublicKey
+import com.btcontract.wallet.ln.crypto.Tools
+import fr.acinq.eclair.wire.NodeAddress
 import fr.acinq.eclair.MilliSatoshi
 import rx.lang.scala.Observable
 import scodec.bits.ByteVector
 import android.net.Uri
-
 import scala.util.Try
 
 
@@ -90,15 +88,6 @@ case class WithdrawRequest(callback: String, k1: String, maxWithdrawable: Long, 
   val callbackUri: Uri = LNUrl.checkHost(callback)
   val minCanReceive: MilliSatoshi = minWithdrawable.map(MilliSatoshi.apply).getOrElse(LNParams.minPayment).max(LNParams.minPayment)
   require(minCanReceive <= MilliSatoshi(maxWithdrawable), s"$maxWithdrawable is less than min $minCanReceive")
-}
-
-case class HostedChannelRequest(uri: String, alias: Option[String], k1: String) extends LNUrlData {
-  val nodeLink(nodeKey, hostAddress, portNumber) = uri
-
-  val pubKey = PublicKey(ByteVector fromValidHex nodeKey)
-  val address: NodeAddress = NodeAddress.fromParts(hostAddress, portNumber.toInt)
-  val ann: NodeAnnouncement = Tools.mkNodeAnnouncement(pubKey, address, alias getOrElse hostAddress)
-  val secret: ByteVector = ByteVector.fromValidHex(k1)
 }
 
 object PayRequest {

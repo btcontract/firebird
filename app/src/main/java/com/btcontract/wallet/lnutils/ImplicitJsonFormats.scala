@@ -103,7 +103,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit object LNUrlDataFmt extends JsonFormat[LNUrlData] {
     def write(internal: LNUrlData): JsValue = throw new RuntimeException
     def read(raw: JsValue): LNUrlData = raw.asJsObject fields TAG match {
-      case JsString("hostedChannelRequest") => raw.convertTo[HostedChannelRequest]
       case JsString("withdrawRequest") => raw.convertTo[WithdrawRequest]
       case JsString("payRequest") => raw.convertTo[PayRequest]
       case tag => throw new Exception(s"Unknown lnurl=$tag")
@@ -113,9 +112,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   // Note: tag on these MUST start with lower case because it is defined that way on protocol level
   implicit val withdrawRequestFmt: JsonFormat[WithdrawRequest] = taggedJsonFmt(jsonFormat[String, String, Long, String, Option[Long],
     WithdrawRequest](WithdrawRequest.apply, "callback", "k1", "maxWithdrawable", "defaultDescription", "minWithdrawable"), tag = "withdrawRequest")
-
-  implicit val hostedChannelRequestFmt: JsonFormat[HostedChannelRequest] = taggedJsonFmt(jsonFormat[String, Option[String], String,
-    HostedChannelRequest](HostedChannelRequest.apply, "uri", "alias", "k1"), tag = "hostedChannelRequest")
 
   implicit val payRequestFmt: JsonFormat[PayRequest] = taggedJsonFmt(jsonFormat[String, Long, Long, String, Option[Int],
     PayRequest](PayRequest.apply, "callback", "maxSendable", "minSendable", "metadata", "commentAllowed"), tag = "payRequest")
