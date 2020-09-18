@@ -365,7 +365,8 @@ object LightningMessageCodecs {
   val currentPaymentsInfoCodec: Codec[CurrentPaymentsInfo] = (
     ("payments" | listOfN(uint16, payLinkTxInfoCodec)) ::
       ("sinceStampUnix" | uint32) ::
-      ("balance" | millisatoshi)
+      ("balance" | millisatoshi) ::
+      ("enabled" | bool)
     ).as[CurrentPaymentsInfo]
 
   val payLinkSpecCodec: Codec[PayLinkSpec] = (

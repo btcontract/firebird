@@ -459,7 +459,7 @@ sealed trait LNUrlPay extends LightningMessage
 
 case class PayLinkTxInfo(amount: MilliSatoshi, stampUnix: Long, comment: Option[String] = None)
 
-case class CurrentPaymentsInfo(payments: List[PayLinkTxInfo], sinceStampUnix: Long, balance: MilliSatoshi) extends LNUrlPay
+case class CurrentPaymentsInfo(payments: List[PayLinkTxInfo], sinceStampUnix: Long, balance: MilliSatoshi, enabled: Boolean) extends LNUrlPay
 
 case object QueryCurrentPaymentLink extends LNUrlPay
 
