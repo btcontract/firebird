@@ -69,7 +69,7 @@ public class AHBottomNavigation extends FrameLayout {
 	private static String TAG = "AHBottomNavigation";
     private static final String EXCEPTION_INDEX_OUT_OF_BOUNDS = "The position (%d) is out of bounds of the items (%d elements)";
 	private static final int MIN_ITEMS = 3;
-	private static final int MAX_ITEMS = 6;
+	private static final int MAX_ITEMS = 7;
 
 	// Listener
 	private OnTabSelectedListener tabSelectedListener;
@@ -88,7 +88,7 @@ public class AHBottomNavigation extends FrameLayout {
 	private boolean selectedBackgroundVisible = false;
 	private boolean translucentNavigationEnabled;
 	private List<AHNotification> notifications = AHNotification.generateEmptyList(MAX_ITEMS);
-	private Boolean[] itemsEnabledStates = {true, true, true, true, true, true};
+	private Boolean[] itemsEnabledStates = {true, true, true, true, true, true, true};
 	private boolean isBehaviorTranslationSet = false;
 	private int currentItem = 0;
 	private int currentColor = 0;

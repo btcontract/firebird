@@ -423,7 +423,7 @@ object Graph {
     object DirectedGraph {
 
       // @formatter:off
-      def apply(): DirectedGraph = new DirectedGraph(Map())
+      def apply(): DirectedGraph = new DirectedGraph(Map.empty)
       def apply(key: PublicKey): DirectedGraph = new DirectedGraph(Map(key -> List.empty))
       def apply(edge: GraphEdge): DirectedGraph = DirectedGraph().addEdge(edge)
       def apply(edges: Seq[GraphEdge]): DirectedGraph = DirectedGraph().addEdges(edges)
@@ -454,7 +454,7 @@ object Graph {
         }
 
         def addDescToMap(desc: ChannelDesc, u: ChannelUpdate): Unit = {
-          mutableMap.put(desc.b, GraphEdge(desc, u) +: mutableMap.getOrDefaultValue(desc.b))
+          mutableMap.put(desc.b, GraphEdge(desc, u) :: mutableMap.getOrDefaultValue(desc.b))
           mutableMap.get(desc.a) match {
             case null => mutableMap.put(desc.a, List.empty[GraphEdge])
             case _ =>
