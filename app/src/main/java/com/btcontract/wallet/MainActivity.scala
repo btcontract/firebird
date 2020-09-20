@@ -21,7 +21,7 @@ import fr.acinq.eclair.MilliSatoshi
 import scala.util.Try
 
 
-class MainActivity extends NfcReaderActivity with WalletActivity with StepperFormListener { me =>
+class MainActivity extends NfcReaderActivity with FirebirdActivity with StepperFormListener { me =>
 
   def INIT(state: Bundle): Unit = {
     setContentView(R.layout.activity_main)

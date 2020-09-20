@@ -1,13 +1,13 @@
 package com.btcontract.wallet.helper
 
 import androidx.biometric.{BiometricManager, BiometricPrompt}
-import com.btcontract.wallet.WalletActivity.StringOps
-import com.btcontract.wallet.WalletActivity
+import com.btcontract.wallet.FirebirdActivity.StringOps
+import com.btcontract.wallet.FirebirdActivity
 import androidx.core.content.ContextCompat
 import com.btcontract.wallet.R
 
 
-abstract class Auth(host: WalletActivity) {
+abstract class Auth(host: FirebirdActivity) {
   val biometricManager: BiometricManager =
     BiometricManager.from(host)
 

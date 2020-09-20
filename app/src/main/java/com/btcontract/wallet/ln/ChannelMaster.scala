@@ -79,7 +79,6 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
   def inFlights: Iterable[InFlightInfo] = parts.values collect { case WaitForRouteOrInFlight(_, _, _, Some(flight), _, _) => flight }
-  def maxCltvExpiryDeltaOpt: Option[InFlightInfo] = maxByOption[InFlightInfo, CltvExpiryDelta](inFlights, _.route.weight.cltv)
   def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.update)
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
@@ -142,7 +141,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(realConnectionListener), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
-  def isPresentInChannels(paymentHash: ByteVector32): Boolean = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing).exists(_.paymentHash == paymentHash)
+  def pendingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
@@ -155,11 +154,12 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
     val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status).contains(SUCCEEDED)
     val fulfilledInRuntime = PaymentMaster.data.payments.get(paymentHash).exists(fsm => SUCCEEDED == fsm.state)
-    val pending = PaymentMaster.data.payments.get(paymentHash).exists(fsm => PENDING == fsm.state || INIT == fsm.state)
+    val pendingInSender = PaymentMaster.data.payments.get(paymentHash).exists(fsm => PENDING == fsm.state || INIT == fsm.state)
+    val pendingInChannel = pendingHtlcs.exists(_.paymentHash == paymentHash)
 
     if (PaymentMaster.totalSendable < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
     else if (fulfilledLongTimeAgo || fulfilledInRuntime) PaymentInfo.NOT_SENDABLE_SUCCESS
-    else if (isPresentInChannels(paymentHash) || pending) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (pendingInChannel || pendingInSender) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else PaymentInfo.SENDABLE
   }
 
@@ -567,9 +567,8 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       }
 
     private def abortAndNotify(data1: PaymentSenderData): Unit = {
-      // Abort, but only fire an event if we have no leftovers in channels and no in-flights
-      val haltFailEvent = isPresentInChannels(data1.cmd.paymentHash) || data1.inFlights.nonEmpty
-      if (!haltFailEvent) events.outgoingFailed(data1)
+      val notInChannel = pendingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
+      if (notInChannel && data1.inFlights.isEmpty) events.outgoingFailed(data1)
       become(data1, ABORTED)
     }
   }

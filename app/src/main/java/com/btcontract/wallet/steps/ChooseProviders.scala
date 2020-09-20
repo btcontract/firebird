@@ -1,7 +1,7 @@
 package com.btcontract.wallet.steps
 
 import com.btcontract.wallet.ln.crypto.Tools._
-import com.btcontract.wallet.{ExternalDataChecker, R, WalletActivity, WalletApp}
+import com.btcontract.wallet.{ExternalDataChecker, R, FirebirdActivity, WalletApp}
 import android.widget.{AbsListView, ArrayAdapter, LinearLayout, ListView}
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
 import com.btcontract.wallet.helper.OnListItemClickListener
@@ -14,7 +14,7 @@ import android.view.View
 
 
 case class Providers(list: List[NodeAnnouncement] = Nil)
-class ChooseProviders(host: WalletActivity, title: String) extends Step[Providers](title, true) with ExternalDataChecker { me =>
+class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Providers](title, true) with ExternalDataChecker { me =>
   val availableProviders: Array[NodeAnnouncement] = SyncMaster.hostedChanNodes.toArray
   var chosenProviders: Providers = Providers(Nil)
   var list: ListView = _

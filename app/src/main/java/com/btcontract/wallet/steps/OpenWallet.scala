@@ -3,13 +3,13 @@ package com.btcontract.wallet.steps
 import android.view.View
 import com.btcontract.wallet.R
 import android.widget.LinearLayout
-import com.btcontract.wallet.WalletActivity
+import com.btcontract.wallet.FirebirdActivity
 import com.btcontract.wallet.ln.crypto.Tools
 import ernestoyaquello.com.verticalstepperform.Step
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
 
 
-class OpenWallet(host: WalletActivity, title: String) extends Step[Boolean](title, true) { me =>
+class OpenWallet(host: FirebirdActivity, title: String) extends Step[Boolean](title, true) { me =>
   var restoringExistingAccount: Boolean = false
 
   override def createStepContentLayout: View = {

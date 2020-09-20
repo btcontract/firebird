@@ -1,7 +1,7 @@
 package com.btcontract.wallet.sheets
 
 import android.view.{LayoutInflater, View, ViewGroup}
-import com.btcontract.wallet.{ExternalDataChecker, R, WalletActivity, WalletApp}
+import com.btcontract.wallet.{ExternalDataChecker, R, FirebirdActivity, WalletApp}
 import com.journeyapps.barcodescanner.{BarcodeCallback, BarcodeResult, BarcodeView}
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.btcontract.wallet.ln.crypto.Tools
@@ -9,7 +9,7 @@ import android.widget.ImageButton
 import android.os.Bundle
 
 
-class ScannerBottomSheet(host: WalletActivity, checker: ExternalDataChecker)
+class ScannerBottomSheet(host: FirebirdActivity, checker: ExternalDataChecker)
   extends BottomSheetDialogFragment with BarcodeCallback { me =>
 
   var lastAttempt: Long = System.currentTimeMillis

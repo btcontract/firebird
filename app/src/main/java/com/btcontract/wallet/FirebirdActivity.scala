@@ -12,7 +12,7 @@ import android.text.{Editable, Html, Spanned, TextWatcher}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import com.cottacush.android.currencyedittext.CurrencyEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.btcontract.wallet.WalletActivity.StringOps
+import com.btcontract.wallet.FirebirdActivity.StringOps
 import concurrent.ExecutionContext.Implicits.global
 import androidx.appcompat.app.AppCompatActivity
 import android.text.method.LinkMovementMethod
@@ -31,7 +31,7 @@ import android.app.Dialog
 import android.os.Bundle
 
 
-object WalletActivity {
+object FirebirdActivity {
   implicit class StringOps(source: String) {
     def s2hex: String = ByteVector.view(source getBytes "UTF-8").toHex
     def noSpaces: String = source.replace(" ", "").replace("\u00A0", "")
@@ -43,7 +43,7 @@ trait ExternalDataChecker {
   def checkExternalData: Unit
 }
 
-trait WalletActivity extends AppCompatActivity { me =>
+trait FirebirdActivity extends AppCompatActivity { me =>
   override def onCreate(savedActivityState: Bundle): Unit = {
     Thread setDefaultUncaughtExceptionHandler new UncaughtHandler(me)
     super.onCreate(savedActivityState)

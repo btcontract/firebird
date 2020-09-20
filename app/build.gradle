@@ -48,7 +48,6 @@ dependencies {
     implementation 'androidx.biometric:biometric:1.0.1'
     implementation 'com.cottacush:CurrencyEditText:0.0.7'
     implementation 'com.google.android.material:material:1.2.1'
-    implementation 'com.github.perfomer:blitz:1.0.6'
 
     implementation 'com.google.code.ndef-tools-for-android:ndeftools:1.2.4'
     implementation 'com.softwaremill.quicklens:quicklens_2.11:1.6.1'

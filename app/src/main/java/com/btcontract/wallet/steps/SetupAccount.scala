@@ -1,6 +1,6 @@
 package com.btcontract.wallet.steps
 
-import com.btcontract.wallet.{R, WalletActivity, WalletApp}
+import com.btcontract.wallet.{R, FirebirdActivity, WalletApp}
 import android.text.InputType.{TYPE_CLASS_TEXT, TYPE_TEXT_VARIATION_PASSWORD}
 import android.widget.{ArrayAdapter, CheckBox, CompoundButton, EditText, FrameLayout, LinearLayout, TextView}
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
@@ -21,7 +21,7 @@ case object NoAccountType extends AccountType { val asString: String = new Strin
 case class MnemonicAccount(mnemonic: String) extends AccountType { val asString: String = WalletApp.app getString R.string.action_recovery_phrase }
 case class EmailPasswordAccount(email: String, password: String, isRandom: Boolean) extends AccountType { val asString: String = email }
 
-class SetupAccount(host: WalletActivity, title: String) extends Step[AccountType](title, false) {
+class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountType](title, false) {
   var chosenAccountType: AccountType = NoAccountType
 
   class InputWithInfo(parentView: View, viewRes: Int, hintRes: Int, inputType: Int, fillType: String) {
