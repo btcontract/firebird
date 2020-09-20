@@ -49,6 +49,7 @@ object PaymentFailure {
   final val NOT_ENOUGH_CAPACITY = 1
   final val RUN_OUT_OF_RETRY_ATTEMPTS = 2
   final val PEER_COULD_NOT_PARSE_ONION = 3
+  final val NOT_RETRYING_NO_DETAILS = 4
   final val TOO_MANY_TIMES = 1000
 }
 
@@ -383,7 +384,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
       case (reject: RemoteFailed, INIT) =>
         val data1 = data.modify(_.cmd.paymentHash).setTo(reject.ourAdd.paymentHash)
-        self abortAndNotify data1.withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
+        self abortAndNotify data1.withLocalFailure(NOT_RETRYING_NO_DETAILS)
 
       case (fulfill: UpdateFulfillHtlc, INIT) =>
         // An idempotent transition, fires a success event with implanted hash
@@ -449,34 +450,36 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
               self abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, finalPkt)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, failure: Update) =>
-              val isSignatureFine = Announcements.checkSig(failure.update, nodeId)
+              // Pathfinder channels must be loaded at this point since we have already used it to construct a route
+              val originalNodeIdOpt = pf.data.channels.get(failure.update.shortChannelId).map(_ getNodeIdSameSideAs failure.update)
+              val isSignatureFine = originalNodeIdOpt.contains(nodeId) && Announcements.checkSig(failure.update, nodeId)
               val data1 = data.withRemoteFailure(info.route, pkt)
-              // Updates known/enabled, removes disabled
-              pf process failure.update
 
-              (isSignatureFine, info.route.getEdgeForNode(nodeId).get) match {
-                case true \ edge if edge.update.shortChannelId != failure.update.shortChannelId =>
-                  // This is fine: remote node has used a different channel than the one we have initially requested
-                  // But remote node may send such errors infinitely so increment this specific type of failure
-                  PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
-                  PaymentMaster doProcess NodeFailed(failedNodeId = nodeId, increment = 1)
-                  resolveRemoteFail(data1, wait)
+              if (isSignatureFine) {
+                pf process failure.update
+                info.route getEdgeForNode nodeId match {
+                  case Some(edge) if edge.update.shortChannelId != failure.update.shortChannelId =>
+                    // This is fine: remote node has used a different channel than the one we have initially requested
+                    // But remote node may send such errors infinitely so increment this specific type of failure
+                    PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
+                    PaymentMaster doProcess NodeFailed(failedNodeId = nodeId, increment = 1)
+                    resolveRemoteFail(data1, wait)
 
-                case true \ edge if edge.update.core == failure.update.core =>
-                  // Remote node returned the same update we used, channel is most likely imbalanced
-                  // Note: we may have it disabled and new update comes enabled: still same update
-                  PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
-                  resolveRemoteFail(data1, wait)
+                  case Some(edge) if edge.update.core == failure.update.core =>
+                    // Remote node returned the same update we used, channel is most likely imbalanced
+                    // Note: we may have it disabled and new update comes enabled: still same update
+                    PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
+                    resolveRemoteFail(data1, wait)
 
-                case true \ _ =>
-                  // New update is enabled: refreshed in graph, not penalized here
-                  // New update is disabled: removed from graph, not penalized here
-                  resolveRemoteFail(data1, wait)
-
-                case false \ _ =>
-                  // Invalid sig is a severe violation, ban sender node
-                  PaymentMaster doProcess NodeFailed(nodeId, TOO_MANY_TIMES)
-                  resolveRemoteFail(data1, wait)
+                  case _ =>
+                    // New update is enabled: refreshed in graph, not penalized here
+                    // New update is disabled: removed from graph, not penalized here
+                    resolveRemoteFail(data1, wait)
+                }
+              } else {
+                // Invalid sig is a severe violation, ban sender node
+                PaymentMaster doProcess NodeFailed(nodeId, TOO_MANY_TIMES)
+                resolveRemoteFail(data1, wait)
               }
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, _: Node) =>

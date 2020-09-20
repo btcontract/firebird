@@ -69,8 +69,8 @@ class SQliteNetworkDataStore(val db: SQLiteInterface) extends NetworkDataStore {
     val tuples = listChannelAnnouncements flatMap { ann =>
       chanUpdatesByShortId get ann.shortChannelId collectFirst {
         // We disregard channels with one update since that state signals something is wrong with one of peers
-        case Vector(u1, u2) if ChannelUpdate.POSITION_NODE_1 == u1.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
-        case Vector(u2, u1) if ChannelUpdate.POSITION_NODE_2 == u2.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
+        case Vector(u1, u2) if ChannelUpdate.POSITION1NODE == u1.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
+        case Vector(u2, u1) if ChannelUpdate.POSITION2NODE == u2.position => ann.shortChannelId -> PublicChannel(Some(u1), Some(u2), ann)
       }
     }
 

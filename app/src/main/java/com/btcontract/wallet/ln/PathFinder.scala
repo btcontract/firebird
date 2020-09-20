@@ -95,17 +95,14 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
     // If we hit an updated channel while routing we save it to db and update in-memory graph
     // If disabled channel stays disabled for a long time it will be pruned by peers and then us
 
-    case (cu: ChannelUpdate, OPERATIONAL)
-      if data.channels.contains(cu.shortChannelId) =>
+    case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
       val newUpdateIsOlder = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
       val data1 = resolveKnownDesc(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu, newUpdateIsOlder, isPublic = true)
       become(data1, OPERATIONAL)
 
-    case (cu: ChannelUpdate, OPERATIONAL)
-      if data.extraEdges.contains(cu.shortChannelId) =>
-      val chanDesc = data.extraEdges(cu.shortChannelId).desc
-      // Fake updates do not provide timestamp so any refresh should be newer
-      val data1 = resolveKnownDesc(chanDesc, cu, isOld = false, isPublic = false)
+    case (cu: ChannelUpdate, OPERATIONAL) if data.extraEdges.contains(cu.shortChannelId) =>
+      // Fake updates do not provide timestamp so any real refresh we are getting here should be newer
+      val data1 = resolveKnownDesc(data.extraEdges(cu.shortChannelId).desc, cu, isOld = false, isPublic = false)
       become(data1, OPERATIONAL)
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>

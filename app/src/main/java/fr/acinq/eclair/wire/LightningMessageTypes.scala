@@ -259,8 +259,8 @@ case class NodeAnnouncement(signature: ByteVector64,
                             unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasTimestamp
 
 object ChannelUpdate {
-  final val POSITION_NODE_1: java.lang.Integer = 1
-  final val POSITION_NODE_2: java.lang.Integer = 2
+  final val POSITION1NODE: java.lang.Integer = 1
+  final val POSITION2NODE: java.lang.Integer = 2
 }
 
 case class UpdateCore(position: java.lang.Integer,
@@ -285,7 +285,7 @@ case class ChannelUpdate(signature: ByteVector64,
 
   lazy val position: java.lang.Integer = {
     val isNode1: Boolean = Announcements.isNode1(channelFlags)
-    if (isNode1) ChannelUpdate.POSITION_NODE_1 else ChannelUpdate.POSITION_NODE_2
+    if (isNode1) ChannelUpdate.POSITION1NODE else ChannelUpdate.POSITION2NODE
   }
 
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
