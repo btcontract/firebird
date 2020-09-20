@@ -45,7 +45,7 @@ package object eclair {
 
   def randomKey: PrivateKey = PrivateKey(randomBytes32)
 
-  lazy val dummyPubKey: PublicKey = randomKey.publicKey
+  lazy val dummyPubKey: PublicKey = PublicKey.fromBin(ByteVector fromValidHex "039dabe3a678173cc6e992bd867a5e8305c2777d6240d1250801aff00bfbe972f6", checkValid = false)
 
   def toLongId(fundingTxHash: ByteVector32, fundingOutputIndex: Int): ByteVector32 = {
     require(fundingOutputIndex < 65536, "fundingOutputIndex must not be greater than FFFF")
