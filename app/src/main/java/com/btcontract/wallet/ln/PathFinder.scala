@@ -2,12 +2,13 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
+import fr.acinq.eclair.router.{Announcements, Router}
 import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.{Announcements, RouteCalculation, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{ChannelDesc, Data, PublicChannel, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
 import java.util.concurrent.Executors
 import fr.acinq.eclair.ShortChannelId
 
@@ -39,9 +40,15 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
   def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
-    // In OPERATIONAL state we instruct graph to search through the single pre-selected local channel by inserting desc and making it a source, in ALL OTHER states we send a rejection back to sender
-    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL => sender process RouteCalculation.handleRouteRequest(data.graph addEdge request.localEdge, routerConf, getChainTip, request)
-    case (sender: CanBeRepliedTo, _: RouteRequest) \ _ => sender process NotifyRejected
+    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL =>
+      // In OPERATIONAL state we instruct graph to search through the single pre-selected local channel
+      // it is safe to not check for existance becase base graph never has our private outgoing edges
+      val graph1 = data.graph.addEdge(edge = request.localEdge, checkIfContains = false)
+      sender process handleRouteRequest(graph1, routerConf, getChainTip, request)
+
+    case (sender: CanBeRepliedTo, _: RouteRequest) \ _ =>
+      // in ALL OTHER states we send a rejection back to sender
+      sender process NotifyRejected
 
     case CMDResync \ OPERATIONAL =>
       if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 28) {
@@ -103,6 +110,7 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
       // We add assisted routes to graph as if they are normal channels, also rememeber them to refill later if graph gets reloaded
+      // these edges will be private most of the time, but they may be public and we may have them already so checkIfContains == true
       val data1 = data.copy(extraEdges = data.extraEdges + (edge.update.shortChannelId -> edge), graph = data.graph addEdge edge)
       become(data1, state)
 
