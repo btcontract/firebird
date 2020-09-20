@@ -21,8 +21,8 @@ object SyncSpec {
 
 @RunWith(classOf[AndroidJUnit4])
 class SyncSpec {
+  val store: SQliteNetworkDataStore = getRandomStore
   def run: Unit = {
-    val store = getRandomStore
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
     new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 0, LNParams.routerConf) {
@@ -43,6 +43,9 @@ class SyncSpec {
         val map1 = store.getRoutingData
         println(s"removeGhostChannels took ${System.currentTimeMillis - a2} msec")
         println(s"Total sync complete, we have ${map1.keys.size} purified channels")
+        val a3 = System.currentTimeMillis
+        DirectedGraph.makeGraph(map1)
+        println(s"making graph took ${System.currentTimeMillis - a3} msec")
         assert(map1.nonEmpty)
         run
       }

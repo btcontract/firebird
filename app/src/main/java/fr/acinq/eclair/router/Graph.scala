@@ -291,8 +291,6 @@ object Graph {
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
     case class DirectedGraph(private val vertices: Map[PublicKey, List[GraphEdge]]) {
 
-      def addEdge(d: ChannelDesc, u: ChannelUpdate): DirectedGraph = addEdge(GraphEdge(d, u))
-
       def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)((acc, edge) => acc.addEdge(edge))
 
       /**
@@ -301,11 +299,11 @@ object Graph {
        * @param edge the edge that is going to be added to the graph
        * @return a new graph containing this edge
        */
-      def addEdge(edge: GraphEdge): DirectedGraph = {
+      def addEdge(edge: GraphEdge, checkIfContains: Boolean = true): DirectedGraph = {
         val vertexIn = edge.desc.a
         val vertexOut = edge.desc.b
         // the graph is allowed to have multiple edges between the same vertices but only one per channel
-        if (containsEdge(edge.desc)) {
+        if (checkIfContains && containsEdge(edge.desc)) {
           removeEdge(edge.desc).addEdge(edge) // the recursive call will have the original params
         } else {
           val withVertices = addVertex(vertexIn).addVertex(vertexOut)
@@ -423,7 +421,7 @@ object Graph {
     object DirectedGraph {
 
       // @formatter:off
-      def apply(): DirectedGraph = new DirectedGraph(Map())
+      def apply(): DirectedGraph = new DirectedGraph(Map.empty)
       def apply(key: PublicKey): DirectedGraph = new DirectedGraph(Map(key -> List.empty))
       def apply(edge: GraphEdge): DirectedGraph = DirectedGraph().addEdge(edge)
       def apply(edges: Seq[GraphEdge]): DirectedGraph = DirectedGraph().addEdges(edges)
@@ -445,19 +443,11 @@ object Graph {
         channels.values.foreach { channel =>
           channel.update_1_opt.foreach { u1 =>
             val desc1 = Router.getDesc(u1, channel.ann)
-            addDescToMap(desc1, u1)
+            mutableMap.put(desc1.b, GraphEdge(desc1, u1) :: mutableMap.getOrDefaultValue(desc1.b))
           }
           channel.update_2_opt.foreach { u2 =>
             val desc2 = Router.getDesc(u2, channel.ann)
-            addDescToMap(desc2, u2)
-          }
-        }
-
-        def addDescToMap(desc: ChannelDesc, u: ChannelUpdate): Unit = {
-          mutableMap.put(desc.b, GraphEdge(desc, u) +: mutableMap.getOrDefaultValue(desc.b))
-          mutableMap.get(desc.a) match {
-            case null => mutableMap.put(desc.a, List.empty[GraphEdge])
-            case _ =>
+            mutableMap.put(desc2.b, GraphEdge(desc2, u2) :: mutableMap.getOrDefaultValue(desc2.b))
           }
         }
 
