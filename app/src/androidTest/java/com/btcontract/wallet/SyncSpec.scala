@@ -5,7 +5,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
 import com.btcontract.wallet.lnutils.{SQLiteInterface, SQliteNetworkDataStore}
+import fr.acinq.eclair.ShortChannelId
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
+import fr.acinq.eclair.router.Router
 import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,7 +42,7 @@ class SyncSpec {
         store.removeGhostChannels(map.keySet.diff(provenShortIds))
         println(s"removeGhostChannels took ${System.currentTimeMillis - a1} msec")
         val a2 = System.currentTimeMillis
-        val map1 = store.getRoutingData
+        val map1: Map[ShortChannelId, Router.PublicChannel] = store.getRoutingData
         println(s"removeGhostChannels took ${System.currentTimeMillis - a2} msec")
         println(s"Total sync complete, we have ${map1.keys.size} purified channels")
         val a3 = System.currentTimeMillis

@@ -15,6 +15,7 @@ import com.btcontract.wallet.ln.LightningMessageExt
 import fr.acinq.eclair.router.Router.ChannelDesc
 import fr.acinq.eclair.router.RouteCalculation
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
+import java.io.ByteArrayInputStream
 import language.implicitConversions
 import java.security.SecureRandom
 import scala.collection.mutable
@@ -43,21 +44,16 @@ object Tools {
     override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
   }
 
-  def fromShortId(id: Long): (Int, Int, Int) = {
-    val blockHeight = id.>>(40).&(0xFFFFFF).toInt
-    val txIndex = id.>>(16).&(0xFFFFFF).toInt
-    val outputIndex = id.&(0xFFFF).toInt
-    (blockHeight, txIndex, outputIndex)
-  }
-
-  def toShortIdOpt(blockHeight: Long, txIndex: Long, outputIndex: Long): Option[Long] = {
-    val result = blockHeight.&(0xFFFFFFL).<<(40) | txIndex.&(0xFFFFFFL).<<(16) | outputIndex.&(0xFFFFL)
-    if (txIndex < 0) None else Some(result)
-  }
-
   def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 = {
     val pubkey1First: Boolean = LexicographicalOrdering.isLessThan(pubkey1, pubkey2)
     if (pubkey1First) Crypto.sha256(pubkey1 ++ pubkey2) else Crypto.sha256(pubkey2 ++ pubkey1)
+  }
+
+  def shortHostedChanId(chanId: ByteVector32): ShortChannelId = {
+    val stream: ByteArrayInputStream = new ByteArrayInputStream(chanId.toArray)
+    def getChunk: Long = Protocol.uint32(stream, ByteOrder.BIG_ENDIAN)
+    val id = Vector.fill(8)(getChunk).foldLeft(Long.MaxValue)(_ * _)
+    ShortChannelId(id)
   }
 
   def mkNodeAnnouncement(id: PublicKey, na: NodeAddress, alias: String) =
