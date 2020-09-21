@@ -10,12 +10,13 @@
     <string name="step_title_account">Setup an account</string>
     <string name="step_title_open">Go to wallet</string>
 
+    <string name="welcome_subtitle"><b>Fast</b>, <b>private</b> and <b>cheap</b>\nBitcoin payments.</string>
     <string name="step_choose_or_scan">Start with choosing default providers or scan a QR code to set up your own.</string>
     <string name="step_account_email_pass_random_note">Allow Firebird to generate and store a strong password, you will be able to export it any time.</string>
     <string name="step_account_email_pass"><b>Option 1: provide email and password</b>. Payment providers will know your email and will be able to provide assistance in case of password loss.</string>
     <string name="step_account_recovery_phrase"><b>Option 2: provide BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use your BIP39 phrase once to derive a payment key, will NOT store a phrase itself.</string>
     <string name="step_account_recovery_phrase_note">Note that Firebird will neither store a provided phrase nor use any standard derivation paths.\n\nEven if this wallet gets compromised the rest of funds attached to phrase will remain safe.</string>
-    <string name="step_open_note">Everything is set up. You are now ready to expirience <b>fast</b>, <b>effortless</b>, <b>private</b> and <b>cheap</b> Bitcoin payments.</string>
+    <string name="step_open_note">Everything is set up, the wallet is ready to be used. Thanks for choosing <b>Firebird</b>!</string>
 
     <string name="action_scan_qr">Scan QR code</string>
     <string name="action_email_password">Email and password</string>

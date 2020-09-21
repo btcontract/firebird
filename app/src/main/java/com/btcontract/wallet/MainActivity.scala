@@ -25,12 +25,12 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity with StepperF
 
   def INIT(state: Bundle): Unit = {
     setContentView(R.layout.activity_main)
-//    val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
-//    val setupAccount = new SetupAccount(me, me getString step_title_account)
-//    val openWallet = new OpenWallet(me, me getString step_title_open)
-//
-//    val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
-//    stepper.setup(this, chooseProviders, setupAccount, openWallet).init
+    val chooseProviders = new ChooseProviders(me, me getString step_title_choose)
+    val setupAccount = new SetupAccount(me, me getString step_title_account)
+    val openWallet = new OpenWallet(me, me getString step_title_open)
+
+    val stepper = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
+    stepper.setup(this, chooseProviders, setupAccount, openWallet).init
 //
 //    val content = getLayoutInflater.inflate(R.layout.frag_input_fiat_converter, null, false)
 //    val rateManager = new RateManager(content, Some("Add a comment"), FiatRates.ratesInfo.rates, WalletApp.fiatCode)
@@ -40,28 +40,28 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity with StepperF
 //    rateManager.hintDenom.setText(getString(amount_hint_can_send).format(WalletApp.denom.parsedWithSign(MilliSatoshi(10000000000L))))
 //    rateManager.hintFiatDenom.setText(getString(amount_hint_can_send).format(WalletApp.currentMsatInFiatHuman(MilliSatoshi(10000000000L))))
 
-    val bottom_navigation = findViewById(R.id.bottom_navigation).asInstanceOf[AHBottomNavigation]
-    val shopping = new AHBottomNavigationItem(item_shopping, R.drawable.ic_shopping_black_24dp, R.color.accent)
-    val wallet = new AHBottomNavigationItem(item_wallet, R.drawable.ic_wallet_black_24dp, R.color.accent)
-    val addon = new AHBottomNavigationItem(item_addons, R.drawable.ic_add_black_24dp, R.color.accent)
+//    val bottom_navigation = findViewById(R.id.bottom_navigation).asInstanceOf[AHBottomNavigation]
+//    val shopping = new AHBottomNavigationItem(item_shopping, R.drawable.ic_shopping_black_24dp, R.color.accent)
+//    val wallet = new AHBottomNavigationItem(item_wallet, R.drawable.ic_wallet_black_24dp, R.color.accent)
+//    val addon = new AHBottomNavigationItem(item_addons, R.drawable.ic_add_black_24dp, R.color.accent)
+//
+//    try {
+//      bottom_navigation.addItem(shopping)
+//      bottom_navigation.addItem(wallet)
+//      bottom_navigation.addItem(addon)
+//    } catch {
+//      case e: Throwable => e.printStackTrace()
+//    }
 
-    try {
-      bottom_navigation.addItem(shopping)
-      bottom_navigation.addItem(wallet)
-      bottom_navigation.addItem(addon)
-    } catch {
-      case e: Throwable => e.printStackTrace()
-    }
-
-    val auth = new Auth(me) {
-      def onNoHardware: Unit = WalletApp.app.quickToast(fp_no_support)
-      def onHardwareUnavailable: Unit = WalletApp.app.quickToast(fp_not_available)
-      def onCanAuthenticate: Unit = this.callAuthDialog
-      def onNoneEnrolled: Unit = WalletApp.app.quickToast(fp_add_auth_method)
-      def onAuthSucceeded: Unit = WalletApp.app.quickToast("SUCCESS")
-    }
-
-    auth.checkAuth
+//    val auth = new Auth(me) {
+//      def onNoHardware: Unit = WalletApp.app.quickToast(fp_no_support)
+//      def onHardwareUnavailable: Unit = WalletApp.app.quickToast(fp_not_available)
+//      def onCanAuthenticate: Unit = this.callAuthDialog
+//      def onNoneEnrolled: Unit = WalletApp.app.quickToast(fp_add_auth_method)
+//      def onAuthSucceeded: Unit = WalletApp.app.quickToast("SUCCESS")
+//    }
+//
+//    auth.checkAuth
   }
 
   def showCookie(view: View): Unit = {

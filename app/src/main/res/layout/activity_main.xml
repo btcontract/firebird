@@ -4,22 +4,24 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <TextView
-        style="@style/XYMarginFillingView"
+        style="@style/XMarginFillingView"
+        android:layout_marginTop="15dp"
         android:text="@string/welcome"
-        android:textSize="20sp"/>
+        android:textSize="22sp"/>
 
-<!--    <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView-->
-<!--        app:form_title_text_color="@color/colorAccent"-->
-<!--        app:form_circle_background_color="@color/ln"-->
-<!--        app:form_allow_non_linear_navigation="false"-->
-<!--        app:form_display_step_buttons="false"-->
-<!--        android:layout_height="match_parent"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:id="@+id/stepper"/>-->
+    <TextView
+        style="@style/XMarginFillingView"
+        android:text="@string/welcome_subtitle"
+        android:layout_marginBottom="15dp"
+        android:layout_marginTop="10dp"/>
 
-    <com.aurelhubert.ahbottomnavigation.AHBottomNavigation
-        android:id="@+id/bottom_navigation"
+    <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
+        app:form_title_text_color="@color/colorAccent"
+        app:form_circle_background_color="@color/ln"
+        app:form_allow_non_linear_navigation="false"
+        app:form_display_step_buttons="false"
+        android:layout_height="match_parent"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:id="@+id/stepper"/>
 
 </LinearLayout>
