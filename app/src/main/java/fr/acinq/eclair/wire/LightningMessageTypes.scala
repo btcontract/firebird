@@ -27,7 +27,7 @@ import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrdering, Protocol, Satoshi}
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
-import fr.acinq.eclair.dummyPubKey
+import fr.acinq.eclair.{byteVector64One, invalidPubKey}
 import scodec.bits.ByteVector
 
 /**
@@ -178,10 +178,15 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
                                bitcoinKey2: PublicKey,
                                unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasChainHash {
 
+  def isPHC: Boolean =
+    bitcoinKey1 == invalidPubKey && bitcoinKey2 == invalidPubKey &&
+      bitcoinSignature1 == ByteVector64.Zeroes && bitcoinSignature2 == ByteVector64.Zeroes
+
   // Point useless fields to same object, db-restored should be the same
-  def lite: ChannelAnnouncement = copy(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes,
-    bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes, features = Features.empty,
-    chainHash = LNParams.chainHash, bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
+
+  def lite: ChannelAnnouncement =
+    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
+      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
 }
 
 case class Color(r: Byte, g: Byte, b: Byte) {
@@ -291,7 +296,7 @@ case class ChannelUpdate(signature: ByteVector64,
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
 
   // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
-  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
+  def lite: ChannelUpdate = copy(signature = byteVector64One, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
 
   var score: Long = 1L // Used internally for score estimation, can not be exposed as class field
 }

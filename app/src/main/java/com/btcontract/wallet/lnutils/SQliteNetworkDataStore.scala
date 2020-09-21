@@ -22,9 +22,8 @@ class SQliteNetworkDataStore(val db: SQLiteInterface) extends NetworkDataStore {
       val nodeId1 = PublicKey(rc bytes ChannelAnnouncementTable.nodeId1)
       val nodeId2 = PublicKey(rc bytes ChannelAnnouncementTable.nodeId2)
       val shortChannelId = ShortChannelId(rc long ChannelAnnouncementTable.shortChannelId)
-      ChannelAnnouncement(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes,
-        bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes, features = Features.empty,
-        chainHash = LNParams.chainHash, shortChannelId, nodeId1, nodeId2, bitcoinKey1 = dummyPubKey, bitcoinKey2 = dummyPubKey)
+      ChannelAnnouncement(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
+        features = Features.empty, chainHash = LNParams.chainHash, shortChannelId, nodeId1, nodeId2, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
     }
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit = {
@@ -53,7 +52,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface) extends NetworkDataStore {
       val htlcMinimumMsat = MilliSatoshi(rc long ChannelUpdateTable.minMsat)
       val shortChannelId = ShortChannelId(rc long ChannelUpdateTable.shortChannelId)
       val cltvExpiryDelta = CltvExpiryDelta(rc int ChannelUpdateTable.cltvExpiryDelta)
-      val update = ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, shortChannelId,
+      val update = ChannelUpdate(signature = byteVector64One, chainHash = LNParams.chainHash, shortChannelId,
         timestamp = rc long ChannelUpdateTable.timestamp, messageFlags.toByte, channelFlags.toByte, cltvExpiryDelta,
         htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths = rc long ChannelUpdateTable.proportional,
         htlcMaximumMsat = Some(htlcMaximumMsat), unknownFields = ByteVector.empty)
