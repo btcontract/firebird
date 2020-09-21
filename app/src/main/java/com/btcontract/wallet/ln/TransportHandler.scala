@@ -4,7 +4,6 @@ import TransportHandler._
 import com.btcontract.wallet.ln.crypto.Noise._
 import scala.concurrent.{ExecutionContext, Future}
 import fr.acinq.eclair.wire.LightningMessageCodecs.lightningMessageCodec
-import com.btcontract.wallet.ln.crypto.Tools.random
 import com.btcontract.wallet.ln.crypto.StateMachine
 import scala.concurrent.ExecutionContextExecutor
 import fr.acinq.eclair.wire.LightningMessage
@@ -119,8 +118,7 @@ object TransportHandler {
   private def makeWriter(localStatic: KeyPair, remoteStatic: ByteVector) =
     HandshakeState.initializeWriter(handshakePatternXK, prologue, localStatic,
       KeyPair(ByteVector.empty, ByteVector.empty), remoteStatic, ByteVector.empty,
-      Secp256k1DHFunctions, Chacha20Poly1305CipherFunctions,
-      SHA256HashFunctions, random)
+      Secp256k1DHFunctions, Chacha20Poly1305CipherFunctions, SHA256HashFunctions)
 
   sealed trait Data
   case class HandshakeData(reader: HandshakeStateReader, buffer: ByteVector) extends Data

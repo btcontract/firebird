@@ -4,6 +4,7 @@ import fr.acinq.eclair.crypto.{ChaCha20Poly1305, Mac32}
 import fr.acinq.bitcoin.Protocol.writeUInt64
 import fr.acinq.bitcoin.Crypto.PrivateKey
 import java.nio.ByteOrder.LITTLE_ENDIAN
+import fr.acinq.eclair.randomBytes
 import fr.acinq.bitcoin.Crypto
 import scodec.bits.ByteVector
 import java.math.BigInteger
@@ -174,17 +175,17 @@ object Noise {
   }
 
   sealed trait HandshakeState
-  case class HandshakeStateWriter(messages: List[MessagePatterns], state: SymmetricState, s: KeyPair,
-                                  e: KeyPair, rs: ByteVector, re: ByteVector, dh: DHFunctions,
-                                  byteStream: ByteStream) extends HandshakeState { me =>
+  case class HandshakeStateWriter(messages: List[MessagePatterns], state: SymmetricState,
+                                  s: KeyPair, e: KeyPair, rs: ByteVector, re: ByteVector,
+                                  dh: DHFunctions) extends HandshakeState { me =>
 
-    def toReader = HandshakeStateReader(messages, state, s, e, rs, re, dh, byteStream)
+    def toReader = HandshakeStateReader(messages, state, s, e, rs, re, dh)
 
     def fold(pts: MessagePatterns): (HandshakeStateWriter, ByteVector) =
       pts.foldLeft(me -> ByteVector.empty) {
 
         case Tuple2(Tuple2(writer, buffer), E) =>
-          val e1 = dh generateKeyPair ByteVector.view(byteStream getBytes dh.dhLen)
+          val e1 = dh generateKeyPair randomBytes(dh.dhLen)
           (writer.copy(state = writer.state mixHash e1.pub, e = e1), buffer ++ e1.pub)
 
         case Tuple2(Tuple2(writer, buffer), S) =>
@@ -217,11 +218,11 @@ object Noise {
     }
   }
 
-  case class HandshakeStateReader(messages: List[MessagePatterns], state: SymmetricState, s: KeyPair,
-                                  e: KeyPair, rs: ByteVector, re: ByteVector, dh: DHFunctions,
-                                  byteStream: ByteStream) extends HandshakeState { me =>
+  case class HandshakeStateReader(messages: List[MessagePatterns], state: SymmetricState,
+                                  s: KeyPair, e: KeyPair, rs: ByteVector, re: ByteVector,
+                                  dh: DHFunctions) extends HandshakeState { me =>
 
-    def toWriter = HandshakeStateWriter(messages, state, s, e, rs, re, dh, byteStream)
+    def toWriter = HandshakeStateWriter(messages, state, s, e, rs, re, dh)
 
     def fold(pts: MessagePatterns, message: ByteVector): (HandshakeStateReader, ByteVector) =
       messages.head.foldLeft(me -> message) {
@@ -273,9 +274,9 @@ object Noise {
       symmetricState mixHash prologue
     }
 
-    def initializeWriter(handshakePattern: HandshakePattern, prologue: ByteVector, s: KeyPair, e: KeyPair,
-                         rs: ByteVector, re: ByteVector, dh: DHFunctions, cipher: CipherFunctions,
-                         hash: HashFunctions, byteStream: ByteStream): HandshakeStateWriter = {
+    def initializeWriter(handshakePattern: HandshakePattern, prologue: ByteVector,
+                         s: KeyPair, e: KeyPair, rs: ByteVector, re: ByteVector, dh: DHFunctions,
+                         cipher: CipherFunctions, hash: HashFunctions): HandshakeStateWriter = {
 
       val symmetricState = makeSymmetricState(handshakePattern, prologue, dh, cipher, hash)
       val symmetricState1 = handshakePattern.initiatorPreMessages.foldLeft(symmetricState) {
@@ -290,13 +291,12 @@ object Noise {
         case (state, S) => state mixHash rs
       }
 
-      HandshakeStateWriter(handshakePattern.messages,
-        symmetricState2, s, e, rs, re, dh, byteStream)
+      HandshakeStateWriter(handshakePattern.messages, symmetricState2, s, e, rs, re, dh)
     }
 
-    def initializeReader(handshakePattern: HandshakePattern, prologue: ByteVector, s: KeyPair, e: KeyPair,
-                         rs: ByteVector, re: ByteVector, dh: DHFunctions, cipher: CipherFunctions,
-                         hash: HashFunctions, byteStream: ByteStream): HandshakeStateReader = {
+    def initializeReader(handshakePattern: HandshakePattern, prologue: ByteVector,
+                         s: KeyPair, e: KeyPair, rs: ByteVector, re: ByteVector, dh: DHFunctions,
+                         cipher: CipherFunctions, hash: HashFunctions): HandshakeStateReader = {
 
       val symmetricState = makeSymmetricState(handshakePattern, prologue, dh, cipher, hash)
       val symmetricState1 = handshakePattern.initiatorPreMessages.foldLeft(symmetricState) {
@@ -311,8 +311,7 @@ object Noise {
         case (state, S) => state mixHash s.pub
       }
 
-      HandshakeStateReader(handshakePattern.messages,
-        symmetricState2, s, e, rs, re, dh, byteStream)
+      HandshakeStateReader(handshakePattern.messages, symmetricState2, s, e, rs, re, dh)
     }
   }
 }

@@ -5,7 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
 import com.btcontract.wallet.lnutils.{SQLiteInterface, SQliteNetworkDataStore}
-import fr.acinq.eclair.ShortChannelId
+import fr.acinq.eclair._
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
 import fr.acinq.eclair.router.Router
 import fr.acinq.eclair.router.Router.Data
@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 object SyncSpec {
   def getRandomStore: SQliteNetworkDataStore = {
     def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    def randomDbName: String = List.fill(12)(Tools.random nextInt alphabet.length).map(alphabet).mkString
+    def randomDbName: String = List.fill(12)(secureRandom nextInt alphabet.length).map(alphabet).mkString
     def db = new SQLiteInterface(WalletApp.app, randomDbName)
     new SQliteNetworkDataStore(db)
   }

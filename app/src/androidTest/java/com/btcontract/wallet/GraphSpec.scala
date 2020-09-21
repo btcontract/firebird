@@ -73,7 +73,7 @@ object GraphSpec {
     routeMaxLength = LNParams.routerConf.firstPassMaxRouteLength, routeMaxCltv = LNParams.routerConf.firstPassMaxCltv)
 
   def makeRouteRequest(fromNode: PublicKey, fromLocalEdge: GraphEdge): RouteRequest = {
-    RouteRequest(paymentHash = ByteVector32(ByteVector(Tools.random.getBytes(32))),
+    RouteRequest(paymentHash = ByteVector32(randomBytes(32)),
       partId = ByteVector.empty,
       source = fromNode,
       target = d,

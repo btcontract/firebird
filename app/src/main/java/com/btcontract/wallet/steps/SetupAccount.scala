@@ -12,6 +12,7 @@ import com.btcontract.wallet.ln.crypto.Tools
 import androidx.appcompat.app.AlertDialog
 import com.ornach.nobobutton.NoboButton
 import org.bitcoinj.crypto.MnemonicCode
+import fr.acinq.eclair.secureRandom
 import android.view.View
 import android.os.Build
 
@@ -128,7 +129,7 @@ class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountTy
       useRandomPassword setOnCheckedChangeListener new OnCheckedChangeListener {
         def onCheckedChanged(checkbox: CompoundButton, isChecked: Boolean): Unit = {
           val alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-          val randomPass = List.fill(12)(Tools.random nextInt alphabet.length).map(alphabet).mkString
+          val randomPass = List.fill(12)(secureRandom nextInt alphabet.length).map(alphabet).mkString
           val finalPass = if (useRandomPassword.isChecked) randomPass else new String
           confirmPassword.input.setEnabled(!useRandomPassword.isChecked)
           password.input.setEnabled(!useRandomPassword.isChecked)

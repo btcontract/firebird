@@ -1,6 +1,7 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
+import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
@@ -14,7 +15,6 @@ import com.github.kevinsawicki.http.HttpRequest
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.ln.crypto.Tools
 import fr.acinq.eclair.wire.NodeAddress
-import fr.acinq.eclair.MilliSatoshi
 import rx.lang.scala.Observable
 import scodec.bits.ByteVector
 import android.net.Uri
@@ -75,8 +75,7 @@ case class LNUrl(request: String) {
 trait LNUrlData {
   def checkAgainstParent(lnUrl: LNUrl): Boolean = true
   def level2DataResponse(req: Uri.Builder): HttpRequest = {
-    val randomness = ByteVector.view(random getBytes 4).toHex
-    val finalReq = req.appendQueryParameter(randomness, new String)
+    val finalReq = req.appendQueryParameter(randomBytes(4).toHex, new String)
     get(finalReq.build.toString, false).header("Connection", "close")
   }
 }

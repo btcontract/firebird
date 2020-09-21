@@ -19,7 +19,7 @@ import org.junit.Test
 @RunWith(classOf[AndroidJUnit4])
 class PathfinderSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
-  LNParams.keys = LightningNodeKeys.makeFromSeed(Tools.random.getBytes(32))
+  LNParams.keys = LightningNodeKeys.makeFromSeed(randomBytes(32).toArray)
   val store: SQliteNetworkDataStore = getRandomStore
 
   fillBasicGraph(store)

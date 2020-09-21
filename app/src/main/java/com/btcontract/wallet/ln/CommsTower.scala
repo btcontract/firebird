@@ -1,12 +1,13 @@
 package com.btcontract.wallet.ln
 
+import fr.acinq.eclair._
 import scala.concurrent._
 import fr.acinq.eclair.wire._
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import rx.lang.scala.{Subscription, Observable => Obs}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
-import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, log, none, random}
+import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, log, none}
 import fr.acinq.eclair.wire.LightningMessageCodecs.lightningMessageCodec
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -61,8 +62,7 @@ object CommsTower {
     }
 
     def sendPingAwaitPong(length: Int): Unit = {
-      val data = ByteVector.view(random getBytes length)
-      handler process Ping(length, data)
+      handler process Ping(data = randomBytes(length), pongLength = length)
       pingState = AWAITING_PONG
     }
 
@@ -88,10 +88,10 @@ object CommsTower {
 
         def handleEnterOperationalState: Unit = {
           handler process LNParams.makeLocalInitMessage
-          pinging = Obs.interval(15.seconds).map(_ => random.nextInt(10) + 1) subscribe { length =>
+          pinging = Obs.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { length =>
             // We disconnect if we are still awaiting Pong since our last sent Ping, meaning peer sent nothing back
             // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
-            if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length)
+            if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length + 1)
           }
         }
 

@@ -518,7 +518,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
       case _ =>
     }
 
-    def randomId: ByteVector = ByteVector.view(Tools.random getBytes 8)
     def canBeSplit(totalAmount: MilliSatoshi): Boolean = totalAmount / 2 > pf.routerConf.mppMinPartAmount
     private def assignToChans(sendable: mutable.Map[ChanAndCommits, MilliSatoshi], data1: PaymentSenderData, amt: MilliSatoshi): Unit = {
       // This is a terminal method in a sense that it either successfully assigns an amount to channels or turns a payment info failed state
@@ -535,7 +534,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
           val finalAmount = leftover max minSendable min chanSendable
 
           if (finalAmount >= minSendable) {
-            val wait = WaitForRouteOrInFlight(randomId, finalAmount, cnc.chan, None)
+            val wait = WaitForRouteOrInFlight(randomBytes(8), finalAmount, cnc.chan, None)
             (accumulator + wait.tuple, leftover - finalAmount)
           } else collected
 
@@ -552,8 +551,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
         case _ \ rest if PaymentMaster.totalSendable - PaymentMaster.currentSendable.values.sum >= rest =>
           // Amount has not been fully split, but it is possible to split it once some channel becomes OPEN
-          // Do not partial-send this part but instead put a whole sum on hold for better local conditions
-          become(data1.copy(parts = data1.parts + WaitForBetterConditions(randomId, amt).tuple), PENDING)
+          become(data1.copy(parts = data1.parts + WaitForBetterConditions(randomBytes(8), amt).tuple), PENDING)
 
         case _ =>
           // A non-zero leftover is present with no more channels left

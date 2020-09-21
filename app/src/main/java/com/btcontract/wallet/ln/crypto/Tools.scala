@@ -1,5 +1,6 @@
 package com.btcontract.wallet.ln.crypto
 
+import fr.acinq.eclair._
 import fr.acinq.bitcoin._
 import com.btcontract.wallet.ln.crypto.Tools._
 
@@ -17,14 +18,12 @@ import fr.acinq.eclair.router.RouteCalculation
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import java.io.ByteArrayInputStream
 import language.implicitConversions
-import java.security.SecureRandom
 import scala.collection.mutable
 import scodec.bits.ByteVector
 
 
 object Tools {
   type Bytes = Array[Byte]
-  val random = new RandomGenerator
   def log(info: Any): Unit = println(s"LN LOG: $info")
   def wrap(run: => Unit)(go: => Unit): Unit = try go catch none finally run
   def bin2readable(bin: Bytes) = new String(bin, "UTF-8")
@@ -65,14 +64,14 @@ object Tools {
     // Parameters do not matter except that it must point from us to peer
 
     val zeroCltvDelta = CltvExpiryDelta(0)
-    val randomShortChannelId = ShortChannelId(random.nextLong)
-    val fakeDesc = ChannelDesc(randomShortChannelId, from, toPeer)
+    val randomShortChannelId = ShortChannelId(secureRandom.nextLong)
+    val fakeDesc = ChannelDesc(randomShortChannelId, a = from, b = toPeer)
     val fakeHop = ExtraHop(from, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
     GraphEdge(update = RouteCalculation.toFakeUpdate(fakeHop), desc = fakeDesc)
   }
 
   def randomKeyPair: KeyPair = {
-    val pk = PrivateKey(random getBytes 32)
+    val pk: PrivateKey = randomKey
     KeyPair(pk.publicKey.value, pk.value)
   }
 
@@ -112,16 +111,4 @@ abstract class StateMachine[T] {
   def doProcess(change: Any): Unit
   var state: String = _
   var data: T = _
-}
-
-trait ByteStream {
-  def getBytes(size: Int): Bytes
-}
-
-class RandomGenerator extends SecureRandom with ByteStream {
-  def getBytes(size: Int): Bytes = {
-    val array = new Bytes(size)
-    super.nextBytes(array)
-    array
-  }
 }
