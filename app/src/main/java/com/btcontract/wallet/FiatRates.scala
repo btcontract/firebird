@@ -4,7 +4,7 @@ import com.btcontract.wallet.FiatRates._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import rx.lang.scala.{Observable => Obs}
+import rx.lang.scala.{Subscription, Observable => Obs}
 import com.btcontract.wallet.ln.RxUtils
 import fr.acinq.eclair.secureRandom
 
@@ -14,6 +14,7 @@ object FiatRates {
   type BitpayItemList = List[BitpayItem]
   type CoinGeckoItemMap = Map[String, CoinGeckoItem]
   type BlockchainInfoItemMap = Map[String, BlockchainInfoItem]
+  var subscription: Subscription = _
   var ratesInfo: RatesInfo = _
 
   val fiatNames: Map[String, String] =
@@ -27,7 +28,7 @@ object FiatRates {
     case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap
   }
 
-  def observable(stamp: Long): Obs[Rates] =
+  def makeObservable(stamp: Long): Obs[Rates] =
     RxUtils.initDelay(RxUtils.retry(RxUtils.ioQueue.map(_ => reloadData),
       RxUtils.pickInc, times = 3 to 18 by 3), stamp, 60 * 1000 * 30)
 }

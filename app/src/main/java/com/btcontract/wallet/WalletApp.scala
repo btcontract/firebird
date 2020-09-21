@@ -8,7 +8,7 @@ import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
-import com.btcontract.wallet.ln.{ChainLink, LNParams}
+import com.btcontract.wallet.ln.{ChainLink, LNParams, StorageFormat}
 import scala.util.{Success, Try}
 
 import com.btcontract.wallet.helper.AwaitService
@@ -35,8 +35,9 @@ object WalletApp {
   var fiatCode: String = _
   var denom: Denomination = _
   var db: SQLiteInterface = _
-  var dataBag: SQliteDataBag = _
   var chainLink: ChainLink = _
+  var dataBag: SQliteDataBag = _
+  var storageFormat: StorageFormat = _
   var value: Any = new String
 
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
@@ -58,7 +59,8 @@ object WalletApp {
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
   def checkAndMaybeErase(check: Checker): Unit = check(value) match { case DoNotEraseValue => case _ => value = null }
-  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != chainLink && null != LNParams.keys
+  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != chainLink
+  def isOperational: Boolean = isAlive && null != LNParams.keys
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)
@@ -128,31 +130,40 @@ class WalletApp extends Application {
   override protected def attachBaseContext(base: Context): Unit = {
     super.attachBaseContext(base)
     MultiDex.install(this)
-
     WalletApp.app = this
-    WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
-    WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
-    WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
-    WalletApp.db = new SQLiteInterface(this, "firebird.db")
-    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
 
+    // Currently night theme is the only option, should be set by default
     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-
-    FiatRates.ratesInfo = {
-      val raw = prefs.getString(WalletApp.FIAT_RATES_DATA, new String)
-      Try(raw) map to[RatesInfo] getOrElse RatesInfo(Map.empty, Map.empty, stamp = 0L)
-    }
-
-    FiatRates.observable(FiatRates.ratesInfo.stamp).subscribe(newFiatRates => {
-      val newRatesInfo = RatesInfo(newFiatRates, FiatRates.ratesInfo.rates, System.currentTimeMillis)
-      prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.toString).commit
-      FiatRates.ratesInfo = newRatesInfo
-    }, none)
+    initAppVars
 
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
       val srvChan = new NotificationChannel(AwaitService.CHANNEL_ID, "NC", NotificationManager.IMPORTANCE_DEFAULT)
       this getSystemService classOf[NotificationManager] createNotificationChannel srvChan
     }
+  }
+
+  def initAppVars: Unit = {
+    if (null != WalletApp.db) WalletApp.db.close
+    if (null != WalletApp.chainLink) WalletApp.chainLink.stop
+    if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
+
+    WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
+    WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
+    WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
+    WalletApp.db = new SQLiteInterface(this, "firebird.db")
+    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+    // Start looking for chain height asap
+    WalletApp.chainLink.start
+
+    FiatRates.ratesInfo = Try {
+      prefs.getString(WalletApp.FIAT_RATES_DATA, new String)
+    } map to[RatesInfo] getOrElse RatesInfo(Map.empty, Map.empty, stamp = 0L)
+
+    FiatRates.subscription = FiatRates.makeObservable(FiatRates.ratesInfo.stamp).subscribe(newFiatRates => {
+      val newRatesInfo = RatesInfo(newFiatRates, FiatRates.ratesInfo.rates, System.currentTimeMillis)
+      prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.toString).commit
+      FiatRates.ratesInfo = newRatesInfo
+    }, none)
   }
 
   def quickToast(code: Int): Unit = quickToast(this getString code)

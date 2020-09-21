@@ -64,5 +64,18 @@
                 <data android:mimeType="text/plain"/>
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="HubActivity"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppThemeNoActionBar"/>
+
+        <activity
+            android:name="SetupActivity"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppThemeNoActionBar"/>
+
     </application>
 </manifest>

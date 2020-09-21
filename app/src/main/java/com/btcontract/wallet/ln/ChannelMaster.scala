@@ -577,7 +577,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   // Wire up everything here
 
   pf.listeners += PaymentMaster
-  cl.listeners += new ChainLinkListener {
+  cl addAndMaybeInform new ChainLinkListener {
     var shutdownTimer: Option[Subscription] = None
 
     override def onChainTipKnown: Unit = {

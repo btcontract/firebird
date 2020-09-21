@@ -156,8 +156,15 @@ trait NetworkDataStore {
 
 trait ChainLink {
   var listeners = Set.empty[ChainLinkListener]
+  def addAndMaybeInform(listener: ChainLinkListener): Unit = {
+    if (chainTipCanBeTrusted) listener.onChainTipKnown
+    listeners += listener
+  }
+
   def chainTipCanBeTrusted: Boolean
   def currentChainTip: Int
+  def start: Unit
+  def stop: Unit
 }
 
 trait ChainLinkListener {

@@ -79,8 +79,8 @@
     <!-- orbot -->
 
     <string name="orbot_status">Checking Orbot status&#8230;</string>
-    <string name="orbot_err_not_installed">Orbot is not installed so Tor network can not be used right now</string>
-    <string name="orbot_err_unclear">It is not clear whether Tor network can be used right now</string>
+    <string name="orbot_err_not_installed"><b>Orbot is not installed so Tor network can not be used right now</b>. Further app progress has been halted because your settings require Firebird to be Tor-protected.</string>
+    <string name="orbot_err_unclear"><b>It is not clear whether Tor network can be used right now</b>. Further app progress has been halted because your settings require Firebird to be Tor-protected.</string>
     <string name="orbot_action_install">Close Firebird and install Orbort</string>
     <string name="orbot_action_open">Close Firebird and open Orbot</string>
     <string name="orbot_action_skip">Proceed without Tor</string>

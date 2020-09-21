@@ -1,27 +1,39 @@
 <LinearLayout
     style="@style/StandardLinearLayout"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:android="http://schemas.android.com/apk/res/android">
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <TextView
-        style="@style/XMarginFillingView"
-        android:layout_marginTop="15dp"
-        android:text="@string/welcome"
-        android:textSize="22sp"/>
+    <LinearLayout
+        style="@style/StandardXYMarginLinearLayout"
+        android:id="@+id/mainOrbotCheck"
+        android:visibility="gone">
 
-    <TextView
-        style="@style/XMarginFillingView"
-        android:text="@string/welcome_subtitle"
-        android:layout_marginBottom="15dp"
-        android:layout_marginTop="10dp"/>
+        <TextView
+            style="@style/FillingView"
+            android:text="@string/orbot_status"/>
 
-    <ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
-        app:form_title_text_color="@color/colorAccent"
-        app:form_circle_background_color="@color/ln"
-        app:form_allow_non_linear_navigation="false"
-        app:form_display_step_buttons="false"
-        android:layout_height="match_parent"
-        android:layout_width="match_parent"
-        android:id="@+id/stepper"/>
+    </LinearLayout>
 
+    <LinearLayout
+        style="@style/StandardXYMarginLinearLayout"
+        android:id="@+id/mainOrbotIssues"
+        android:visibility="gone">
+
+        <TextView
+            style="@style/FillingView"
+            android:textColor="#E68A00"
+            android:id="@+id/mainOrbotMessage"
+            android:layout_marginBottom="45dp"/>
+
+        <com.ornach.nobobutton.NoboButton
+            android:id="@+id/takeOrbotAction"
+            android:layout_marginBottom="45dp"
+            style="@style/ActionButton"/>
+
+        <com.ornach.nobobutton.NoboButton
+            app:nb_text="@string/orbot_action_skip"
+            android:id="@+id/skipOrbotCheck"
+            style="@style/DangerButton"/>
+
+    </LinearLayout>
 </LinearLayout>

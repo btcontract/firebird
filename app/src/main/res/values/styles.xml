@@ -37,7 +37,12 @@
         <item name="nb_focusColor">@color/buttonGreenRipple</item>
         <item name="nb_borderColor">@color/buttonGreenBorder</item>
         <item name="nb_backgroundColor">@color/buttonGreen</item>
-        <item name="nb_textColor">@color/colorAccent</item>
+    </style>
+
+    <style name="DangerButton" parent="ActionButton">
+        <item name="nb_focusColor">@color/buttonRedRipple</item>
+        <item name="nb_borderColor">@color/buttonRedBorder</item>
+        <item name="nb_backgroundColor">@color/buttonRed</item>
     </style>
 
     <style name="GrayDivider">
@@ -54,6 +59,7 @@
     </style>
 
     <style name="StandardXYMarginLinearLayout" parent="StandardLinearLayout">
+        <item name="android:background">@color/bg</item>
         <item name="android:layout_margin">15dp</item>
     </style>
 

@@ -17,6 +17,7 @@ class BitcoinJChainLink(params: NetworkParameters) extends ChainLink {
 
   def chainTipCanBeTrusted: Boolean = peerGroup.numConnectedPeers >= maxPeers
   def currentChainTip: Int = peerGroup.getMostCommonChainHeight
+  def stop: Unit = peerGroup.stopAsync
 
   def start: Unit = {
     peerGroup addPeerDiscovery MultiplexingDiscovery.forServices(params, 0)
