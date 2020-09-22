@@ -139,10 +139,10 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     doProcess(cd)
   }
 
+  def pendingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(realConnectionListener), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
-  def pendingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
@@ -153,13 +153,13 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   }
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val fulfilledLongTimeAgo = payBag.getPaymentInfo(paymentHash).map(_.status).contains(SUCCEEDED)
     val fulfilledInRuntime = PaymentMaster.data.payments.get(paymentHash).exists(fsm => SUCCEEDED == fsm.state)
     val pendingInSender = PaymentMaster.data.payments.get(paymentHash).exists(fsm => PENDING == fsm.state || INIT == fsm.state)
+    val fulfilledInDbOrIncoming = payBag.getPaymentInfo(paymentHash).exists(info => info.isIncoming || info.status == SUCCEEDED)
     val pendingInChannel = pendingHtlcs.exists(_.paymentHash == paymentHash)
 
     if (PaymentMaster.totalSendable < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (fulfilledLongTimeAgo || fulfilledInRuntime) PaymentInfo.NOT_SENDABLE_SUCCESS
+    else if (fulfilledInDbOrIncoming || fulfilledInRuntime) PaymentInfo.NOT_SENDABLE_SUCCESS
     else if (pendingInChannel || pendingInSender) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else PaymentInfo.SENDABLE
   }
@@ -196,14 +196,14 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   }
 
   private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
-    PaymentPacket.peel(LNParams.keys.fakeInvoiceKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
-      case Right(packet) if packet.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(packet.payload.bits) match {
-        case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(packet, InvalidOnionPayload(error.tag, offset = 0), add)
-        case _: Attempt.Failure => failHtlc(packet, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
+    PaymentPacket.peel(LNParams.format.keys.fakeInvoiceKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
+      case Right(lastPacket) if lastPacket.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(lastPacket.payload.bits) match {
+        case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(lastPacket, InvalidOnionPayload(error.tag, offset = 0), add)
+        case _: Attempt.Failure => failHtlc(lastPacket, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
 
-        case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(packet, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
-        case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(packet, incorrectDetails(add), add)
-        case Attempt.Successful(payload) => FinalPayloadSpec(packet, payload.value, add)
+        case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(lastPacket, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
+        case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(lastPacket, incorrectDetails(add), add)
+        case Attempt.Successful(payload) => FinalPayloadSpec(lastPacket, payload.value, add)
       }
 
       case Right(packet) => failHtlc(packet, incorrectDetails(add), add)
@@ -374,7 +374,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   }
 
   class PaymentSender extends StateMachine[PaymentSenderData] { self =>
-    private[this] val maxRemote = pf.routerConf.maxRemoteAttempts
     become(dummyPaymentSenderData, INIT)
 
     def doProcess(msg: Any): Unit = (msg, state) match {
@@ -404,9 +403,10 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
       case (CMDAskForRoute, PENDING) =>
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
-          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
+          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.format.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
           val params = RouteParams(pf.routerConf.searchMaxFeeBase, pf.routerConf.searchMaxFeePct, pf.routerConf.firstPassMaxRouteLength, pf.routerConf.firstPassMaxCltv)
-          PaymentMaster process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), fakeLocalEdge, params)
+          val req = RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), fakeLocalEdge, params, cl.currentChainTip)
+          PaymentMaster process req
         }
 
       case (fail: NoRouteAvailable, PENDING) =>
@@ -562,7 +562,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
 
     private def resolveRemoteFail(data1: PaymentSenderData, wait: WaitForRouteOrInFlight): Unit =
       PaymentMaster.currentSendable collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
-        case Some(chan) if wait.remoteAttempts < maxRemote => become(data.copy(parts = data.parts + wait.oneMoreRemoteAttempt(chan).tuple), PENDING)
+        case Some(chan) if wait.remoteAttempts < pf.routerConf.maxRemoteAttempts => become(data.copy(parts = data.parts + wait.oneMoreRemoteAttempt(chan).tuple), PENDING)
         case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
         case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
       }

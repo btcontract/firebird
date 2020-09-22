@@ -18,12 +18,13 @@ object PaymentInfo {
   final val NONODEID = PublicKey(ByteVector fromValidHex "00" * 33)
 }
 
-case class PaymentInfo(payeeNodeId: PublicKey, rawPr: String, paymentHash: ByteVector32, preimage: ByteVector32, isIncoming: Boolean,
-                       status: String, stamp: Long, description: String, rawAction: String, received: MilliSatoshi, sent: MilliSatoshi,
-                       fee: MilliSatoshi, balanceSnapshot: MilliSatoshi, fiatRateSnapshot: String) {
+case class PaymentInfo(payeeNodeId: PublicKey, rawPr: String, preimage: ByteVector32, status: String, stamp: Long,
+                       description: String, rawAction: String, hashString: String, received: MilliSatoshi, sent: MilliSatoshi,
+                       fee: MilliSatoshi, balanceSnapshot: MilliSatoshi, fiatRateSnapshot: String, incoming: Long) {
 
-  lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0L.msat)
+  def isIncoming: Boolean = 1 == incoming
   lazy val pr: PaymentRequest = PaymentRequest.read(rawPr)
+  lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0L.msat)
 }
 
 // Bag of stored payments

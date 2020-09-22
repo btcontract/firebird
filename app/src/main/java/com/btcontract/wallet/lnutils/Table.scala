@@ -19,7 +19,7 @@ object DataTable extends Table {
     CREATE TABLE IF NOT EXISTS $table (
       $id INTEGER PRIMARY KEY AUTOINCREMENT,
       $label TEXT NOT NULL UNIQUE,
-      $content STRING NOT NULL
+      $content TEXT NOT NULL
     )"""
 }
 
@@ -34,7 +34,7 @@ object ChannelTable extends Table {
     CREATE TABLE IF NOT EXISTS $table (
       $id INTEGER PRIMARY KEY AUTOINCREMENT,
       $identifier TEXT NOT NULL UNIQUE,
-      $data STRING NOT NULL
+      $data TEXT NOT NULL
     )"""
 }
 
@@ -97,10 +97,10 @@ object ExcludedChannelTable extends Table {
 }
 
 object PaymentTable extends Table {
-  private[this] val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "ext")
-  val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnap, fiatRateSnap, ext) = paymentTableFields
-  val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnap, $fiatRateSnap, $ext"
-  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?)"
+  private[this] val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "incoming", "ext")
+  val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnapMsat, fiatRateSnap, incoming, ext) = paymentTableFields
+  val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnapMsat, $fiatRateSnap, $incoming, $ext"
+  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?, ?)"
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
 
   // Selecting
@@ -111,8 +111,8 @@ object PaymentTable extends Table {
   val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 50)"
 
   // Updating
-  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ?, $balanceSnap = ?, $fiatRateSnap = ? WHERE $hash = ?"
-  val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ?, $balanceSnap = ?, $fiatRateSnap = ? WHERE $hash = ?"
+  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?"
+  val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ? WHERE $hash = ?"
   val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED"
 
   // Once incoming or outgoing payment is settled we can search it by various metadata
@@ -120,9 +120,10 @@ object PaymentTable extends Table {
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $nodeId BLOB NOT NULL, $pr STRING NOT NULL, $preimage BLOB NOT NULL, $status STRING NOT NULL,
-      $stamp INTEGER NOT NULL, $description STRING NOT NULL, $action STRING NOT NULL, $hash BLOB NOT NULL UNIQUE, $receivedMsat INTEGER NOT NULL,
-      $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL, $balanceSnap INTEGER NOT NULL, $fiatRateSnap STRING NOT NULL, $ext BLOB NOT NULL
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $nodeId BLOB NOT NULL, $pr TEXT NOT NULL, $preimage BLOB NOT NULL,
+      $status TEXT NOT NULL, $stamp INTEGER NOT NULL, $description TEXT NOT NULL, $action TEXT NOT NULL, $hash TEXT NOT NULL UNIQUE,
+      $receivedMsat INTEGER NOT NULL, $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL, $balanceSnapMsat INTEGER NOT NULL, $fiatRateSnap TEXT NOT NULL,
+      $incoming INTEGER NOT NULL, $ext BLOB NOT NULL
     );
     /* hash index is created automatically because UNIQUE */
     CREATE INDEX IF NOT EXISTS idx1$table ON $table ($stamp, $status);

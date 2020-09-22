@@ -61,6 +61,7 @@ object Router {
                           maxFee: MilliSatoshi,
                           localEdge: GraphEdge,
                           routeParams: RouteParams,
+                          chainTip: Long,
                           ignoreNodes: Set[PublicKey] = Set.empty,
                           ignoreChannels: Set[ChannelDesc] = Set.empty) {
 

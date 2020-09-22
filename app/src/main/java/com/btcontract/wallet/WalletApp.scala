@@ -8,7 +8,7 @@ import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
-import com.btcontract.wallet.ln.{ChainLink, LNParams, StorageFormat}
+import com.btcontract.wallet.ln.{ChainLink, LNParams}
 import scala.util.{Success, Try}
 
 import com.btcontract.wallet.helper.AwaitService
@@ -35,9 +35,8 @@ object WalletApp {
   var fiatCode: String = _
   var denom: Denomination = _
   var db: SQLiteInterface = _
-  var chainLink: ChainLink = _
   var dataBag: SQliteDataBag = _
-  var storageFormat: StorageFormat = _
+  var chainLink: ChainLink = _
   var value: Any = new String
 
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
@@ -60,7 +59,7 @@ object WalletApp {
   type Checker = PartialFunction[Any, Any]
   def checkAndMaybeErase(check: Checker): Unit = check(value) match { case DoNotEraseValue => case _ => value = null }
   def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != chainLink
-  def isOperational: Boolean = isAlive && null != LNParams.keys
+  def isOperational: Boolean = isAlive && null != LNParams.format && null != LNParams.channelMaster
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)

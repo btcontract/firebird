@@ -29,8 +29,8 @@ import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 object RouteCalculation {
-  def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, currentBlockHeight: Long, r: RouteRequest): RouteResponse =
-    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, currentBlockHeight) match {
+  def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, r: RouteRequest): RouteResponse =
+    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, r.chainTip) match {
       case Some(result) => RouteFound(r.paymentHash, r.partId, Route(result.weight, result.path))
       case _ => NoRouteAvailable(r.paymentHash, r.partId)
     }

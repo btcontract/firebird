@@ -80,7 +80,8 @@ object GraphSpec {
       amount = 100000.msat,
       maxFee = getParams.getMaxFee(300.msat),
       localEdge = fromLocalEdge,
-      getParams)
+      routeParams = getParams,
+      chainTip = 40000)
   }
 
   def fillBasicGraph(store: SQliteNetworkDataStore): Unit = {
@@ -136,7 +137,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(4L), c, d, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 600000.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r)
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r)
 
     assertTrue(route.hops.map(_.desc.a) == Seq(a, c))
 
@@ -144,15 +145,15 @@ class GraphSpec {
 
     assertTrue(route.weight.costs == Vector(100002.msat, 100000.msat))
 
-    val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
+    val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
 
     assertTrue(route1.hops.map(_.desc.a) == Seq(a, b))
 
-    val RouteFound(_, _, route2) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(ignoreNodes = Set(c)))
+    val RouteFound(_, _, route2) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(ignoreNodes = Set(c)))
 
     assertTrue(route2.hops.map(_.desc.a) == Seq(a, b))
 
-    val NoRouteAvailable(_, _) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(amount = 500000.msat)) // Can't handle fees
+    val NoRouteAvailable(_, _) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(amount = 500000.msat)) // Can't handle fees
   }
 
   @Test
@@ -165,7 +166,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -180,7 +181,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -195,7 +196,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 40000, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -210,7 +211,7 @@ class GraphSpec {
       makeEdge(ShortChannelId("900000x1x1"), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, currentBlockHeight = 900000, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, chainTip = 900000L, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }

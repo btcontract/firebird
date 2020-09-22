@@ -5,10 +5,12 @@ import android.content.{Context, Intent}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import android.net.{ConnectivityManager, NetworkCapabilities}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
+import com.btcontract.wallet.ln.{ChannelMaster, LNParams, PathFinder, StorageFormat}
+import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteNetworkDataStore, SQlitePaymentInfoBag}
 import com.btcontract.wallet.R.string._
 
 import org.ndeftools.util.activity.NfcReaderActivity
-import com.btcontract.wallet.ln.StorageFormat
+import fr.acinq.eclair.wire.NodeAnnouncement
 import com.ornach.nobobutton.NoboButton
 import android.widget.TextView
 import org.ndeftools.Message
@@ -18,7 +20,21 @@ import android.view.View
 
 object MainActivity {
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit= {
+    val networkDataStore = new SQliteNetworkDataStore(WalletApp.db)
+    val paymentInfoBag = new SQlitePaymentInfoBag(WalletApp.db)
+    val channelBag = new SQliteChannelBag(WalletApp.db)
+
+    val channelMaster = new ChannelMaster(paymentInfoBag, channelBag, new PathFinder(networkDataStore, LNParams.routerConf) {
+      def updateLastResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_GOSSIP_SYNC, stamp).commit
+      def getExtraNodes: Set[NodeAnnouncement] = LNParams.channelMaster.all.map(_.data.announce.na).toSet
+      def getLastResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_GOSSIP_SYNC, 0L)
+    }, WalletApp.chainLink)
+
+    LNParams.format = format
+    LNParams.channelMaster = channelMaster
+    require(WalletApp.isOperational, "Not operational")
     host exitTo classOf[HubActivity]
+    channelMaster.initConnect
   }
 }
 
@@ -133,4 +149,3 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
     }
   }
 }
-

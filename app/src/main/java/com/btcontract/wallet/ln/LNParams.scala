@@ -38,7 +38,8 @@ object LNParams {
       firstPassMaxRouteLength = 6, mppMinPartAmount = MilliSatoshi(30000000L),
       maxRemoteAttempts = 12, maxChannelFailures = 12, maxStrangeNodeFailures = 12)
 
-  var keys: LightningNodeKeys = _
+  var format: StorageFormat = _
+  var channelMaster: ChannelMaster = _
 
   def makeLocalInitMessage: Init = {
     val networks = InitTlv.Networks(chainHash :: Nil)
@@ -124,7 +125,7 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
     case _: Tor3 => s"<strong>Tor</strong>\u0020${na.nodeId.toString take 12 grouped 3 mkString "\u0020"}"
   } getOrElse "No IP address"
 
-  lazy val nodeSpecificPrivKey: PrivateKey = LNParams.keys.ourFakeNodeIdKey(na.nodeId)
+  lazy val nodeSpecificPrivKey: PrivateKey = LNParams.format.keys.ourFakeNodeIdKey(na.nodeId)
   lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
 
   lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)

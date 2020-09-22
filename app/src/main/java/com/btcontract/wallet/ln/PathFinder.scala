@@ -19,7 +19,6 @@ object PathFinder {
   val OPERATIONAL = "state-operational"
 
   val NotifyRejected = "notify-rejected"
-  val NotifyInitSync = "notify-init-sync"
   val NotifyOperational = "notify-operational"
   val CMDLoadGraph = "cmd-load-graph"
   val CMDResync = "cmd-resync"
@@ -37,26 +36,21 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
   def getLastResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
   def getExtraNodes: Set[NodeAnnouncement]
-  def getChainTip: Long
 
   def doProcess(change: Any): Unit = (change, state) match {
     case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL =>
       // In OPERATIONAL state we instruct graph to search through the single pre-selected local channel
       // it is safe to not check for existance becase base graph never has our private outgoing edges
       val graph1 = data.graph.addEdge(edge = request.localEdge, checkIfContains = false)
-      sender process handleRouteRequest(graph1, routerConf, getChainTip, request)
+      sender process handleRouteRequest(graph1, routerConf, request)
 
     case (sender: CanBeRepliedTo, _: RouteRequest) \ _ =>
       // in ALL OTHER states we send a rejection back to sender
       sender process NotifyRejected
 
     case CMDResync \ OPERATIONAL =>
-      if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 28) {
-        // App has not been opened during 4 weeks, notify that sync will take some time
-        listeners.foreach(_ process NotifyInitSync)
-        become(data, INIT_SYNC)
-      }
-
+      // App has not been opened during ~month, notify that sync will take some time
+      if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 30) become(data, INIT_SYNC)
       new SyncMaster(getExtraNodes, store.listExcludedChannels, data, from = 0, routerConf) { self =>
         def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
         def onTotalSyncComplete: Unit = me process self

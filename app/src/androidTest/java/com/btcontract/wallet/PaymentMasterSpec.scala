@@ -23,7 +23,7 @@ import scodec.bits.ByteVector
 @RunWith(classOf[AndroidJUnit4])
 class PaymentMasterSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
-  LNParams.keys = LightningNodeKeys.makeFromSeed(randomBytes(32).toArray)
+  LNParams.format = MnemonicStorageFormat(LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
 
   def makeHostedCommits(nodeId: PublicKey, alias: String, toLocal: MilliSatoshi = 100000000L.msat): HostedCommits = {
     val announce = Tools.mkNodeAnnouncement(nodeId, NodeAddress.unresolved(9735, host = 45, 20, 67, 1), alias)
@@ -43,7 +43,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val hcs = makeHostedCommits(nodeId = a, alias = "peer1")
@@ -79,8 +78,8 @@ class PaymentMasterSpec {
 
     // First route is now overloaded, so another one is chosen
     val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList.map(_.asInstanceOf[WaitForRouteOrInFlight])
-    assertTrue(w1.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, c, d))
-    assertTrue(w2.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.keys.routingPubKey, a, b, d))
+    assertTrue(w1.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
+    assertTrue(w2.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
 
     val finalSendable = master.PaymentMaster.getSendable(master.all).values.head
     // Sendable was decreased by total payment amount with fees, but slightly increased relatively because 1% of the rest of sendable is smaller than initial 1% of balance
@@ -95,7 +94,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1").modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(UInt64(10)) // Payments will fail locally
@@ -131,7 +129,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
@@ -175,7 +172,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
@@ -217,7 +213,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val channelBag = new SQliteChannelBag(store.db)
@@ -250,7 +245,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val channelBag = new SQliteChannelBag(store.db)
@@ -283,7 +277,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
@@ -335,7 +328,6 @@ class PaymentMasterSpec {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
-      def getChainTip: Long = 400000L
     }
 
     // 99 000 msat sendable in both
