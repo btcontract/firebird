@@ -1,16 +1,18 @@
 package com.btcontract.wallet
 
+import scala.concurrent.duration._
+import com.btcontract.wallet.R.string._
+
 import scala.util.{Success, Try}
 import android.content.{Context, Intent}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import android.net.{ConnectivityManager, NetworkCapabilities}
+import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
-import com.btcontract.wallet.ln.{ChannelMaster, LNParams, PathFinder, StorageFormat}
+import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage, NodeAnnouncement}
 import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteNetworkDataStore, SQlitePaymentInfoBag}
-import com.btcontract.wallet.R.string._
-
+import com.btcontract.wallet.ln.{ChannelMaster, CommsTower, ConnectionListener, LNParams, PathFinder, RxUtils, StorageFormat}
 import org.ndeftools.util.activity.NfcReaderActivity
-import fr.acinq.eclair.wire.NodeAnnouncement
 import com.ornach.nobobutton.NoboButton
 import android.widget.TextView
 import org.ndeftools.Message
@@ -24,17 +26,53 @@ object MainActivity {
     val paymentInfoBag = new SQlitePaymentInfoBag(WalletApp.db)
     val channelBag = new SQliteChannelBag(WalletApp.db)
 
-    val channelMaster = new ChannelMaster(paymentInfoBag, channelBag, new PathFinder(networkDataStore, LNParams.routerConf) {
-      def updateLastResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_GOSSIP_SYNC, stamp).commit
-      def getExtraNodes: Set[NodeAnnouncement] = LNParams.channelMaster.all.map(_.data.announce.na).toSet
-      def getLastResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_GOSSIP_SYNC, 0L)
-    }, WalletApp.chainLink)
+    val pf: PathFinder =
+      new PathFinder(networkDataStore, LNParams.routerConf) {
+        def updateLastResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_GOSSIP_SYNC, stamp).commit
+        def getExtraNodes: Set[NodeAnnouncement] = LNParams.channelMaster.all.map(_.data.announce.na).toSet
+        def getLastResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_GOSSIP_SYNC, 0L)
+      }
+
+    val channelMaster: ChannelMaster =
+      new ChannelMaster(paymentInfoBag, channelBag, pf, WalletApp.chainLink) {
+        val socketToChannelBridge: ConnectionListener = new ConnectionListener {
+          // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
+          override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
+          override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
+          override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
+
+          override def onDisconnect(worker: CommsTower.Worker): Unit = {
+            fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_OFFLINE)
+            val mustHalt = WalletApp.app.prefs.getBoolean(WalletApp.ENSURE_TOR, false) && !isVPNOn
+            if (mustHalt) interruptWallet else RxUtils.ioQueue.delay(5.seconds).foreach(_ => initConnect)
+          }
+        }
+    }
 
     LNParams.format = format
     LNParams.channelMaster = channelMaster
     require(WalletApp.isOperational, "Not operational")
     host exitTo classOf[HubActivity]
     channelMaster.initConnect
+  }
+
+  def isVPNOn: Boolean = Try {
+    val cm = WalletApp.app.getSystemService(Context.CONNECTIVITY_SERVICE).asInstanceOf[ConnectivityManager]
+    cm.getAllNetworks.exists(cm getNetworkCapabilities _ hasTransport NetworkCapabilities.TRANSPORT_VPN)
+  } getOrElse false
+
+  def interruptWallet: Unit = {
+    WalletApp.app.freePossiblyUsedResouces
+    WalletApp.app.quickToast(orbot_err_disconnect)
+    // Safely disconnect from possibly remaining sockets
+    CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
+    require(!WalletApp.isOperational, "App is still operational")
+    require(!WalletApp.isAlive, "App is still alive")
+
+    // Effectively restart an app
+    val mainActivityClass = classOf[MainActivity]
+    val component = new Intent(WalletApp.app, mainActivityClass).getComponent
+    WalletApp.app.startActivity(Intent makeRestartActivityTask component)
   }
 }
 
@@ -102,11 +140,11 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
   }
 
   class EnsureTor(next: Step) extends Step {
-    val orbotHelper: OrbotHelper = OrbotHelper.get(me)
-    val orbotCallback: StatusCallback = new StatusCallback {
+    private[this] val orbotHelper = OrbotHelper.get(me)
+    private[this] val initCallback = new StatusCallback {
       def onStatusTimeout: Unit = showIssue(orbot_err_unclear, getString(orbot_action_open), closeAppExitOrbot).run
       def onNotYetInstalled: Unit = showIssue(orbot_err_not_installed, getString(orbot_action_install), closeAppInstallOrbot).run
-      def onEnabled(intent: Intent): Unit = if (isVPNOn) next.makeAttempt else onStatusTimeout
+      def onEnabled(intent: Intent): Unit = if (MainActivity.isVPNOn) runAnd(orbotHelper removeStatusCallback this)(next.makeAttempt) else onStatusTimeout
       def onStopping: Unit = onStatusTimeout
       def onDisabled: Unit = none
       def onStarting: Unit = none
@@ -115,7 +153,7 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
     def closeAppExitOrbot: Unit = {
       val pack = OrbotHelper.ORBOT_PACKAGE_NAME
       val intent = getPackageManager getLaunchIntentForPackage pack
-      Option(intent) foreach startActivity
+      Option(intent).foreach(startActivity)
       finishAffinity
       System exit 0
     }
@@ -126,8 +164,14 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
       System exit 0
     }
 
+    def proceedAnyway: Unit = {
+      // We must disable Tor check because disconnect later will bring us here again
+      WalletApp.app.prefs.edit.putBoolean(WalletApp.ENSURE_TOR, false).commit
+      next.makeAttempt
+    }
+
     private def showIssue(msgRes: Int, btnText: String, whenTapped: => Unit) = UITask {
-      skipOrbotCheck setOnClickListener onButtonTap(next.makeAttempt)
+      skipOrbotCheck setOnClickListener onButtonTap(proceedAnyway)
       takeOrbotAction setOnClickListener onButtonTap(whenTapped)
       mainOrbotIssues setVisibility View.VISIBLE
       mainOrbotCheck setVisibility View.GONE
@@ -136,16 +180,11 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
       timer.cancel
     }
 
-    def isVPNOn: Boolean = Try {
-      val cm = getSystemService(Context.CONNECTIVITY_SERVICE).asInstanceOf[ConnectivityManager]
-      cm.getAllNetworks.exists(cm getNetworkCapabilities _ hasTransport NetworkCapabilities.TRANSPORT_VPN)
-    } getOrElse false
-
     def makeAttempt: Unit = {
-      orbotHelper.addStatusCallback(orbotCallback)
-      try timer.schedule(orbotCallback.onStatusTimeout, 20000) catch none
+      orbotHelper.addStatusCallback(initCallback)
+      try timer.schedule(initCallback.onStatusTimeout, 20000) catch none
       try timer.schedule(mainOrbotCheck setVisibility View.VISIBLE, 2000) catch none
-      if (!orbotHelper.init) orbotCallback.onNotYetInstalled
+      if (!orbotHelper.init) initCallback.onNotYetInstalled
     }
   }
 }

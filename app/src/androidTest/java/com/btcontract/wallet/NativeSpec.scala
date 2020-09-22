@@ -51,7 +51,7 @@ class NativeSpec {
     val native = {
       val sig = Crypto.sign(data, privateKey)
       val a = System.currentTimeMillis()
-      for (_ <- 0 to 20) {
+      for (_ <- 0 to 200) {
         Crypto.verifySignature(data, sig, publicKey)
       }
       System.currentTimeMillis() - a
@@ -60,13 +60,13 @@ class NativeSpec {
     val fallback = {
       val sig = Crypto.sign(data, privateKey)
       val a = System.currentTimeMillis()
-      for (_ <- 0 to 20) {
+      for (_ <- 0 to 200) {
         verifySignatureFallback(data, sig, publicKey)
       }
       System.currentTimeMillis() - a
     }
 
-    assertTrue(fallback / 100 > native)
+    assertTrue(fallback / 50 > native)
   }
 
   @Test(timeout = 20000)

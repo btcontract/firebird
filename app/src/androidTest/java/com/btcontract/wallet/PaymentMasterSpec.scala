@@ -51,7 +51,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     val initialSendable = master.PaymentMaster.getSendable(master.all).values.head
     assertTrue(initialSendable == master.PaymentMaster.feeFreeBalance(master.all.head.chanAndCommitsOpt.get))
@@ -104,7 +104,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))
@@ -139,7 +139,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     master.all.foreach(chan => chan.BECOME(chan.data, HostedChannel.OPEN))
     synchronized(wait(500L))
@@ -182,7 +182,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))
@@ -218,7 +218,7 @@ class PaymentMasterSpec {
     val channelBag = new SQliteChannelBag(store.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     master.listeners += new ChannelMasterListener {
       override def outgoingSucceeded(data: PaymentSenderData): Unit = response = data :: response
@@ -250,7 +250,7 @@ class PaymentMasterSpec {
     val channelBag = new SQliteChannelBag(store.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     master.listeners += new ChannelMasterListener {
       override def outgoingFailed(data: PaymentSenderData): Unit = response = data :: response
@@ -287,7 +287,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))
@@ -339,7 +339,7 @@ class PaymentMasterSpec {
 
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
-    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl)
+    val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
 
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))

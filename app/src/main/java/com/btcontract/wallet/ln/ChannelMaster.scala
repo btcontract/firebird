@@ -93,10 +93,11 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
 
 
-class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
+abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, MilliSatoshi(0L), invalidPubKey), Map.empty)
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
+  val socketToChannelBridge: ConnectionListener
 
   var all: Vector[HostedChannel] = chanBag.all.map(mkHostedChannel)
   var listeners: Set[ChannelMasterListener] = Set.empty
@@ -119,18 +120,6 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
     def error(canNotHappen: Throwable): Unit = none
   }
 
-  val realConnectionListener: ConnectionListener = new ConnectionListener {
-    // For messages we should differentiate by channelId, but we don't since only one hosted channel per node is allowed
-    override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
-    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
-    override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
-
-    override def onDisconnect(worker: CommsTower.Worker): Unit = {
-      fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_OFFLINE)
-      RxUtils.ioQueue.delay(5.seconds).foreach(_ => initConnect)
-    }
-  }
-
   def mkHostedChannel(cd: ChannelData): HostedChannel = new HostedChannel {
     def SEND(msg: LightningMessage *): Unit = for (work <- CommsTower.workers get data.announce.nodeSpecificPkap) msg foreach work.handler.process
     def STORE(channelData: HostedCommits): HostedCommits = chanBag.put(channelData.announce.nodeSpecificHostedChanId, channelData)
@@ -142,7 +131,7 @@ class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFin
   def pendingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
-  def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(realConnectionListener), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
+  def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(socketToChannelBridge), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)

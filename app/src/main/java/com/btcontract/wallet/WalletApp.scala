@@ -8,7 +8,7 @@ import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag}
 import android.app.{Application, NotificationChannel, NotificationManager}
-import com.btcontract.wallet.ln.{ChainLink, LNParams}
+import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams}
 import scala.util.{Success, Try}
 
 import com.btcontract.wallet.helper.AwaitService
@@ -141,11 +141,21 @@ class WalletApp extends Application {
     }
   }
 
-  def initAppVars: Unit = {
-    if (null != WalletApp.db) WalletApp.db.close
-    if (null != WalletApp.chainLink) WalletApp.chainLink.stop
+  def freePossiblyUsedResouces: Unit = {
     if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
+    if (null != LNParams.channelMaster) LNParams.channelMaster.listeners = Set.empty
+    if (null != LNParams.channelMaster) LNParams.channelMaster.all = Vector.empty
+    if (null != WalletApp.chainLink) WalletApp.chainLink.listeners = Set.empty
+    if (null != WalletApp.chainLink) WalletApp.chainLink.stop
+    if (null != WalletApp.db) WalletApp.db.close
+    // make sure application is not alive
+    LNParams.channelMaster = null
+    WalletApp.chainLink = null
+    WalletApp.db = null
+  }
 
+  def initAppVars: Unit = {
+    freePossiblyUsedResouces
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
     WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
