@@ -11,7 +11,7 @@ import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.{Announcements, RouteCalculation}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import org.junit.runner.RunWith
 import org.junit.Test

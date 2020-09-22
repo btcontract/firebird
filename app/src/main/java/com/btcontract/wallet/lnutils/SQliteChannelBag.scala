@@ -18,6 +18,5 @@ class SQliteChannelBag(db: SQLiteInterface) extends ChannelBag {
   }
 
   def delete(chanId: ByteVector32): Unit = db.change(ChannelTable.killSql, chanId.toHex)
-
   def all: Vector[HostedCommits] = db.select(ChannelTable.selectAllSql).vec(_ string ChannelTable.data) map to[HostedCommits]
 }

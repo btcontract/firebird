@@ -2,9 +2,8 @@ package com.btcontract.wallet
 
 import com.btcontract.wallet.SyncSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
-import com.btcontract.wallet.lnutils.{SQLiteInterface, SQliteNetworkDataStore}
+import com.btcontract.wallet.lnutils._
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
 import fr.acinq.eclair.router.Router
@@ -12,18 +11,21 @@ import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
 
+
 object SyncSpec {
-  def getRandomStore: SQliteNetworkDataStore = {
+  def getRandomStore: (SQliteNetworkDataStore, SQliteNetworkDataStore) = {
     def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     def randomDbName: String = List.fill(12)(secureRandom nextInt alphabet.length).map(alphabet).mkString
     def db = new SQLiteInterface(WalletApp.app, randomDbName)
-    new SQliteNetworkDataStore(db)
+    val normal = new SQliteNetworkDataStore(db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
+    val hosted = new SQliteNetworkDataStore(db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
+    (normal, hosted)
   }
 }
 
 @RunWith(classOf[AndroidJUnit4])
 class SyncSpec {
-  val store: SQliteNetworkDataStore = getRandomStore
+  val (store, _) = getRandomStore
   def run: Unit = {
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))

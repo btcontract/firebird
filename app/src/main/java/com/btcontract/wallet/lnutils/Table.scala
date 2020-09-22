@@ -4,6 +4,8 @@ import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
 import com.btcontract.wallet.ln.PaymentMaster.SUCCEEDED
 import com.btcontract.wallet.ln.crypto.Tools.runAnd
 import com.btcontract.wallet.helper.RichCursor
+import fr.acinq.eclair.byteVector64One
+import fr.acinq.bitcoin.ByteVector64
 import android.content.Context
 import android.net.Uri
 
@@ -38,13 +40,12 @@ object ChannelTable extends Table {
     )"""
 }
 
-object ChannelAnnouncementTable extends Table {
-  val (table, features, shortChannelId, nodeId1, nodeId2) = ("announcements", "features", "short_channel_id", "node_id_1", "node_id_2")
+abstract class ChannelAnnouncementTable(val table: String) extends Table {
+  val (features, shortChannelId, nodeId1, nodeId2) = ("features", "short_channel_id", "node_id_1", "node_id_2")
   val newSql = s"INSERT OR IGNORE INTO $table ($features, $shortChannelId, $nodeId1, $nodeId2) VALUES (?, ?, ?, ?)"
   val selectAllSql = s"SELECT * FROM $table"
-
-  private[this] val selectShortIdFromChannels = s"SELECT ${ChannelUpdateTable.shortChannelId} FROM ${ChannelUpdateTable.table}"
-  val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN ($selectShortIdFromChannels LIMIT 1000000)"
+  val killNotPresentInChans: String
+  val sigFiller: ByteVector64
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
@@ -54,9 +55,21 @@ object ChannelAnnouncementTable extends Table {
     )"""
 }
 
-object ChannelUpdateTable extends Table {
-  private[this] val names = ("updates", "short_channel_id", "timestamp", "message_flags", "channel_flags", "cltv_delta", "htlc_minimum", "fee_base", "fee_proportional", "htlc_maximum", "position", "score")
-  val (table, shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score) = names
+object NormalChannelAnnouncementTable extends ChannelAnnouncementTable("normal_announcements") {
+  private val select = s"SELECT ${NormalChannelUpdateTable.shortChannelId} FROM ${NormalChannelUpdateTable.table}"
+  val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN ($select LIMIT 1000000)"
+  val sigFiller: ByteVector64 = byteVector64One
+}
+
+object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_announcements") {
+  private val select = s"SELECT ${HostedChannelUpdateTable.shortChannelId} FROM ${HostedChannelUpdateTable.table}"
+  val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN ($select LIMIT 1000000)"
+  val sigFiller: ByteVector64 = ByteVector64.Zeroes
+}
+
+abstract class ChannelUpdateTable(val table: String) extends Table {
+  private val names = ("short_channel_id", "timestamp", "message_flags", "channel_flags", "cltv_delta", "htlc_minimum", "fee_base", "fee_proportional", "htlc_maximum", "position", "score")
+  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score) = names
 
   val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $shortChannelId = ? AND $position = ?"
   val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $shortChannelId = ? AND $position = ?"
@@ -76,14 +89,15 @@ object ChannelUpdateTable extends Table {
     COMMIT"""
 }
 
-object ExcludedChannelTable extends Table {
-  val (table, shortChannelId, until) = ("excluded", "short_channel_id", "until")
+object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates")
+object HostedChannelUpdateTable extends ChannelUpdateTable("hosted_updates")
+
+abstract class ExcludedChannelTable(val table: String) extends Table {
+  val (shortChannelId, until) = ("short_channel_id", "excluded_until_stamp_msec")
   val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $until) VALUES (?, ?)"
   val selectSql = s"SELECT * FROM $table WHERE $until > ? LIMIT 1000000"
   val killOldSql = s"DELETE FROM $table WHERE $until < ?"
-
-  private[this] val selectShortIdFromChannels = s"SELECT ${ChannelUpdateTable.shortChannelId} FROM ${ChannelUpdateTable.table}"
-  val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN ($selectShortIdFromChannels LIMIT 1000000)"
+  val killPresentInChans: String
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
@@ -96,8 +110,18 @@ object ExcludedChannelTable extends Table {
     COMMIT"""
 }
 
+object NormalExcludedChannelTable extends ExcludedChannelTable("normal_excluded_updates") {
+  private val select = s"SELECT ${NormalChannelUpdateTable.shortChannelId} FROM ${NormalChannelUpdateTable.table}"
+  val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN ($select LIMIT 1000000)"
+}
+
+object HostedExcludedChannelTable extends ExcludedChannelTable("hosted_excluded_updates") {
+  private val select = s"SELECT ${HostedChannelUpdateTable.shortChannelId} FROM ${HostedChannelUpdateTable.table}"
+  val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN ($select LIMIT 1000000)"
+}
+
 object PaymentTable extends Table {
-  private[this] val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "incoming", "ext")
+  private val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "incoming", "ext")
   val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnapMsat, fiatRateSnap, incoming, ext) = paymentTableFields
   val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnapMsat, $fiatRateSnap, $incoming, $ext"
   val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?, ?)"
@@ -148,12 +172,16 @@ class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(c
   } finally base.endTransaction
 
   def onCreate(dbs: SQLiteDatabase): Unit = {
-    dbs execSQL ChannelAnnouncementTable.createSql
-    dbs execSQL ExcludedChannelTable.createSql
-    dbs execSQL ChannelUpdateTable.createSql
+    dbs execSQL NormalChannelAnnouncementTable.createSql
+    dbs execSQL HostedChannelAnnouncementTable.createSql
+    dbs execSQL NormalExcludedChannelTable.createSql
+    dbs execSQL HostedExcludedChannelTable.createSql
+    dbs execSQL NormalChannelUpdateTable.createSql
+    dbs execSQL HostedChannelUpdateTable.createSql
+
     dbs execSQL PaymentTable.createVSql
-    dbs execSQL ChannelTable.createSql
     dbs execSQL PaymentTable.createSql
+    dbs execSQL ChannelTable.createSql
     dbs execSQL DataTable.createSql
   }
 

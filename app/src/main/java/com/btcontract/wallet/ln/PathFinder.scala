@@ -7,10 +7,9 @@ import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, Data, PublicChannel, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
 import java.util.concurrent.Executors
-import fr.acinq.eclair.ShortChannelId
 
 
 object PathFinder {
@@ -24,7 +23,7 @@ object PathFinder {
   val CMDResync = "cmd-resync"
 }
 
-abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
+abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   var listeners: Set[CanBeRepliedTo] = Set.empty
@@ -51,7 +50,7 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
     case CMDResync \ OPERATIONAL =>
       // App has not been opened during ~month, notify that sync will take some time
       if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 30) become(data, INIT_SYNC)
-      new SyncMaster(getExtraNodes, store.listExcludedChannels, data, from = 0, routerConf) { self =>
+      new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data, from = 0, routerConf) { self =>
         def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
         def onTotalSyncComplete: Unit = me process self
       }
@@ -63,23 +62,23 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
       me process CMDResync
 
     case CMDLoadGraph \ WAITING =>
-      val channelMap: Map[ShortChannelId, PublicChannel] = store.getRoutingData
-      val searchGraph = DirectedGraph.makeGraph(channelMap).addEdges(data.extraEdges.values)
-      become(freshData = Data(channelMap, data.extraEdges, searchGraph), OPERATIONAL)
+      val shortId2ChannelMap = normalStore.getRoutingData
+      val searchGraph = DirectedGraph.makeGraph(shortId2ChannelMap).addEdges(data.extraEdges.values)
+      become(freshData = Data(shortId2ChannelMap, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
       // Run in PathFinder thread to not overload SyncMaster thread
-      store.processPureData(pure)
+      normalStore.processPureData(pure)
 
     case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
-      val channelMap: Map[ShortChannelId, PublicChannel] = store.getRoutingData
-      val ghostShortIdsPeersKnowNothingAbout = channelMap.keySet.diff(sync.provenShortIds)
-      val channelMap1 = channelMap -- ghostShortIdsPeersKnowNothingAbout
+      val shortId2ChannelMap = normalStore.getRoutingData
+      val ghostShortIdsPeersKnowNothingAbout = shortId2ChannelMap.keySet.diff(sync.provenShortIds)
+      val channelMap1 = shortId2ChannelMap -- ghostShortIdsPeersKnowNothingAbout
 
       val searchGraph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
       become(freshData = Data(channelMap1, data.extraEdges, searchGraph), OPERATIONAL)
-      store.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
+      normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
       updateLastResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
 
@@ -116,18 +115,18 @@ abstract class PathFinder(val store: NetworkDataStore, val routerConf: RouterCon
     if (cu.htlcMaximumMsat.isEmpty) {
       // Will be queried again on next sync
       // Will get excluded if max is not there
-      store.removeChannelUpdate(cu.shortChannelId)
+      normalStore.removeChannelUpdate(cu.shortChannelId)
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isOld) {
       // We have a newer one or this one is stale
       // retain db record since we have a more recent copy
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isPublic && isEnabled) {
-      store.addChannelUpdateByPosition(cu)
+      normalStore.addChannelUpdateByPosition(cu)
       data.copy(graph = data.graph addEdge edge)
     } else if (isPublic) {
       // Save in db because it's fresh
-      store.addChannelUpdateByPosition(cu)
+      normalStore.addChannelUpdateByPosition(cu)
       // But remove from runtime graph because disabled
       data.copy(graph = data.graph removeEdge edge.desc)
     } else if (isEnabled) {

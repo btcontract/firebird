@@ -37,16 +37,16 @@ class PaymentMasterSpec {
 
   @Test
   def splitAfterNoRouteFound(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
     val hcs = makeHostedCommits(nodeId = a, alias = "peer1")
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs.announce.na.nodeId.value.take(32)), hcs)
 
     val cl = new BitcoinJChainLink(WalletApp.params)
@@ -88,9 +88,9 @@ class PaymentMasterSpec {
 
   @Test
   def failAfterTooManyLocalErrors(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -98,7 +98,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1").modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(UInt64(10)) // Payments will fail locally
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2").modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(UInt64(10)) // Payments will fail locally
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -123,9 +123,9 @@ class PaymentMasterSpec {
 
   @Test
   def chanBecomesOfflineAnotherIsUsed(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -133,7 +133,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -166,9 +166,9 @@ class PaymentMasterSpec {
 
   @Test
   def reRoutedBecauseFailedAtAmount(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -176,7 +176,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(hosted.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -205,17 +205,17 @@ class PaymentMasterSpec {
 
   @Test
   def fulfillNonExistingPayment(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
+    val (normal, hosted) = getRandomStore
     var response: List[PaymentSenderData] = Nil
-    fillBasicGraph(store)
+    fillBasicGraph(normal)
 
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(hosted.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
     val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
@@ -237,17 +237,17 @@ class PaymentMasterSpec {
 
   @Test
   def failNonExistingPayment(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
+    val (normal, hosted) = getRandomStore
     var response: List[PaymentSenderData] = Nil
-    fillBasicGraph(store)
+    fillBasicGraph(normal)
 
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentInfoBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
     val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
@@ -271,9 +271,9 @@ class PaymentMasterSpec {
 
   @Test
   def secondPaymentGetsSplit(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -281,7 +281,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -322,9 +322,9 @@ class PaymentMasterSpec {
 
   @Test
   def bumpAmountOnSplit(): Unit = {
-    val store: SQliteNetworkDataStore = getRandomStore
-    fillBasicGraph(store)
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val (normal, hosted) = getRandomStore
+    fillBasicGraph(normal)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -333,7 +333,7 @@ class PaymentMasterSpec {
     // 99 000 msat sendable in both
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
-    val channelBag = new SQliteChannelBag(store.db)
+    val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 

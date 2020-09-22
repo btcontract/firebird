@@ -7,7 +7,6 @@ import fr.acinq.eclair.{CltvExpiryDelta, ShortChannelId}
 import com.btcontract.wallet.ln.{LNParams, LightningNodeKeys, MnemonicStorageFormat, PathFinder}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, Tools}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate, NodeAnnouncement}
-import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.router.Router.{NoRouteAvailable, RouteFound}
@@ -20,9 +19,9 @@ import org.junit.Test
 class PathfinderSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
   LNParams.format = MnemonicStorageFormat(LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
-  val store: SQliteNetworkDataStore = getRandomStore
+  val (normal, hosted) = getRandomStore
 
-  fillBasicGraph(store)
+  fillBasicGraph(normal)
 
   val channelAS: ChannelAnnouncement = makeChannel(5L, a, s) // To be excluded
   val channelASOneSideUpdate: ChannelAnnouncement = makeChannel(6L, a, s) // To be excluded
@@ -34,20 +33,20 @@ class PathfinderSpec {
 
   @Test
   def restoreChannelMap(): Unit = {
-    store.addChannelAnnouncement(channelAS)
-    store.addChannelAnnouncement(channelASOneSideUpdate)
+    normal.addChannelAnnouncement(channelAS)
+    normal.addChannelAnnouncement(channelASOneSideUpdate)
     // This will be removed because ghost channel
-    store.addChannelUpdateByPosition(updateASFromA)
-    store.addChannelUpdateByPosition(updateASFromS)
+    normal.addChannelUpdateByPosition(updateASFromA)
+    normal.addChannelUpdateByPosition(updateASFromS)
 
     // This will be removed because one-sided
-    store.addChannelUpdateByPosition(updateASFromSOneSide)
+    normal.addChannelUpdateByPosition(updateASFromSOneSide)
 
-    store.removeGhostChannels(Set(ShortChannelId(5L)))
-    val routingMap = store.getRoutingData
-    assertTrue(store.listExcludedChannels.contains(6L))
-    assertTrue(!store.listChannelAnnouncements.map(_.shortChannelId).contains(ShortChannelId(6L)))
-    assertTrue(!store.listChannelUpdates.map(_.shortChannelId).contains(ShortChannelId(6L)))
+    normal.removeGhostChannels(Set(ShortChannelId(5L)))
+    val routingMap = normal.getRoutingData
+    assertTrue(normal.listExcludedChannels.contains(6L))
+    assertTrue(!normal.listChannelAnnouncements.map(_.shortChannelId).contains(ShortChannelId(6L)))
+    assertTrue(!normal.listChannelUpdates.map(_.shortChannelId).contains(ShortChannelId(6L)))
     assertTrue(!routingMap.keySet.contains(ShortChannelId(5L)))
     assertTrue(routingMap.size == 4)
   }
@@ -56,7 +55,7 @@ class PathfinderSpec {
   def rejectSearchWhenNotOperational(): Unit = {
     var response: Any = null
 
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -77,7 +76,7 @@ class PathfinderSpec {
     var response1: Any = null
     var response2: Any = null
 
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
@@ -106,7 +105,7 @@ class PathfinderSpec {
     val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
     var response2: Any = null
 
-    val pf = new PathFinder(store, LNParams.routerConf) {
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
       def getLastResyncStamp: Long = System.currentTimeMillis
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty

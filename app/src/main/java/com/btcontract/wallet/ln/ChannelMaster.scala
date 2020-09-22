@@ -93,7 +93,7 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
 
 
-abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, val pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
+abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, MilliSatoshi(0L), invalidPubKey), Map.empty)
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)

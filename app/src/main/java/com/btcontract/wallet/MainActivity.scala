@@ -1,6 +1,7 @@
 package com.btcontract.wallet
 
 import scala.concurrent.duration._
+import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
 
 import scala.util.{Success, Try}
@@ -10,7 +11,6 @@ import android.net.{ConnectivityManager, NetworkCapabilities}
 import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
 import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage, NodeAnnouncement}
-import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteNetworkDataStore, SQlitePaymentInfoBag}
 import com.btcontract.wallet.ln.{ChannelMaster, CommsTower, ConnectionListener, LNParams, PathFinder, RxUtils, StorageFormat}
 import org.ndeftools.util.activity.NfcReaderActivity
 import com.ornach.nobobutton.NoboButton
@@ -22,12 +22,13 @@ import android.view.View
 
 object MainActivity {
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit= {
-    val networkDataStore = new SQliteNetworkDataStore(WalletApp.db)
+    val normalNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
+    val hostedNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
     val paymentInfoBag = new SQlitePaymentInfoBag(WalletApp.db)
     val channelBag = new SQliteChannelBag(WalletApp.db)
 
     val pf: PathFinder =
-      new PathFinder(networkDataStore, LNParams.routerConf) {
+      new PathFinder(normalNetworkDataStore, hostedNetworkDataStore, LNParams.routerConf) {
         def updateLastResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_GOSSIP_SYNC, stamp).commit
         def getExtraNodes: Set[NodeAnnouncement] = LNParams.channelMaster.all.map(_.data.announce.na).toSet
         def getLastResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_GOSSIP_SYNC, 0L)
