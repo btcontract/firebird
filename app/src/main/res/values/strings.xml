@@ -6,6 +6,8 @@
     <string name="emergency_mode">Something went wrong</string>
     <string name="emergency_share">Share error report</string>
 
+    <string name="working">Please wait a bit&#8230;</string>
+    <string name="working_note">It may take up to 30 seconds</string>
     <string name="step_title_choose">Choose payment providers</string>
     <string name="step_title_account">Setup an account</string>
     <string name="step_title_open">Go to wallet</string>

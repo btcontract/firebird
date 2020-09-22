@@ -93,14 +93,14 @@ object WalletApp {
 
   // Scrypt
 
-  def scryptDerive(email: String, pass: String): ByteVector = {
+  def scryptDerive(email: String, pass: String): Bytes = {
     // An intentionally expensive key-stretching method
     // N = 2^19, r = 8, p = 2
 
     val derived: Bytes = new Array[Byte](64)
     val salt: Bytes = Crypto.hash256(email.getBytes).take(16).toArray
     Wally.scrypt(pass.trim.getBytes, salt, Math.pow(2, 19).toLong, 8, 2, derived)
-    ByteVector.view(derived)
+    derived
   }
 }
 

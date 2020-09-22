@@ -1,6 +1,6 @@
 package com.btcontract.wallet.steps
 
-import com.btcontract.wallet.{R, FirebirdActivity, WalletApp}
+import com.btcontract.wallet.{FirebirdActivity, R, WalletApp}
 import android.text.InputType.{TYPE_CLASS_TEXT, TYPE_TEXT_VARIATION_PASSWORD}
 import android.widget.{ArrayAdapter, CheckBox, CompoundButton, EditText, FrameLayout, LinearLayout, TextView}
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
@@ -8,6 +8,7 @@ import com.google.android.material.textfield.TextInputLayout
 import android.widget.CompoundButton.OnCheckedChangeListener
 import com.ybs.passwordstrengthmeter.PasswordStrength
 import ernestoyaquello.com.verticalstepperform.Step
+import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.crypto.Tools
 import androidx.appcompat.app.AlertDialog
 import com.ornach.nobobutton.NoboButton
@@ -17,13 +18,27 @@ import android.view.View
 import android.os.Build
 
 
-trait AccountType { def asString: String }
-case object NoAccountType extends AccountType { val asString: String = new String }
-case class MnemonicAccount(mnemonic: String) extends AccountType { val asString: String = WalletApp.app getString R.string.action_recovery_phrase }
-case class EmailPasswordAccount(email: String, password: String, isRandom: Boolean) extends AccountType { val asString: String = email }
+trait AccountType {
+  def asString: String
+  def getSeed: Bytes
+}
+case object NoAccountType extends AccountType {
+  def getSeed: Bytes = Array.emptyByteArray
+  def asString: String = new String
+}
+
+case class MnemonicAccount(mnemonic: List[String] = Nil) extends AccountType {
+  val asString: String = WalletApp.app getString R.string.action_recovery_phrase
+  def getSeed: Bytes = WalletApp.getSeedFromMnemonic(mnemonic)
+}
+case class EmailPasswordAccount(email: String, password: String, isRandom: Boolean) extends AccountType {
+  def getSeed: Bytes = WalletApp.scryptDerive(email, password)
+  val asString: String = email
+}
 
 class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountType](title, false) {
   var chosenAccountType: AccountType = NoAccountType
+  private[this] final val SEPARATOR: String = " "
 
   class InputWithInfo(parentView: View, viewRes: Int, hintRes: Int, inputType: Int, fillType: String) {
     def setInfo(wrap: PasswordStrength): Unit = Tools.runAnd(info setTextColor wrap.getColor)(info setText wrap.getTextRes)
@@ -61,14 +76,14 @@ class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountTy
           WalletApp.app.quickToast(R.string.error_short_phrase)
         } else {
           val mnemonic = mnemonicInput.getText.toString.trim.toLowerCase
-          val pureMnemonic = mnemonic.replaceAll("[^a-zA-Z0-9']+", " ")
-          chosenAccountType = MnemonicAccount(pureMnemonic)
+          val pureMnemonic = mnemonic.replaceAll("[^a-zA-Z0-9']+", SEPARATOR).split(SEPARATOR)
+          chosenAccountType = MnemonicAccount(pureMnemonic.toList)
           markAsCompletedOrUncompleted(true)
           getFormView.goToNextStep(true)
           alert.dismiss
         }
 
-      chosenAccountType match { case MnemonicAccount(mnemonic) => mnemonicInput setText mnemonic case _ => }
+      chosenAccountType match { case MnemonicAccount(mnemonic) => mnemonicInput.setText(mnemonic mkString SEPARATOR) case _ => }
       val bld = host.titleBodyAsViewBuilder(host.str2View(host getString R.string.action_recovery_phrase), mnemonicWrap)
       host.mkCheckForm(maybeProceed, Tools.none, bld, R.string.dialog_ok, R.string.dialog_cancel)
     }

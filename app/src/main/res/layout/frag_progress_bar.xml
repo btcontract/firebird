@@ -1,0 +1,24 @@
+<LinearLayout
+    style="@style/StandardLinearLayout"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:padding="25dp">
+
+    <ProgressBar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="?android:attr/progressBarStyle"/>
+
+    <TextView
+        android:textSize="22sp"
+        android:gravity="center"
+        android:layout_marginTop="25dp"
+        android:layout_marginBottom="15dp"
+        android:text="@string/working"
+        style="@style/FillingView"/>
+
+    <TextView
+        android:gravity="center"
+        android:text="@string/working_note"
+        style="@style/FillingView"/>
+
+</LinearLayout>
