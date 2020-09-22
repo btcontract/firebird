@@ -30,12 +30,21 @@ object CommsTower {
 
   def listen(listeners1: Set[ConnectionListener], pkap: PublicKeyAndPair, ann: NodeAnnouncement): Unit = synchronized {
     // Update and either insert a new worker or fire onOperational on new listeners iff worker currently exists and is online
+    // First add listeners, then try to add worker because we may already have a connected worker, but no listeners
     listeners(pkap) ++= listeners1
 
     workers.get(pkap) match {
       case Some(worker) => for (init <- worker.theirInit) worker.handleTheirInit(listeners1, init) // Maybe inform
       case None => workers(pkap) = new Worker(pkap, ann, new Bytes(1024), new Socket) // Create and connect right away
     }
+  }
+
+  def forget(pkap: PublicKeyAndPair): Unit = {
+    // First remove all listeners, then disconnect
+    // this ensures listeners won't try to reconnect
+
+    listeners.remove(pkap)
+    workers.get(pkap).foreach(_.disconnect)
   }
 
   class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, buffer: Bytes, sock: Socket) { me =>
@@ -46,8 +55,6 @@ object CommsTower {
     var pinging: Subscription = _
 
     def disconnect: Unit = try sock.close catch none
-    def lsts: Set[ConnectionListener] = listeners(pkap)
-
     def handleTheirInit(listeners1: Set[ConnectionListener], theirInitMsg: Init): Unit = {
       // Use a separate variable for listeners here because a set of listeners provided to this method may be different
       // Account for a case where they disconnect while we are deciding on their features (do nothing in this case)
@@ -77,9 +84,9 @@ object CommsTower {
 
           lightningMessageCodec.decode(data.bits).require.value match {
             case Ping(replyLength, _) if replyLength > 0 => handler process Pong(ByteVector fromValidHex "00" * replyLength)
-            case hostedMessage: HostedChannelMessage => for (lst <- lsts) lst.onHostedMessage(me, hostedMessage)
-            case theirInitMessage: Init => handleTheirInit(lsts, theirInitMessage)
-            case message => for (lst <- lsts) lst.onMessage(me, message)
+            case hostedMessage: HostedChannelMessage => for (lst <- listeners apply pkap) lst.onHostedMessage(me, hostedMessage)
+            case theirInitMessage: Init => handleTheirInit(listeners(pkap), theirInitMessage)
+            case message => for (lst <- listeners apply pkap) lst.onMessage(me, message)
           }
 
           // Allow pinger operations again
@@ -116,7 +123,7 @@ object CommsTower {
 
     thread onComplete { _ =>
       try pinging.unsubscribe catch none
-      for (lst <- lsts) lst.onDisconnect(me)
+      listeners(pkap).foreach(_ onDisconnect me)
       workers -= pkap
     }
   }

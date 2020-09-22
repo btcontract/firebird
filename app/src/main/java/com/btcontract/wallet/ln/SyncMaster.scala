@@ -113,11 +113,9 @@ case class SyncWorker(master: SyncMaster, keyPair: KeyPair, ann: NodeAnnouncemen
       me process CMDGetGossip
 
     case (CMDShutdown, data1, _) =>
-      CommsTower.listeners(pkap) -= listener
-      CommsTower.workers.get(pkap).foreach(_.disconnect)
-      // Stop reacting to disconnect or processing commands
       master process CMDGossipComplete(me)
       become(data1, SHUT_DOWN)
+      CommsTower forget pkap
 
     case _ =>
   }
