@@ -64,7 +64,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case CMDLoadGraph \ WAITING =>
       val shortId2ChannelMap = normalStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(shortId2ChannelMap).addEdges(data.extraEdges.values)
-      become(Data(shortId2ChannelMap, Map.empty, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(shortId2ChannelMap, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
@@ -77,7 +77,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       val channelMap1 = shortId2ChannelMap -- ghostShortIdsPeersKnowNothingAbout
 
       val searchGraph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
-      become(Data(channelMap1, Map.empty, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(channelMap1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
       normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
       updateLastResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
