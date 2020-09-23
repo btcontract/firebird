@@ -2,8 +2,6 @@ package com.btcontract.wallet.ln.crypto
 
 import fr.acinq.eclair._
 import fr.acinq.bitcoin._
-import com.btcontract.wallet.ln.crypto.Tools._
-
 import scala.util.{Success, Try}
 import java.nio.{ByteBuffer, ByteOrder}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
@@ -37,6 +35,7 @@ object Tools {
   implicit def bytes2VecView(underlyingBytes: Bytes): ByteVector = ByteVector.view(underlyingBytes)
   implicit def lightningMessage2Ext(msg: LightningMessage): LightningMessageExt = LightningMessageExt(msg)
 
+  def toMapBy[K, V](items: Iterable[V], mapper: V => K): Map[K, V] = items.map(item => mapper(item) -> item).toMap
   def mapKeys[K, V, K1](m: mutable.Map[K, V], fun: K => K1, defVal: V): mutable.Map[K1, V] = m map { case key \ value => fun(key) -> value } withDefaultValue defVal
   def maxByOption[T, B](items: Iterable[T], mapper: T => B)( implicit cmp: Ordering[B] ): Option[T] = if (items.isEmpty) None else Some(items maxBy mapper)
   def memoize[In, Out](fun: In => Out): collection.mutable.HashMap[In, Out] = new collection.mutable.HashMap[In, Out] { self =>

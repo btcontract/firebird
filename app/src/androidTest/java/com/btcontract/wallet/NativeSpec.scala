@@ -4,9 +4,12 @@ import java.math.BigInteger
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.blockstream.libwally.Wally
+import com.btcontract.wallet.ln.crypto.Tools
+import com.btcontract.wallet.ln.{LightningNodeKeys, MnemonicStorageFormat}
 import fr.acinq.bitcoin.Base58.Prefix
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey, curve, one}
 import fr.acinq.bitcoin.{Base58, Base58Check, ByteVector64, Crypto}
+import fr.acinq.eclair.randomBytes
 import org.bitcoin.Secp256k1Context
 import org.bouncycastle.crypto.params.ECPublicKeyParameters
 import org.bouncycastle.crypto.signers.ECDSASigner
@@ -75,6 +78,13 @@ class NativeSpec {
     val reference = hex"45cb9fc1e44e1be012e2d93c5ffca174855a6bb9fa06fa511470d71bf52447bc30a6082faff0dab895f5bd7c5211e3dd98831489a78eb0d60fe75701df37a8cf"
     val result = WalletApp.scryptDerive("hello@email.com", "password123")
     assertTrue(ByteVector.view(result) == reference)
+  }
+
+  @Test
+  def generatedAddressIsValid(): Unit = {
+    val nodeId = PrivateKey(ByteVector.fromValidHex("18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725")).publicKey
+    val format = MnemonicStorageFormat(outstandingProviders = Nil, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+    assertTrue(Tools.isValidFinalScriptPubkey(format.keys.refundAddress(nodeId)))
   }
 
   @Test

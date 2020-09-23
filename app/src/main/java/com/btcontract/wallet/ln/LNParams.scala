@@ -4,14 +4,13 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
 import fr.acinq.bitcoin.DeterministicWallet._
+import com.btcontract.wallet.ln.crypto.Tools._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
-import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi}
+import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
-import com.btcontract.wallet.ln.crypto.Tools.Bytes
-import com.btcontract.wallet.ln.crypto.Tools
 import java.io.ByteArrayInputStream
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
@@ -84,10 +83,10 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
-  def refundAddress(theirNodeId: PublicKey, chainHash: ByteVector32): String = {
+  def refundAddress(theirNodeId: PublicKey): ByteVector = {
     val derivationChain = hardened(276) +: makeKeyPath(material = theirNodeId.value)
-    val pubKey = derivePrivateKey(extendedNodeKey, derivationChain).publicKey
-    fr.acinq.bitcoin.computeBIP84Address(pubKey, chainHash)
+    val p2wpkh = Script.pay2wpkh(derivePrivateKey(extendedNodeKey, derivationChain).publicKey)
+    Script.write(p2wpkh)
   }
 
   def makeKeyPath(material: ByteVector): Vector[Long] = {
@@ -100,10 +99,17 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
 
 trait StorageFormat {
   def keys: LightningNodeKeys
+  def attachedChannelSecret: ByteVector
   def outstandingProviders: List[NodeAnnouncement]
 }
-case class MnemonicStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat
-case class PasswordStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat
+
+case class MnemonicStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat {
+  override def attachedChannelSecret: ByteVector = Crypto.sha256(keys.extendedNodeKey.secretkeybytes)
+}
+
+case class PasswordStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
+  override def attachedChannelSecret: ByteVector = Crypto.sha256(user getBytes "UTF-8")
+}
 
 object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_BLOCKDAY = ByteVector.fromValidHex("0001")
@@ -132,7 +138,7 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
   lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
 
   lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)
-  lazy val nodeSpecificHostedChanId: ByteVector32 = Tools.hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
+  lazy val nodeSpecificHostedChanId: ByteVector32 = hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
 }
 
 case class LightningMessageExt(msg: LightningMessage) {
