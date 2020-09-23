@@ -13,8 +13,8 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(announceTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit = db.change(excludedTable.newSql, shortId.toJavaLong, System.currentTimeMillis + untilStamp: java.lang.Long)
   def listExcludedChannels: Set[Long] = db.select(excludedTable.selectSql, System.currentTimeMillis.toString).set(_ long excludedTable.shortChannelId)
-  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(updateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.positionIndex)
   def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(updateTable.killSql, shortId.toJavaLong)
+  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(updateTable.updScoreSql, cu.positionIndex)
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] = db select announceTable.selectAllSql vec { rc =>
     ChannelAnnouncement(nodeSignature1 = announceTable.sigFiller, nodeSignature2 = announceTable.sigFiller, bitcoinSignature1 = announceTable.sigFiller, bitcoinSignature2 = announceTable.sigFiller,
