@@ -29,7 +29,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
   var listeners: Set[CanBeRepliedTo] = Set.empty
 
   // We don't load routing data on every startup but when user (or system) actually needs it
-  become(freshData = Data(channels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.apply), WAITING)
+  become(Data(channels = Map.empty, hostedChannels = Map.empty, extraEdges = Map.empty, DirectedGraph.apply), WAITING)
   RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24 * 2).subscribe(none)
 
   def getLastResyncStamp: Long
@@ -50,7 +50,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case CMDResync \ OPERATIONAL =>
       // App has not been opened during ~month, notify that sync will take some time
       if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 30) become(data, INIT_SYNC)
-      new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data, from = 0, routerConf) { self =>
+      new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data, from = 550000, routerConf) { self =>
         def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
         def onTotalSyncComplete: Unit = me process self
       }
@@ -64,7 +64,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case CMDLoadGraph \ WAITING =>
       val shortId2ChannelMap = normalStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(shortId2ChannelMap).addEdges(data.extraEdges.values)
-      become(freshData = Data(shortId2ChannelMap, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(shortId2ChannelMap, Map.empty, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
@@ -77,7 +77,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       val channelMap1 = shortId2ChannelMap -- ghostShortIdsPeersKnowNothingAbout
 
       val searchGraph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
-      become(freshData = Data(channelMap1, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(channelMap1, Map.empty, data.extraEdges, searchGraph), OPERATIONAL)
       normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
       updateLastResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
@@ -86,16 +86,21 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     // - to reduce subsequent sync traffic if channel remains disabled
     // - to account for the case when channel becomes enabled but we don't know
     // If we hit an updated channel while routing we save it to db and update in-memory graph
-    // If disabled channel stays disabled for a long time it will be pruned by peers and then us
+    // If disabled channel stays disabled for a long time it will be pruned by peers and then by us
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
       val newUpdateIsOlder = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
-      val data1 = resolveKnownDesc(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu, newUpdateIsOlder, isPublic = true)
+      val data1 = resolveKnownDesc(GraphEdge(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu), Some(normalStore), newUpdateIsOlder)
+      become(data1, OPERATIONAL)
+
+    case (cu: ChannelUpdate, OPERATIONAL) if data.hostedChannels.contains(cu.shortChannelId) =>
+      val newUpdateIsOlder = data.hostedChannels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
+      val data1 = resolveKnownDesc(GraphEdge(Router.getDesc(cu, data.hostedChannels(cu.shortChannelId).ann), cu), Some(hostedStore), newUpdateIsOlder)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.extraEdges.contains(cu.shortChannelId) =>
       // Fake updates do not provide timestamp so any real refresh we are getting here should be newer
-      val data1 = resolveKnownDesc(data.extraEdges(cu.shortChannelId).desc, cu, isOld = false, isPublic = false)
+      val data1 = resolveKnownDesc(GraphEdge(data.extraEdges(cu.shortChannelId).desc, cu), None, isOld = false)
       become(data1, OPERATIONAL)
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
@@ -107,35 +112,41 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case _ =>
   }
 
-  def resolveKnownDesc(desc: ChannelDesc, cu: ChannelUpdate, isOld: Boolean, isPublic: Boolean): Data = {
-    // Resolves channel updates which we obtain from node errors while trying to route payments
-    val isEnabled = Announcements.isEnabled(cu.channelFlags)
-    val edge = GraphEdge(desc, cu)
+  // Resolves channel updates which we obtain from node errors while trying to route payments
+  // store is optional to make sure private normal/hosted channel updates never make it to our database
+  def resolveKnownDesc(edge: GraphEdge, storeOpt: Option[NetworkDataStore], isOld: Boolean): Data = {
+    val isEnabled = Announcements.isEnabled(edge.update.channelFlags)
 
-    if (cu.htlcMaximumMsat.isEmpty) {
-      // Will be queried again on next sync
-      // Will get excluded if max is not there
-      normalStore.removeChannelUpdate(cu.shortChannelId)
-      data.copy(graph = data.graph removeEdge edge.desc)
-    } else if (isOld) {
-      // We have a newer one or this one is stale
-      // retain db record since we have a more recent copy
-      data.copy(graph = data.graph removeEdge edge.desc)
-    } else if (isPublic && isEnabled) {
-      normalStore.addChannelUpdateByPosition(cu)
-      data.copy(graph = data.graph addEdge edge)
-    } else if (isPublic) {
-      // Save in db because it's fresh
-      normalStore.addChannelUpdateByPosition(cu)
-      // But remove from runtime graph because disabled
-      data.copy(graph = data.graph removeEdge edge.desc)
-    } else if (isEnabled) {
-      // Good new private update, store in runtime map also
-      val extraEdges1 = data.extraEdges + (cu.shortChannelId -> edge)
-      data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
-    } else {
-      // Remove from runtime graph because disabled
-      data.copy(graph = data.graph removeEdge edge.desc)
+    storeOpt match {
+      case Some(store) if edge.update.htlcMaximumMsat.isEmpty =>
+        // Will be queried on next sync and most likely excluded
+        store.removeChannelUpdate(edge.update.shortChannelId)
+        data.copy(graph = data.graph removeEdge edge.desc)
+
+      case _ if isOld =>
+        // We have a newer one or this one is stale
+        // retain db record since we have a more recent copy
+        data.copy(graph = data.graph removeEdge edge.desc)
+
+      case Some(store) if isEnabled =>
+        // This is a legitimate public update
+        store.addChannelUpdateByPosition(edge.update)
+        data.copy(graph = data.graph addEdge edge)
+
+      case Some(store) =>
+        // Save in db because update is fresh
+        store.addChannelUpdateByPosition(edge.update)
+        // But remove from runtime graph because it's disabled
+        data.copy(graph = data.graph removeEdge edge.desc)
+
+      case None if isEnabled =>
+        // This is a legitimate private update
+        val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
+        data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
+
+      case None =>
+        // Disabled private update, remove from graph
+        data.copy(graph = data.graph removeEdge edge.desc)
     }
   }
 }

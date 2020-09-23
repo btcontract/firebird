@@ -85,7 +85,7 @@ object Router {
   case class RouteFound(paymentHash: ByteVector32, partId: ByteVector, route: Route) extends RouteResponse
   case class NoRouteAvailable(paymentHash: ByteVector32, partId: ByteVector) extends RouteResponse
 
-  case class Data(channels: Map[ShortChannelId, PublicChannel], extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
+  case class Data(channels: Map[ShortChannelId, PublicChannel], hostedChannels: Map[ShortChannelId, PublicChannel], extraEdges: Map[ShortChannelId, GraphEdge], graph: DirectedGraph)
 
   def getDesc(u: ChannelUpdate, announcement: ChannelAnnouncement): ChannelDesc = {
     // the least significant bit tells us if it is node1 or node2

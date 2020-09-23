@@ -212,7 +212,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         // Batch is ready, send out and start a new one
         val nextData = data1.copy(chunksLeft = chunksToWait)
         become(nextData, GOSSIP_SYNC)
-        sendOutData(nextData)
+        sendPureData(nextData)
       }
 
     case (CMDGossipComplete(sync), data1: SyncMasterGossipData, GOSSIP_SYNC) =>
@@ -222,14 +222,14 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         become(nextData, GOSSIP_SYNC)
       } else {
         become(null, SHUT_DOWN)
-        sendOutData(nextData)
+        sendPureData(nextData)
         onTotalSyncComplete
       }
 
     case _ =>
   }
 
-  def sendOutData(data1: SyncMasterGossipData): Unit = {
+  def sendPureData(data1: SyncMasterGossipData): Unit = {
     val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > data1.threshold => announce }.toSet
     val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > data1.threshold => update }.toSet
     me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates)

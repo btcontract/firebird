@@ -28,8 +28,8 @@ class SyncSpec {
   val (store, _) = getRandomStore
   def run: Unit = {
     val channelMap0 = store.getRoutingData
-    val data1 = Data(channelMap0, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
-    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 0, LNParams.routerConf) {
+    val data1 = Data(channelMap0, hostedChannels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
+    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 550000, LNParams.routerConf) {
       def onChunkSyncComplete(pure: PureRoutingData): Unit = {
         println(s"Chunk complete, announces=${pure.announces.size}, updates=${pure.updates.size}, excluded=${pure.excluded.size}")
         val a = System.currentTimeMillis
