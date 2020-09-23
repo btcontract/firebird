@@ -45,7 +45,7 @@ class SyncSpec {
         println(s"removeGhostChannels took ${System.currentTimeMillis - a1} msec")
         val a2 = System.currentTimeMillis
         val map1: Map[ShortChannelId, Router.PublicChannel] = store.getRoutingData
-        println(s"removeGhostChannels took ${System.currentTimeMillis - a2} msec")
+        println(s"Loading data took ${System.currentTimeMillis - a2} msec")
         println(s"Total sync complete, we have ${map1.keys.size} purified channels")
         val a3 = System.currentTimeMillis
         DirectedGraph.makeGraph(map1)
