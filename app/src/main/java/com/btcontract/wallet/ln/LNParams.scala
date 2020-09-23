@@ -98,9 +98,12 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
   }
 }
 
-trait StorageFormat { def keys: LightningNodeKeys }
-case class MnemonicStorageFormat(keys: LightningNodeKeys) extends StorageFormat
-case class PasswordStorageFormat(keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat
+trait StorageFormat {
+  def keys: LightningNodeKeys
+  def outstandingProviders: List[NodeAnnouncement]
+}
+case class MnemonicStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat
+case class PasswordStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat
 
 object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_BLOCKDAY = ByteVector.fromValidHex("0001")

@@ -18,7 +18,7 @@ import org.junit.Test
 @RunWith(classOf[AndroidJUnit4])
 class PathfinderSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
-  LNParams.format = MnemonicStorageFormat(LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+  LNParams.format = MnemonicStorageFormat(outstandingProviders = Nil, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
   val (normal, hosted) = getRandomStore
 
   fillBasicGraph(normal)
