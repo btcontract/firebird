@@ -89,13 +89,19 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     // If disabled channel stays disabled for a long time it will be pruned by peers and then by us
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
-      val newUpdateIsOlder = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
-      val data1 = resolveKnownDesc(GraphEdge(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu), Some(normalStore), newUpdateIsOlder)
+      val currentUpdateOpt = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)
+      val edge = GraphEdge(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu)
+      val newUpdateIsOlder = currentUpdateOpt.exists(_.timestamp >= cu.timestamp)
+      val data1 = resolveKnownDesc(edge, Some(normalStore), newUpdateIsOlder)
+      // Make new update score the same as existing update score
+      currentUpdateOpt.foreach(cu0 => cu.score = cu0.score)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.hostedChannels.contains(cu.shortChannelId) =>
-      val newUpdateIsOlder = data.hostedChannels(cu.shortChannelId).getChannelUpdateSameSideAs(cu).exists(_.timestamp >= cu.timestamp)
-      val data1 = resolveKnownDesc(GraphEdge(Router.getDesc(cu, data.hostedChannels(cu.shortChannelId).ann), cu), Some(hostedStore), newUpdateIsOlder)
+      val currentUpdateOpt = data.hostedChannels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)
+      val edge = GraphEdge(Router.getDesc(cu, data.hostedChannels(cu.shortChannelId).ann), cu)
+      val newUpdateIsOlder = currentUpdateOpt.exists(_.timestamp >= cu.timestamp)
+      val data1 = resolveKnownDesc(edge, Some(hostedStore), newUpdateIsOlder)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.extraEdges.contains(cu.shortChannelId) =>
