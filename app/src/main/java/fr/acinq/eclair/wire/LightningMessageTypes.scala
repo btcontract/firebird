@@ -266,6 +266,7 @@ case class NodeAnnouncement(signature: ByteVector64,
 object ChannelUpdate {
   final val POSITION1NODE: java.lang.Integer = 1
   final val POSITION2NODE: java.lang.Integer = 2
+  def toPosIdx(shortId: ShortChannelId, position: java.lang.Integer): String = s"${shortId.toLong}/$position"
 }
 
 case class UpdateCore(position: java.lang.Integer,
@@ -292,9 +293,6 @@ case class ChannelUpdate(signature: ByteVector64,
     val isNode1: Boolean = Announcements.isNode1(channelFlags)
     if (isNode1) ChannelUpdate.POSITION1NODE else ChannelUpdate.POSITION2NODE
   }
-
-  // Used in db to prevent duplicates, but as a single field to improve performance
-  lazy val positionIndex = s"${shortChannelId.toLong}/$position"
 
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
 

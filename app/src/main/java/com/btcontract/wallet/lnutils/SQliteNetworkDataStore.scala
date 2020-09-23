@@ -13,8 +13,17 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(announceTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit = db.change(excludedTable.newSql, shortId.toJavaLong, System.currentTimeMillis + untilStamp: java.lang.Long)
   def listExcludedChannels: Set[Long] = db.select(excludedTable.selectSql, System.currentTimeMillis.toString).set(_ long excludedTable.shortChannelId)
-  def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(updateTable.killSql, shortId.toJavaLong)
-  def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(updateTable.updScoreSql, cu.positionIndex)
+
+  def removeChannelUpdate(shortId: ShortChannelId): Unit = {
+    val posIdx1 = ChannelUpdate.toPosIdx(shortId, ChannelUpdate.POSITION1NODE)
+    val posIdx2 = ChannelUpdate.toPosIdx(shortId, ChannelUpdate.POSITION2NODE)
+    db.change(updateTable.killSql, posIdx1, posIdx2)
+  }
+
+  def incrementChannelScore(cu: ChannelUpdate): Unit = {
+    val posIdx = ChannelUpdate.toPosIdx(cu.shortChannelId, cu.position)
+    db.change(updateTable.updScoreSql, posIdx)
+  }
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] = db select announceTable.selectAllSql vec { rc =>
     ChannelAnnouncement(nodeSignature1 = announceTable.sigFiller, nodeSignature2 = announceTable.sigFiller, bitcoinSignature1 = announceTable.sigFiller, bitcoinSignature2 = announceTable.sigFiller,
@@ -23,6 +32,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   }
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit = {
+    val posIndex = ChannelUpdate.toPosIdx(cu.shortChannelId, cu.position)
     val feeProportionalMillionths: java.lang.Long = cu.feeProportionalMillionths
     val cltvExpiryDelta: java.lang.Integer = cu.cltvExpiryDelta.toInt
     val htlcMinimumMsat: java.lang.Long = cu.htlcMinimumMsat.toLong
@@ -33,10 +43,10 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
     val timestamp: java.lang.Long = cu.timestamp
 
     db.change(updateTable.newSql, cu.shortChannelId.toJavaLong, timestamp, messageFlags, channelFlags,
-      cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.positionIndex)
+      cltvExpiryDelta, htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, posIndex)
 
     db.change(updateTable.updSQL, timestamp, messageFlags, channelFlags, cltvExpiryDelta,
-      htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, cu.positionIndex)
+      htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, posIndex)
   }
 
   def listChannelUpdates: Vector[ChannelUpdate] =

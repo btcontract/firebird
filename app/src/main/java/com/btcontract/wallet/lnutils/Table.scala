@@ -75,7 +75,7 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
   val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $posIdx = ?"
   val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $posIdx, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
   val selectHavingOneUpdate = s"SELECT $shortChannelId FROM $table GROUP BY $shortChannelId HAVING COUNT($shortChannelId) < 2"
-  val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
+  val killSql = s"DELETE FROM $table WHERE $posIdx = ? OR $posIdx = ?"
   val selectAllSql = s"SELECT * FROM $table"
 
   val createSql = s"""
@@ -83,10 +83,7 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL, $timestamp INTEGER NOT NULL,
       $messageFlags INTEGER NOT NULL, $channelFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,
       $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $posIdx STRING NOT NULL UNIQUE, $score INTEGER NOT NULL
-    );
-    /* posIdx index is created automatically because UNIQUE */
-    CREATE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId);
-    COMMIT"""
+    )"""
 }
 
 object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates")
