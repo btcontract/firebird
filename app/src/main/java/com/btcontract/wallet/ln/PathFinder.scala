@@ -6,8 +6,8 @@ import fr.acinq.eclair.router.{Announcements, Router}
 import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
+import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
-import fr.acinq.eclair.router.Router.{ChannelDesc, Data, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
 import java.util.concurrent.Executors
 

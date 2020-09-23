@@ -68,12 +68,12 @@ object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_a
 }
 
 abstract class ChannelUpdateTable(val table: String) extends Table {
-  private val names = ("short_channel_id", "timestamp", "message_flags", "channel_flags", "cltv_delta", "htlc_minimum", "fee_base", "fee_proportional", "htlc_maximum", "position", "score")
-  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score) = names
+  private val names = ("short_channel_id", "timestamp", "message_flags", "channel_flags", "cltv_delta", "htlc_minimum", "fee_base", "fee_proportional", "htlc_maximum", "pos_idx", "score")
+  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, posIdx, score) = names
 
-  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $shortChannelId = ? AND $position = ?"
-  val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $shortChannelId = ? AND $position = ?"
-  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $position, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $posIdx = ?"
+  val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $posIdx = ?"
+  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $posIdx, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
   val selectHavingOneUpdate = s"SELECT $shortChannelId FROM $table GROUP BY $shortChannelId HAVING COUNT($shortChannelId) < 2"
   val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
   val selectAllSql = s"SELECT * FROM $table"
@@ -82,10 +82,10 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
     CREATE TABLE IF NOT EXISTS $table (
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL, $timestamp INTEGER NOT NULL,
       $messageFlags INTEGER NOT NULL, $channelFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,
-      $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL, $score INTEGER NOT NULL
+      $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $posIdx STRING NOT NULL UNIQUE, $score INTEGER NOT NULL
     );
-    /* We want a compound unique index because there are two updates per channel */
-    CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId, $position);
+    /* posIdx index is created automatically because UNIQUE */
+    CREATE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId);
     COMMIT"""
 }
 

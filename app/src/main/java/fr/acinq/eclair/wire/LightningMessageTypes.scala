@@ -293,6 +293,9 @@ case class ChannelUpdate(signature: ByteVector64,
     if (isNode1) ChannelUpdate.POSITION1NODE else ChannelUpdate.POSITION2NODE
   }
 
+  // Used in db to prevent duplicates, but as a single field to improve performance
+  lazy val positionIndex = s"${shortChannelId.toLong}/$position"
+
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
 
   // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
