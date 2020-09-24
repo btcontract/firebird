@@ -356,8 +356,8 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
     }
 
     def feeFreeBalance(cnc: ChanAndCommits): MilliSatoshi = {
-      val theoreticalMaxHtlcs = cnc.commits.lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs
-      val withoutBaseFee = cnc.commits.nextLocalSpec.toLocal - LNParams.routerConf.searchMaxFeeBase * theoreticalMaxHtlcs
+      // For larger payments proportional fee will offset a base one, for smaller base one is more important
+      val withoutBaseFee = cnc.commits.nextLocalSpec.toLocal - LNParams.routerConf.searchMaxFeeBase
       withoutBaseFee - withoutBaseFee * LNParams.routerConf.searchMaxFeePct
     }
   }
@@ -394,8 +394,7 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
           val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.format.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
           val params = RouteParams(pf.routerConf.searchMaxFeeBase, pf.routerConf.searchMaxFeePct, pf.routerConf.firstPassMaxRouteLength, pf.routerConf.firstPassMaxCltv)
-          val req = RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, params.getMaxFee(wait.amount), fakeLocalEdge, params, cl.currentChainTip)
-          PaymentMaster process req
+          PaymentMaster process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, fakeLocalEdge, params, cl.currentChainTip)
         }
 
       case (fail: NoRouteAvailable, PENDING) =>
@@ -446,7 +445,7 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
 
               if (isSignatureFine) {
                 pf process failure.update
-                info.route getEdgeForNode nodeId match {
+                info.route.getEdgeForNode(nodeId) match {
                   case Some(edge) if edge.update.shortChannelId != failure.update.shortChannelId =>
                     // This is fine: remote node has used a different channel than the one we have initially requested
                     // But remote node may send such errors infinitely so increment this specific type of failure
@@ -570,7 +569,7 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
     var shutdownTimer: Option[Subscription] = None
 
     override def onChainTipKnown: Unit = {
-      // Remove pending shutdown timer and notify channels
+      // Remove pending shutdown timer and notify all channels
       for (subscription <- shutdownTimer) subscription.unsubscribe
       for (chan <- all) chan process CMD_CHAIN_TIP_KNOWN
     }

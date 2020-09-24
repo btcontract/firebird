@@ -78,7 +78,6 @@ object GraphSpec {
       source = fromNode,
       target = d,
       amount = 100000.msat,
-      maxFee = getParams.getMaxFee(300.msat),
       localEdge = fromLocalEdge,
       routeParams = getParams,
       chainTip = 40000)
@@ -166,7 +165,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -181,7 +180,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -196,7 +195,7 @@ class GraphSpec {
       makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
@@ -211,7 +210,7 @@ class GraphSpec {
       makeEdge(ShortChannelId("900000x1x1"), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, chainTip = 900000L, amount = 500000000L.msat, maxFee = getParams.getMaxFee(500000000L.msat)))
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, chainTip = 900000L, amount = 500000000L.msat))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }

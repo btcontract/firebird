@@ -30,7 +30,7 @@ import scala.concurrent.duration._
 
 object RouteCalculation {
   def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, r: RouteRequest): RouteResponse =
-    findRouteInternal(graph, r.source, r.target, r.amount, r.maxFee, r.ignoreChannels, r.ignoreNodes, r.routeParams, r.chainTip) match {
+    findRouteInternal(graph, r.source, r.target, r.amount, r.ignoreChannels, r.ignoreNodes, r.routeParams, r.chainTip) match {
       case Some(result) => RouteFound(r.paymentHash, r.partId, Route(result.weight, result.path))
       case _ => NoRouteAvailable(r.paymentHash, r.partId)
     }
@@ -73,11 +73,12 @@ object RouteCalculation {
                                 localNodeId: PublicKey,
                                 targetNodeId: PublicKey,
                                 amount: MilliSatoshi,
-                                maxFee: MilliSatoshi,
                                 ignoredEdges: Set[ChannelDesc] = Set.empty,
                                 ignoredVertices: Set[PublicKey] = Set.empty,
                                 routeParams: RouteParams,
                                 currentBlockHeight: Long): Option[Graph.WeightedPath] = {
+
+    val maxFee: MilliSatoshi = routeParams.getMaxFee(amount)
 
     def feeOk(fee: MilliSatoshi): Boolean = fee <= maxFee
 
@@ -92,7 +93,7 @@ object RouteCalculation {
     if (res.isEmpty && routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
       // if route not found within the constraints we relax and repeat the search
       val relaxedRouteParams = routeParams.copy(routeMaxLength = ROUTE_MAX_LENGTH, routeMaxCltv = DEFAULT_ROUTE_MAX_CLTV)
-      findRouteInternal(g, localNodeId, targetNodeId, amount, maxFee, ignoredEdges, ignoredVertices, relaxedRouteParams, currentBlockHeight)
+      findRouteInternal(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, relaxedRouteParams, currentBlockHeight)
     } else {
       res
     }

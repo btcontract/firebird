@@ -58,7 +58,6 @@ object Router {
                           source: PublicKey,
                           target: PublicKey,
                           amount: MilliSatoshi,
-                          maxFee: MilliSatoshi,
                           localEdge: GraphEdge,
                           routeParams: RouteParams,
                           chainTip: Long,

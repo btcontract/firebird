@@ -69,7 +69,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
     def onFoundAccount: Unit
 
     def doProcess(change: Any): Unit = (change, state) match {
-      case (PeerDisconnected(worker), OPERATIONAL) if data.reconnectAttemptsLeft > 0 =>
+      case PeerDisconnected(worker) \ OPERATIONAL if data.reconnectAttemptsLeft > 0 =>
         // Peer has disconnected but we have spare attempts left, don't fail just yet
         RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process worker)
 

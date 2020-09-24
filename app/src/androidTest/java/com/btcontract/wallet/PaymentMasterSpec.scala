@@ -330,9 +330,10 @@ class PaymentMasterSpec {
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
-    // 99 000 msat sendable in both
+    // 569 250 msat sendable in both (600 - 25 = 575, 575 - 1% = 569250)
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
+
     val channelBag = new SQliteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
@@ -345,21 +346,22 @@ class PaymentMasterSpec {
     synchronized(wait(500L))
 
     val (Vector(c1), Vector(c2)) = master.all.partition(_.data.announce.na.alias == "peer1")
+    val initSendable = master.PaymentMaster.feeFreeBalance(c1.chanAndCommitsOpt.get)
     c1.BECOME(c1.data, HostedChannel.SLEEPING)
     c2.BECOME(c2.data, HostedChannel.OPEN)
     synchronized(wait(500L))
 
     val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = Long.MaxValue.msat)
-    val cmd1 = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 100000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
+    val cmd1 = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 570000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
     master.PaymentMaster process cmd1
     synchronized(wait(500L))
 
     c1.BECOME(c1.data, HostedChannel.OPEN)
     synchronized(wait(1000L))
 
-    val bumpedAmount = 99000.msat + hcs1.lastCrossSignedState.initHostedChannel.htlcMinimumMsat
+    val bumpedAmount = initSendable + hcs1.lastCrossSignedState.initHostedChannel.htlcMinimumMsat
     val ws = master.PaymentMaster.data.payments(cmd1.paymentHash).data.parts.values.map(_.asInstanceOf[WaitForRouteOrInFlight])
     assertTrue(ws.map(_.amount).sum == bumpedAmount)
-    assertTrue(ws.size == 2)
+    assertTrue(ws.size == 3)
   }
 }
