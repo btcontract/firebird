@@ -287,10 +287,10 @@ public class CookieBar {
         public long duration = 10000;
         public int cookiePosition = Gravity.TOP;
         public int customViewResource;
-        public int animationInTop = R.anim.slide_in_from_top;
-        public int animationInBottom = R.anim.slide_in_from_bottom;
-        public int animationOutTop = R.anim.slide_out_to_top;
-        public int animationOutBottom = R.anim.slide_out_to_bottom;
+        public int animationInTop = R.anim.cookie_bar_slide_in_from_top;
+        public int animationInBottom = R.anim.cookie_bar_slide_in_from_bottom;
+        public int animationOutTop = R.anim.cookie_bar_slide_out_to_top;
+        public int animationOutBottom = R.anim.cookie_bar_slide_out_to_bottom;
         public CustomViewInitializer viewInitializer;
         public OnActionClickListener onActionClickListener;
         public AnimatorSet iconAnimator;

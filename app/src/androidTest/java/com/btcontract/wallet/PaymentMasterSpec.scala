@@ -23,7 +23,7 @@ import scodec.bits.ByteVector
 @RunWith(classOf[AndroidJUnit4])
 class PaymentMasterSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
-  LNParams.format = MnemonicStorageFormat(outstandingProviders = Nil, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+  LNParams.format = MnemonicStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
 
   def makeHostedCommits(nodeId: PublicKey, alias: String, toLocal: MilliSatoshi = 100000000L.msat): HostedCommits = {
     val announce = Tools.mkNodeAnnouncement(nodeId, NodeAddress.unresolved(9735, host = 45, 20, 67, 1), alias)

@@ -83,7 +83,7 @@ class NativeSpec {
   @Test
   def generatedAddressIsValid(): Unit = {
     val nodeId = PrivateKey(ByteVector.fromValidHex("18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725")).publicKey
-    val format = MnemonicStorageFormat(outstandingProviders = Nil, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+    val format = MnemonicStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
     assertTrue(Tools.isValidFinalScriptPubkey(format.keys.refundAddress(nodeId)))
   }
 
