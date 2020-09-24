@@ -165,7 +165,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
         val hosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](LNParams.format.outstandingProviders.map(NodeAnnouncementExt), _.na)
         become(CheckData(hosts, results = hosts.mapValues(_ => None), reconnectAttemptsLeft = hosts.size * 4), OPERATIONAL)
         for (ex <- hosts.values) CommsTower.listen(Set(accountCheckListener), ex.nodeSpecificPkap, ex.na)
-        RxUtils.ioQueue.delay(10.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
+        RxUtils.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
     }
   }
 }
