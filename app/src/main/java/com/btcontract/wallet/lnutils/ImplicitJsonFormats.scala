@@ -142,9 +142,9 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     }
   }
 
-  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[List[NodeAnnouncement], LightningNodeKeys,
+  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys,
     MnemonicStorageFormat](MnemonicStorageFormat.apply, "outstandingProviders", "keys"), tag = "MnemonicStorageFormat")
 
-  implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[List[NodeAnnouncement], LightningNodeKeys, String, Option[String],
+  implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")
 }

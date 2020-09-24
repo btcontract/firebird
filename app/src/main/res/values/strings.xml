@@ -20,6 +20,18 @@
     <string name="step_account_recovery_phrase_note">Note that Firebird will neither store a provided phrase nor use any standard derivation paths.\n\nEven if this wallet gets compromised the rest of funds attached to phrase will remain safe.</string>
     <string name="step_open_note">Everything is set up, the wallet is ready to be used. Thanks for choosing <b>Firebird</b>!</string>
 
+    <string name="check_no_account"><![CDATA[
+        No matching account exists, here are possible reasons why:<br><br>
+        - <b>Incorrect credentials</b>. Please make sure your email and password combination (or BIP39 recovery phrase) is exactly the same you used when creating a wallet.<br><br>
+        - <b>Missing payment provider</b>. You could have used a provider which is not on default list, in that case please choose that provider by scanning its QR code and try again.
+    ]]></string>
+
+    <string name="check_failed"><![CDATA[
+        Account checking could not be performed, here are possible reasons why:<br><br>
+        - <b>Connectivity issues</b>. Please make sure internet connection is available on your device and Firebird has permissions for network access.<br><br>
+        - <b>Unreachable payment providers</b>. Remote provider services may be on maintenance at the moment, please try a bit later or contact provider support.
+    ]]></string>
+
     <string name="action_scan_qr">Scan QR code</string>
     <string name="action_email_password">Email and password</string>
     <string name="action_recovery_phrase">BIP39 recovery phrase</string>

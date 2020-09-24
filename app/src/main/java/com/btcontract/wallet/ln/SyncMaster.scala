@@ -31,11 +31,12 @@ object SyncMaster {
   val CMDShutdown = "cmd-shut-down"
 
   type ConifrmedBySet = Set[PublicKey]
+  val blw: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03144fcc73cea41a002b2865f98190ab90e4ff58a2ce24d3870f5079081e42922d"), NodeAddress.unresolved(9735, host = 5, 9, 83, 143), "BLW Den")
   val lightning: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03baa70886d9200af0ffbd3f9e18d96008331c858456b16e3a9b41e735c6208fef"), NodeAddress.unresolved(9735, host = 45, 20, 67, 1), "LIGHTNING")
   val cheese: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0276e09a267592e7451a939c932cf685f0754de382a3ca85d2fb3a864d4c365ad5"), NodeAddress.unresolved(9735, host = 94, 177, 171, 73), "Cheese")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
+  val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq)
   val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq)
-  val hostedChanNodes: Set[NodeAnnouncement] = Set(lightning, acinq)
   val minCapacity = MilliSatoshi(500000000L)
   val chunksToWait = 3
 }

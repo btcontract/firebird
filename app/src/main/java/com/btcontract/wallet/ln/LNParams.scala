@@ -69,22 +69,22 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
-    val chain = hardened(138) +: makeKeyPath(material = pathMaterial)
+    val chain = hardened(138) +: makeKeyPath(pathMaterial)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def fakeInvoiceKey(paymentHash: ByteVector): PrivateKey = {
-    val chain = hardened(184) +: makeKeyPath(material = paymentHash)
+    val chain = hardened(184) +: makeKeyPath(paymentHash)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def ourFakeNodeIdKey(theirNodeId: PublicKey): PrivateKey = {
-    val chain = hardened(230) +: makeKeyPath(material = theirNodeId.value)
+    val chain = hardened(230) +: makeKeyPath(theirNodeId.value)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def refundAddress(theirNodeId: PublicKey): ByteVector = {
-    val derivationChain = hardened(276) +: makeKeyPath(material = theirNodeId.value)
+    val derivationChain = hardened(276) +: makeKeyPath(theirNodeId.value)
     val p2wpkh = Script.pay2wpkh(derivePrivateKey(extendedNodeKey, derivationChain).publicKey)
     Script.write(p2wpkh)
   }
@@ -100,14 +100,14 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
 trait StorageFormat {
   def keys: LightningNodeKeys
   def attachedChannelSecret: ByteVector
-  def outstandingProviders: List[NodeAnnouncement]
+  def outstandingProviders: Set[NodeAnnouncement]
 }
 
-case class MnemonicStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat {
+case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat {
   override def attachedChannelSecret: ByteVector = Crypto.sha256(keys.extendedNodeKey.secretkeybytes)
 }
 
-case class PasswordStorageFormat(outstandingProviders: List[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
+case class PasswordStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
   override def attachedChannelSecret: ByteVector = Crypto.sha256(user getBytes "UTF-8")
 }
 

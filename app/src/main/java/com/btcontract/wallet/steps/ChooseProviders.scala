@@ -13,17 +13,17 @@ import android.util.SparseBooleanArray
 import android.view.View
 
 
-case class Providers(list: List[NodeAnnouncement] = Nil)
+case class Providers(set: Set[NodeAnnouncement] = Set.empty)
 class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Providers](title, true) with ExternalDataChecker { me =>
   val availableProviders: Array[NodeAnnouncement] = SyncMaster.hostedChanNodes.toArray
-  var chosenProviders: Providers = Providers(Nil)
+  var chosenProviders: Providers = Providers(Set.empty)
   var list: ListView = _
 
   private[this] val lisetner = new OnListItemClickListener {
     override def onItemClicked(selectedPosition: Int): Unit = {
       val checkedPositions: SparseBooleanArray = list.getCheckedItemPositions
       val anns = availableProviders.indices.filter(checkedPositions.get).map(availableProviders)
-      chosenProviders = Providers(anns.toList)
+      chosenProviders = Providers(anns.toSet)
       markAsCompletedOrUncompleted(true)
     }
   }
@@ -31,7 +31,7 @@ class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Provid
   override def checkExternalData: Unit =
     WalletApp checkAndMaybeErase {
       case ann: NodeAnnouncement =>
-        chosenProviders = Providers(ann :: Nil)
+        chosenProviders = Providers(Set apply ann)
         markAsCompletedOrUncompleted(true)
         getFormView.goToNextStep(true)
         list.clearChoices
@@ -56,11 +56,11 @@ class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Provid
   }
 
   override def getStepData: Providers = chosenProviders
-  override def getStepDataAsHumanReadableString: String = getStepData.list.map(_.alias).mkString(", ")
-  override def isStepDataValid(stepData: Providers): IsDataValid = new IsDataValid(stepData.list.nonEmpty, new String)
+  override def getStepDataAsHumanReadableString: String = getStepData.set.map(_.alias).mkString(", ")
+  override def isStepDataValid(stepData: Providers) = new IsDataValid(stepData.set.nonEmpty, new String)
 
   override def onStepOpened(animated: Boolean): Unit =
-    if (chosenProviders.list.isEmpty) {
+    if (chosenProviders.set.isEmpty) {
       list.setItemChecked(0, true)
       lisetner.onItemClicked(0)
     }

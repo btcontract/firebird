@@ -1,25 +1,26 @@
 package com.btcontract.wallet.steps
 
-import android.view.View
-import com.btcontract.wallet.R
-import android.widget.LinearLayout
+import android.widget.{CheckBox, LinearLayout}
+import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
+import ernestoyaquello.com.verticalstepperform.Step
 import com.btcontract.wallet.FirebirdActivity
 import com.btcontract.wallet.ln.crypto.Tools
-import ernestoyaquello.com.verticalstepperform.Step
-import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
+import com.btcontract.wallet.R
+import android.view.View
 
 
 class OpenWallet(host: FirebirdActivity, title: String) extends Step[Boolean](title, true) { me =>
-  var restoringExistingAccount: Boolean = false
+  var restoreExistingAccount: CheckBox = _
 
   override def createStepContentLayout: View = {
     val view = host.getLayoutInflater.inflate(R.layout.frag_step_open, null).asInstanceOf[LinearLayout]
+    restoreExistingAccount = view.findViewById(R.id.restoreExistingAccount).asInstanceOf[CheckBox]
     view
   }
 
-  override def getStepData: Boolean = restoringExistingAccount
+  override def isStepDataValid(stepData: Boolean) = new IsDataValid(true, new String)
+  override def getStepData: Boolean = restoreExistingAccount.isChecked
   override def getStepDataAsHumanReadableString: String = new String
-  override def isStepDataValid(stepData: Boolean): IsDataValid = new IsDataValid(true, new String)
 
   override def onStepOpened(animated: Boolean): Unit = Tools.none
   override def onStepClosed(animated: Boolean): Unit = Tools.none
