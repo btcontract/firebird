@@ -165,7 +165,7 @@ public class RatingDialog extends AppCompatDialog implements RatingBar.OnRatingB
             String feedback = etFeedback.getText().toString().trim();
             if (TextUtils.isEmpty(feedback)) {
 
-                Animation shake = AnimationUtils.loadAnimation(context, R.anim.shake);
+                Animation shake = AnimationUtils.loadAnimation(context, R.anim.rating_dialog_shake);
                 etFeedback.startAnimation(shake);
                 return;
             }
