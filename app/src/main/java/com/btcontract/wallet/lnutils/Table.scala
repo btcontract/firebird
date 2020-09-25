@@ -121,20 +121,20 @@ object PaymentTable extends Table {
   private val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "incoming", "ext")
   val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnapMsat, fiatRateSnap, incoming, ext) = paymentTableFields
   val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnapMsat, $fiatRateSnap, $incoming, $ext"
-  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" //
+  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
 
   // Selecting
   val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?" //
-  def selectLastSql(limit: Int) = s"SELECT * FROM $table ORDER BY $stamp DESC LIMIT $limit" //
-  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ?" //
-  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status <> $ABORTED" //
-  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)" //
+  def selectLastSql(limit: Int) = s"SELECT * FROM $table ORDER BY $stamp DESC LIMIT $limit"
+  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ?"
+  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status <> $ABORTED"
+  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)"
 
   // Updating
-  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?" //
-  val updOkIncomingSql = s"UPDATE $table SET $status = $SUCCEEDED, $receivedMsat = ?, $stamp = ? WHERE $hash = ?" //
-  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED" //
+  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?"
+  val updOkIncomingSql = s"UPDATE $table SET $status = $SUCCEEDED, $receivedMsat = ?, $stamp = ? WHERE $hash = ?"
+  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED"
 
   // Once incoming or outgoing payment is settled we can search it by various metadata
   val createVSql = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $hash)"
@@ -149,6 +149,31 @@ object PaymentTable extends Table {
     /* hash index is created automatically because UNIQUE */
     CREATE INDEX IF NOT EXISTS idx1$table ON $table ($stamp, $status);
     CREATE INDEX IF NOT EXISTS idx2$table ON $table ($nodeId);
+    COMMIT"""
+}
+
+object PayMarketTable extends Table {
+  val (table, search, lnurl, text, lastMsat, lastDate, hash, image) = ("paymarket", "search", "lnurl", "text", "lastmsat", "lastdate", "hash", "image")
+  val newSql = s"INSERT OR IGNORE INTO $table ($lnurl, $text, $lastMsat, $lastDate, $hash, $image) VALUES (?, ?, ?, ?, ?, ?)"
+  val newVirtualSql = s"INSERT INTO $fts$table ($search, $lnurl) VALUES (?, ?)"
+
+  val selectRecentSql = s"SELECT * FROM $table ORDER BY $lastDate DESC LIMIT 48"
+  val searchSql = s"SELECT * FROM $table WHERE $lnurl IN (SELECT $lnurl FROM $fts$table WHERE $search MATCH ?) LIMIT 96"
+  val updInfoSql = s"UPDATE $table SET $text = ?, $lastMsat = ?, $lastDate = ?, $hash = ?, $image = ? WHERE $lnurl = ?"
+  val killSql = s"DELETE FROM $table WHERE $lnurl = ?"
+
+  // Payment links are searchable by their text descriptions (text metadata + domain name)
+  val createVSql = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $lnurl)"
+
+  val createSql = s"""
+    CREATE TABLE IF NOT EXISTS $table (
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $lnurl STRING NOT NULL UNIQUE,
+      $text STRING NOT NULL, $lastMsat INTEGER NOT NULL, $lastDate INTEGER NOT NULL,
+      $hash STRING NOT NULL, $image STRING NOT NULL
+    );
+
+    /* lnurl index is created automatically since field is UNIQUE */
+    CREATE INDEX IF NOT EXISTS idx1$table ON $table ($lastDate);
     COMMIT"""
 }
 
@@ -176,15 +201,21 @@ class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(c
   def onCreate(dbs: SQLiteDatabase): Unit = {
     dbs execSQL NormalChannelAnnouncementTable.createSql
     dbs execSQL HostedChannelAnnouncementTable.createSql
+
     dbs execSQL NormalExcludedChannelTable.createSql
     dbs execSQL HostedExcludedChannelTable.createSql
+
     dbs execSQL NormalChannelUpdateTable.createSql
     dbs execSQL HostedChannelUpdateTable.createSql
 
-    dbs execSQL PaymentTable.createVSql
-    dbs execSQL PaymentTable.createSql
     dbs execSQL ChannelTable.createSql
     dbs execSQL DataTable.createSql
+
+    dbs execSQL PaymentTable.createVSql
+    dbs execSQL PaymentTable.createSql
+
+    dbs execSQL PayMarketTable.createVSql
+    dbs execSQL PayMarketTable.createSql
   }
 
   def onUpgrade(dbs: SQLiteDatabase, v0: Int, v1: Int): Unit = {

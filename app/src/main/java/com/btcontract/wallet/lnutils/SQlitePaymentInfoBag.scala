@@ -20,10 +20,10 @@ case class TotalStatSummary(fees: MilliSatoshi, received: MilliSatoshi, sent: Mi
 
 class SQlitePaymentInfoBag(db: SQLiteInterface) extends PaymentInfoBag {
   def uiNotify(ctxt: Context): Unit = ctxt.getContentResolver.notifyChange(db sqlPath PaymentTable.table, null)
-  def listLastPayments(limit: Int): Vector[PaymentInfo] = db.select(PaymentTable selectLastSql limit).vec(toPaymentInfo)
   def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = db.select(PaymentTable.selectOneSql, paymentHash.toHex).headTry(toPaymentInfo).toOption
   def addSearchablePayment(search: String, paymentHash: ByteVector32): Unit = db.change(PaymentTable.newVirtualSql, search, paymentHash.toHex)
-  def searchPayments(rawSearchQuery: String): Vector[PaymentInfo] = db.search(PaymentTable.searchSql, rawSearchQuery).vec(toPaymentInfo)
+  def searchPayments(rawSearchQuery: String): RichCursor = db.search(PaymentTable.searchSql, rawSearchQuery)
+  def listLastPayments(limit: Int): RichCursor = db.select(PaymentTable selectLastSql limit)
 
   def updOkOutgoing(upd: UpdateFulfillHtlc, sent: MilliSatoshi, fee: MilliSatoshi): Unit =
     db.change(PaymentTable.updOkOutgoingSql, upd.paymentPreimage.toHex, sent.toLong: java.lang.Long,

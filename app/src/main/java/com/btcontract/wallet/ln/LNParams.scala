@@ -11,13 +11,11 @@ import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Featu
 import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
+import fr.acinq.eclair.payment.PaymentRequest
 import java.io.ByteArrayInputStream
-
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
 import java.nio.ByteOrder
-
-import fr.acinq.eclair.payment.PaymentRequest
 
 
 object LNParams {
