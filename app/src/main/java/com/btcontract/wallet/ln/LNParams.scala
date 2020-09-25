@@ -12,9 +12,12 @@ import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Proto
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import java.io.ByteArrayInputStream
+
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
 import java.nio.ByteOrder
+
+import fr.acinq.eclair.payment.PaymentRequest
 
 
 object LNParams {
@@ -145,6 +148,8 @@ case class LightningMessageExt(msg: LightningMessage) {
   def asRemote: LNDirectionalMessage = msg -> false
   def asLocal: LNDirectionalMessage = msg -> true
 }
+
+case class PaymentRequestExt(pr: PaymentRequest, raw: String)
 
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit

@@ -128,7 +128,7 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
     doProcess(cd)
   }
 
-  def pendingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
+  def pendingOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(socketToChannelBridge), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
@@ -142,14 +142,13 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
   }
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val fulfilledInRuntime = PaymentMaster.data.payments.get(paymentHash).exists(fsm => SUCCEEDED == fsm.state)
-    val pendingInSender = PaymentMaster.data.payments.get(paymentHash).exists(fsm => PENDING == fsm.state || INIT == fsm.state)
-    val fulfilledInDbOrIncoming = payBag.getPaymentInfo(paymentHash).exists(info => info.isIncoming || info.status == SUCCEEDED)
-    val pendingInChannel = pendingHtlcs.exists(_.paymentHash == paymentHash)
+    val presentInSender: Option[PaymentSender] = PaymentMaster.data.payments.get(paymentHash)
+    val presentInDb = payBag.getPaymentInfo(paymentHash).exists(info => info.isIncoming || info.status == SUCCEEDED)
+    val pendingInChannel = pendingOutgoingHtlcs.exists(_.paymentHash == paymentHash)
 
     if (PaymentMaster.totalSendable < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (fulfilledInDbOrIncoming || fulfilledInRuntime) PaymentInfo.NOT_SENDABLE_SUCCESS
-    else if (pendingInChannel || pendingInSender) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+    else if (presentInSender.exists(fsm => SUCCEEDED == fsm.state) || presentInDb) PaymentInfo.NOT_SENDABLE_SUCCESS
+    else if (presentInSender.exists(fsm => PENDING == fsm.state || INIT == fsm.state) || pendingInChannel) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
     else PaymentInfo.SENDABLE
   }
 
@@ -556,7 +555,7 @@ abstract class ChannelMaster(payBag: PaymentInfoBag, chanBag: ChannelBag, pf: Pa
       }
 
     private def abortAndNotify(data1: PaymentSenderData): Unit = {
-      val notInChannel = pendingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
+      val notInChannel = pendingOutgoingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
       if (notInChannel && data1.inFlights.isEmpty) events.outgoingFailed(data1)
       become(data1, ABORTED)
     }

@@ -24,7 +24,6 @@ object MainActivity {
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit= {
     val normalNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
     val hostedNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
-    val paymentInfoBag = new SQlitePaymentInfoBag(WalletApp.db)
     val channelBag = new SQliteChannelBag(WalletApp.db)
 
     val pf: PathFinder =
@@ -35,7 +34,7 @@ object MainActivity {
       }
 
     val channelMaster: ChannelMaster =
-      new ChannelMaster(paymentInfoBag, channelBag, pf, WalletApp.chainLink) {
+      new ChannelMaster(WalletApp.paymentBag, channelBag, pf, WalletApp.chainLink) {
         val socketToChannelBridge: ConnectionListener = new ConnectionListener {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)

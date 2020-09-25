@@ -1,7 +1,7 @@
 package com.btcontract.wallet.lnutils
 
 import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
-import com.btcontract.wallet.ln.PaymentMaster.SUCCEEDED
+import com.btcontract.wallet.ln.PaymentMaster.{ABORTED, SUCCEEDED}
 import com.btcontract.wallet.ln.crypto.Tools.runAnd
 import com.btcontract.wallet.helper.RichCursor
 import fr.acinq.eclair.byteVector64One
@@ -121,30 +121,30 @@ object PaymentTable extends Table {
   private val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedMsat", "sentMsat", "feeMsat", "balanceSnap", "fiatRateSnap", "incoming", "ext")
   val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnapMsat, fiatRateSnap, incoming, ext) = paymentTableFields
   val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnapMsat, $fiatRateSnap, $incoming, $ext"
-  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?, ?)"
+  val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" //
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
 
   // Selecting
-  val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?"
-  val selectBetweenSql = s"SELECT * FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ? LIMIT 4"
-  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ?"
-  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ?"
-  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 50)"
+  val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?" //
+  def selectLastSql(limit: Int) = s"SELECT * FROM $table ORDER BY $stamp DESC LIMIT $limit" //
+  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ?" //
+  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status <> $ABORTED" //
+  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)" //
 
   // Updating
-  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?"
-  val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ? WHERE $hash = ?"
-  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED"
+  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?" //
+  val updOkIncomingSql = s"UPDATE $table SET $status = $SUCCEEDED, $receivedMsat = ?, $stamp = ? WHERE $hash = ?" //
+  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED" //
 
   // Once incoming or outgoing payment is settled we can search it by various metadata
   val createVSql = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $hash)"
 
   val createSql = s"""
     CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $nodeId BLOB NOT NULL, $pr TEXT NOT NULL, $preimage BLOB NOT NULL,
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $nodeId TEXT NOT NULL, $pr TEXT NOT NULL, $preimage TEXT NOT NULL,
       $status TEXT NOT NULL, $stamp INTEGER NOT NULL, $description TEXT NOT NULL, $action TEXT NOT NULL, $hash TEXT NOT NULL UNIQUE,
       $receivedMsat INTEGER NOT NULL, $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL, $balanceSnapMsat INTEGER NOT NULL, $fiatRateSnap TEXT NOT NULL,
-      $incoming INTEGER NOT NULL, $ext BLOB NOT NULL
+      $incoming INTEGER NOT NULL, $ext TEXT NOT NULL
     );
     /* hash index is created automatically because UNIQUE */
     CREATE INDEX IF NOT EXISTS idx1$table ON $table ($stamp, $status);
@@ -161,6 +161,11 @@ class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(c
   def select(sql: String, params: String*): RichCursor = {
     val cursor = base.rawQuery(sql, params.toArray)
     RichCursor(cursor)
+  }
+
+  def search(sqlSelectQuery: String, rawQuery: String): RichCursor = {
+    val purified = rawQuery.replaceAll("[^ a-zA-Z0-9]", "")
+    select(sqlSelectQuery, s"$purified*")
   }
 
   def txWrap(run: => Unit): Unit = try {
