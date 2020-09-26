@@ -402,13 +402,13 @@ public class AHBottomNavigation extends FrameLayout {
 		for (int i = 0; i < items.size(); i++) {
 			final boolean current = currentItem == i;
 			final int itemIndex = i;
-			AHBottomNavigationItem item = items.get(itemIndex);
+			final AHBottomNavigationItem item = items.get(itemIndex);
 
 			View view = inflater.inflate(R.layout.bottom_navigation_item, this, false);
-			FrameLayout container = (FrameLayout) view.findViewById(R.id.bottom_navigation_container);
-			ImageView icon = (ImageView) view.findViewById(R.id.bottom_navigation_item_icon);
-			TextView title = (TextView) view.findViewById(R.id.bottom_navigation_item_title);
-			TextView notification = (TextView) view.findViewById(R.id.bottom_navigation_notification);
+			FrameLayout container = view.findViewById(R.id.bottom_navigation_container);
+			ImageView icon = view.findViewById(R.id.bottom_navigation_item_icon);
+			TextView title = view.findViewById(R.id.bottom_navigation_item_title);
+			TextView notification = view.findViewById(R.id.bottom_navigation_notification);
 
 			icon.setImageDrawable(item.getDrawable(context));
 			title.setText(item.getTitle(context));
@@ -465,7 +465,7 @@ public class AHBottomNavigation extends FrameLayout {
 				view.setOnClickListener(new OnClickListener() {
 					@Override
 					public void onClick(View v) {
-						updateItems(itemIndex, true);
+						updateItems(itemIndex, item.getTag(), true);
 					}
 				});
 				iconDrawable = forceTint ? AHHelper.getTintDrawable(items.get(i).getDrawable(context),
@@ -528,13 +528,14 @@ public class AHBottomNavigation extends FrameLayout {
 		for (int i = 0; i < items.size(); i++) {
 
 			final int itemIndex = i;
-			AHBottomNavigationItem item = items.get(itemIndex);
+			final AHBottomNavigationItem item = items.get(itemIndex);
 
 			View view = inflater.inflate(R.layout.bottom_navigation_small_item, this, false);
 			ImageView icon = view.findViewById(R.id.bottom_navigation_small_item_icon);
 			TextView title = view.findViewById(R.id.bottom_navigation_small_item_title);
 			TextView notification = view.findViewById(R.id.bottom_navigation_notification);
 			icon.setImageDrawable(item.getDrawable(context));
+			view.setTag(item.getTag());
 
 			if (titleState != TitleState.ALWAYS_HIDE) {
 				title.setText(item.getTitle(context));
@@ -598,7 +599,7 @@ public class AHBottomNavigation extends FrameLayout {
 				view.setOnClickListener(new OnClickListener() {
 					@Override
 					public void onClick(View v) {
-						updateSmallItems(itemIndex, true);
+						updateSmallItems(itemIndex, item.getTag(), true);
 					}
 				});
 				view.setSoundEffectsEnabled(soundEffectsEnabled);
@@ -635,17 +636,17 @@ public class AHBottomNavigation extends FrameLayout {
 	 * @param itemIndex   int: Selected item position
 	 * @param useCallback boolean: Use or not the callback
 	 */
-	private void updateItems(final int itemIndex, boolean useCallback) {
+	private void updateItems(final int itemIndex, final String tag, boolean useCallback) {
 
 		if (currentItem == itemIndex) {
 			if (tabSelectedListener != null && useCallback) {
-				tabSelectedListener.onTabSelected(itemIndex, true);
+				tabSelectedListener.onTabSelected(itemIndex, tag, true);
 			}
 			return;
 		}
 
 		if (tabSelectedListener != null && useCallback) {
-			boolean selectionAllowed = tabSelectedListener.onTabSelected(itemIndex, false);
+			boolean selectionAllowed = tabSelectedListener.onTabSelected(itemIndex, tag, false);
 			if (!selectionAllowed) return;
 		}
 
@@ -769,17 +770,17 @@ public class AHBottomNavigation extends FrameLayout {
 	 * @param itemIndex   int: Selected item position
 	 * @param useCallback boolean: Use or not the callback
 	 */
-	private void updateSmallItems(final int itemIndex, boolean useCallback) {
+	private void updateSmallItems(final int itemIndex, final String tag, boolean useCallback) {
 
 		if (currentItem == itemIndex) {
 			if (tabSelectedListener != null && useCallback) {
-				tabSelectedListener.onTabSelected(itemIndex, true);
+				tabSelectedListener.onTabSelected(itemIndex, tag, true);
 			}
 			return;
 		}
 
 		if (tabSelectedListener != null && useCallback) {
-			boolean selectionAllowed = tabSelectedListener.onTabSelected(itemIndex, false);
+			boolean selectionAllowed = tabSelectedListener.onTabSelected(itemIndex, tag, false);
 			if (!selectionAllowed) return;
 		}
 
@@ -1243,9 +1244,9 @@ public class AHBottomNavigation extends FrameLayout {
 		if (titleState != TitleState.ALWAYS_HIDE &&
 				titleState != TitleState.SHOW_WHEN_ACTIVE_FORCE &&
 				(items.size() == MIN_ITEMS || titleState == TitleState.ALWAYS_SHOW)) {
-			updateItems(position, useCallback);
+			updateItems(position, items.get(position).getTag(), useCallback);
 		} else {
-			updateSmallItems(position, useCallback);
+			updateSmallItems(position, items.get(position).getTag(), useCallback);
 		}
 	}
 
@@ -1653,11 +1654,11 @@ public class AHBottomNavigation extends FrameLayout {
 		/**
 		 * Called when a tab has been selected (clicked)
 		 *
-		 * @param position    int: Position of the selected tab
+		 * @param tag    string: Tag of the selected tab
 		 * @param wasSelected boolean: true if the tab was already selected
 		 * @return boolean: true for updating the tab UI, false otherwise
 		 */
-		boolean onTabSelected(int position, boolean wasSelected);
+		boolean onTabSelected(int position, String tag, boolean wasSelected);
 	}
 
 	public interface OnNavigationPositionListener {

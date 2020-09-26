@@ -7,6 +7,7 @@ import scala.util.Try
 
 object SQliteDataBag {
   final val LABEL_FORMAT = "label-format"
+  final val LABEL_USED_ADDONS = "label-used-addons"
 }
 
 class SQliteDataBag(db: SQLiteInterface) {
@@ -16,7 +17,8 @@ class SQliteDataBag(db: SQLiteInterface) {
     db.change(DataTable.updSql, content, label)
   }
 
-  def delete(dataLabel: String): Unit = db.change(DataTable.killSql, dataLabel)
-  def tryGet(dataLabel: String): Try[String] = db.select(DataTable.selectSql, dataLabel).headTry(_ string DataTable.content)
+  def delete(label: String): Unit = db.change(DataTable.killSql, label)
+  def tryGet(label: String): Try[String] = db.select(DataTable.selectSql, label).headTry(_ string DataTable.content)
+  def tryGetUsedAddons: Try[UsedAddons] = tryGet(SQliteDataBag.LABEL_USED_ADDONS) map to[UsedAddons]
   def tryGetFormat: Try[StorageFormat] = tryGet(SQliteDataBag.LABEL_FORMAT) map to[StorageFormat]
 }

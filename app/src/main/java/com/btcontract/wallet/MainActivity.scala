@@ -61,13 +61,13 @@ object MainActivity {
     cm.getAllNetworks.exists(cm getNetworkCapabilities _ hasTransport NetworkCapabilities.TRANSPORT_VPN)
   } getOrElse false
 
-  def interruptWallet: Unit = {
+  def interruptWallet: Unit = if (WalletApp.isAlive) {
+    // This may be called multiple times from different threads
+    // execute once if app is alive, otherwise do nothing
+
     WalletApp.app.freePossiblyUsedResouces
     WalletApp.app.quickToast(orbot_err_disconnect)
-    // Safely disconnect from possibly remaining sockets
-    CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
-    require(!WalletApp.isOperational, "App is still operational")
-    require(!WalletApp.isAlive, "App is still alive")
+    require(!WalletApp.isOperational, "Still operational")
 
     // Effectively restart an app
     val mainActivityClass = classOf[MainActivity]

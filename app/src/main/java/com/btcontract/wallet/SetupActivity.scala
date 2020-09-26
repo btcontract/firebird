@@ -61,9 +61,9 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
       accountCheck process CMDCheck
     }
 
-    def exitToWallet: Unit = {
-      val json = LNParams.format.toJson.toString
-      WalletApp.dataBag.put(SQliteDataBag.LABEL_FORMAT, json)
+    def exitToWallet: Unit = runAnd(alert.dismiss) {
+      val jsonFormat: String = LNParams.format.toJson.toString
+      WalletApp.dataBag.put(SQliteDataBag.LABEL_FORMAT, jsonFormat)
       MainActivity.makeOperational(me, LNParams.format)
     }
 

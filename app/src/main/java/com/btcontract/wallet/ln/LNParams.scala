@@ -105,11 +105,11 @@ trait StorageFormat {
 }
 
 case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat {
-  override def attachedChannelSecret: ByteVector = Crypto.sha256(keys.extendedNodeKey.secretkeybytes)
+  override def attachedChannelSecret: ByteVector = Crypto.hash256(keys.extendedNodeKey.secretkeybytes)
 }
 
 case class PasswordStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
-  override def attachedChannelSecret: ByteVector = Crypto.sha256(user getBytes "UTF-8")
+  override def attachedChannelSecret: ByteVector = Crypto.hash256(user getBytes "UTF-8")
 }
 
 object ChanErrorCodes {

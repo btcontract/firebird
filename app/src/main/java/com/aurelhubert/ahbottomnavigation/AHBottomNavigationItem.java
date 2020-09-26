@@ -18,42 +18,20 @@ import androidx.appcompat.content.res.AppCompatResources;
 public class AHBottomNavigationItem {
 	
 	private String title = "";
+	private String tag = "";
 	private Drawable drawable;
 	private int color = Color.GRAY;
 	
 	private
 	@StringRes
-	int titleRes = 0;
+	int titleRes;
 	private
 	@DrawableRes
-	int drawableRes = 0;
+	int drawableRes;
 	private
 	@ColorRes
-	int colorRes = 0;
-	
-	/**
-	 * Constructor
-	 *
-	 * @param title    Title
-	 * @param resource Drawable resource
-	 */
-	public AHBottomNavigationItem(String title, @DrawableRes int resource) {
-		this.title = title;
-		this.drawableRes = resource;
-	}
-	
-	/**
-	 * @param title    Title
-	 * @param resource Drawable resource
-	 * @param color    Background color
-	 */
-	@Deprecated
-	public AHBottomNavigationItem(String title, @DrawableRes int resource, @ColorRes int color) {
-		this.title = title;
-		this.drawableRes = resource;
-		this.color = color;
-	}
-	
+	int colorRes;
+
 	/**
 	 * Constructor
 	 *
@@ -61,41 +39,22 @@ public class AHBottomNavigationItem {
 	 * @param drawableRes Drawable resource
 	 * @param colorRes    Color resource
 	 */
-	public AHBottomNavigationItem(@StringRes int titleRes, @DrawableRes int drawableRes, @ColorRes int colorRes) {
+	public AHBottomNavigationItem(@StringRes int titleRes, @DrawableRes int drawableRes, @ColorRes int colorRes, String tag) {
 		this.titleRes = titleRes;
 		this.drawableRes = drawableRes;
 		this.colorRes = colorRes;
+		this.tag = tag;
 	}
-	
-	/**
-	 * Constructor
-	 *
-	 * @param title    String
-	 * @param drawable Drawable
-	 */
-	public AHBottomNavigationItem(String title, Drawable drawable) {
-		this.title = title;
-		this.drawable = drawable;
-	}
-	
-	/**
-	 * Constructor
-	 *
-	 * @param title    String
-	 * @param drawable Drawable
-	 * @param color    Color
-	 */
-	public AHBottomNavigationItem(String title, Drawable drawable, @ColorInt int color) {
-		this.title = title;
-		this.drawable = drawable;
-		this.color = color;
-	}
-	
+
 	public String getTitle(Context context) {
 		if (titleRes != 0) {
 			return context.getString(titleRes);
 		}
 		return title;
+	}
+
+	public String getTag() {
+		return tag;
 	}
 	
 	public void setTitle(String title) {
@@ -119,12 +78,7 @@ public class AHBottomNavigationItem {
 		this.color = color;
 		this.colorRes = 0;
 	}
-	
-	public void setColorRes(@ColorRes int colorRes) {
-		this.colorRes = colorRes;
-		this.color = 0;
-	}
-	
+
 	public Drawable getDrawable(Context context) {
 		if (drawableRes != 0) {
 			try {

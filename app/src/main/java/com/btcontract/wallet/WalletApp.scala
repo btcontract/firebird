@@ -2,21 +2,22 @@ package com.btcontract.wallet
 
 import spray.json._
 import com.btcontract.wallet.R.string._
+
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-
-import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt}
+import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import fr.acinq.eclair.wire.{NodeAddress, UpdateAddHtlc, UpdateFulfillHtlc}
 import android.app.{Application, NotificationChannel, NotificationManager}
-import com.btcontract.wallet.ln.{ChainLink, LNParams, PaymentRequestExt}
-import scala.util.{Success, Try}
+import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt}
 
+import scala.util.{Success, Try}
 import com.btcontract.wallet.helper.AwaitService
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
+
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -38,6 +39,7 @@ object WalletApp {
   var db: SQLiteInterface = _
   var dataBag: SQliteDataBag = _
   var paymentBag: CachedSQlitePaymentBag = _
+  var usedAddons: UsedAddons = _
   var chainLink: ChainLink = _
   var value: Any = new String
 
@@ -61,7 +63,7 @@ object WalletApp {
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
   def checkAndMaybeErase(checkerMethod: Checker): Unit = checkerMethod(value) match { case DoNotEraseValue => case _ => value = null }
-  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != paymentBag && null != chainLink
+  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != paymentBag && null != usedAddons && null != chainLink
   def isOperational: Boolean = isAlive && null != LNParams.format && null != LNParams.channelMaster
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
@@ -145,13 +147,15 @@ class WalletApp extends Application {
   }
 
   def freePossiblyUsedResouces: Unit = {
+    // Safely disconnect from possibly remaining sockets
+    CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
     if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
     if (null != LNParams.channelMaster) LNParams.channelMaster.listeners = Set.empty
     if (null != LNParams.channelMaster) LNParams.channelMaster.all = Vector.empty
     if (null != WalletApp.chainLink) WalletApp.chainLink.listeners = Set.empty
     if (null != WalletApp.chainLink) WalletApp.chainLink.stop
     if (null != WalletApp.db) WalletApp.db.close
-    // make sure application is not alive
+    // Make sure application is not alive
     LNParams.channelMaster = null
     WalletApp.chainLink = null
     WalletApp.db = null
@@ -159,16 +163,20 @@ class WalletApp extends Application {
 
   def makeAlive: Unit = {
     freePossiblyUsedResouces
+    WalletApp.db = new SQLiteInterface(this, "firebird.db")
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
     WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
     // Start looking for chain height asap
     WalletApp.chainLink.start
 
-    WalletApp.db = new SQLiteInterface(this, "firebird.db")
+    // Set up cached payment bag to get payment summary faster
     val bag: SQlitePaymentBag = new SQlitePaymentBag(WalletApp.db)
     WalletApp.paymentBag = new CachedSQlitePaymentBag(bag)
+
     WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+    // Set up used addons, but do nothing more here, initialize connection-enabled later
+    WalletApp.usedAddons = WalletApp.dataBag.tryGetUsedAddons getOrElse UsedAddons(Nil)
 
     FiatRates.ratesInfo = Try {
       prefs.getString(WalletApp.FIAT_RATES_DATA, new String)
