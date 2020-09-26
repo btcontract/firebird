@@ -266,7 +266,6 @@ case class NodeAnnouncement(signature: ByteVector64,
 object ChannelUpdate {
   final val POSITION1NODE: java.lang.Integer = 1
   final val POSITION2NODE: java.lang.Integer = 2
-  def toPosIdx(shortId: ShortChannelId, position: java.lang.Integer): String = s"${shortId.toLong}/$position"
 }
 
 case class UpdateCore(position: java.lang.Integer,

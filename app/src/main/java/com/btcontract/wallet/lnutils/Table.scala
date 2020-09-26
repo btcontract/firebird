@@ -71,22 +71,24 @@ object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_a
 }
 
 abstract class ChannelUpdateTable(val table: String) extends Table {
-  private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "posidx", "score")
-  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, posIdx, score) = names
+  private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "position", "score")
+  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score) = names
 
-  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $posIdx = ?"
-  val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $posIdx = ?"
-  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $posIdx, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $shortChannelId = ? AND $position = ?"
+  val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $shortChannelId = ? AND $position = ?"
+  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $position, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
   val selectHavingOneUpdate = s"SELECT $shortChannelId FROM $table GROUP BY $shortChannelId HAVING COUNT($shortChannelId) < 2"
-  val killSql = s"DELETE FROM $table WHERE $posIdx = ? OR $posIdx = ?"
+  val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
   val selectAllSql = s"SELECT * FROM $table"
 
   def create(db: SQLiteDatabase): Unit = {
     db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL, $timestamp INTEGER NOT NULL,
       $messageFlags INTEGER NOT NULL, $channelFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,
-      $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $posIdx STRING NOT NULL UNIQUE, $score INTEGER NOT NULL
+      $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL, $score INTEGER NOT NULL
     )"""
+
+    db execSQL s"CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId, $position)"
   }
 }
 
