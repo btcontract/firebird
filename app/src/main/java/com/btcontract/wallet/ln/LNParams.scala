@@ -147,7 +147,9 @@ case class LightningMessageExt(msg: LightningMessage) {
   def asLocal: LNDirectionalMessage = msg -> true
 }
 
-case class PaymentRequestExt(pr: PaymentRequest, raw: String)
+class PaymentRequestExt(val pr: PaymentRequest, val raw: String) {
+  def paymentHashStr: String = pr.paymentHash.toHex
+}
 
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit

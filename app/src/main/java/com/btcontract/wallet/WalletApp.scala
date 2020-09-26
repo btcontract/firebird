@@ -5,7 +5,7 @@ import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag, SQlitePaymentInfoBag}
+import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag, SQlitePaymentBag}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import com.btcontract.wallet.ln.{ChainLink, LNParams, PaymentRequestExt}
@@ -36,7 +36,7 @@ object WalletApp {
   var denom: Denomination = _
   var db: SQLiteInterface = _
   var dataBag: SQliteDataBag = _
-  var paymentBag: SQlitePaymentInfoBag = _
+  var paymentBag: SQlitePaymentBag = _
   var chainLink: ChainLink = _
   var value: Any = new String
 
@@ -58,7 +58,7 @@ object WalletApp {
 
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
-  def checkAndMaybeErase(check: Checker): Unit = check(value) match { case DoNotEraseValue => case _ => value = null }
+  def checkAndMaybeErase(checkerMethod: Checker): Unit = checkerMethod(value) match { case DoNotEraseValue => case _ => value = null }
   def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != paymentBag && null != chainLink
   def isOperational: Boolean = isAlive && null != LNParams.format && null != LNParams.channelMaster
 
@@ -74,7 +74,7 @@ object WalletApp {
     case bitcoinUriLink if bitcoinUriLink startsWith "BITCOIN" => bitcoinUri(bitcoinUriLink.toLowerCase)
     case nodeLink(key, host, port) => mkNodeAnnouncement(PublicKey.fromBin(ByteVector fromValidHex key), NodeAddress.fromParts(host, port.toInt), key take 16 grouped 4 mkString " ")
     case shortNodeLink(key, host) => mkNodeAnnouncement(PublicKey.fromBin(ByteVector fromValidHex key), NodeAddress.fromParts(host, port = 9735), key take 16 grouped 4 mkString " ")
-    case lnPayReq(prefix, data) => PaymentRequestExt(pr = PaymentRequest.read(s"$prefix$data"), raw = s"$prefix$data")
+    case lnPayReq(prefix, data) => new PaymentRequestExt(pr = PaymentRequest.read(s"$prefix$data"), raw = s"$prefix$data")
     case lnUrl(prefix, data) => LNUrl.fromBech32(s"$prefix$data")
     case _ => bitcoinUri(s"bitcoin:$rawInput")
   }
@@ -164,7 +164,7 @@ class WalletApp extends Application {
     WalletApp.chainLink.start
 
     WalletApp.db = new SQLiteInterface(this, "firebird.db")
-    WalletApp.paymentBag = new SQlitePaymentInfoBag(WalletApp.db)
+    WalletApp.paymentBag = new SQlitePaymentBag(WalletApp.db)
     WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
 
     FiatRates.ratesInfo = Try {
