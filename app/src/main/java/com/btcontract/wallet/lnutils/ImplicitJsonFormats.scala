@@ -122,11 +122,8 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   // Wallet keys
 
   implicit val keyPathFmt: JsonFormat[KeyPath] = jsonFormat[Seq[Long], KeyPath](KeyPath.apply, "path")
-  implicit val extendedPrivateKeyFmt: JsonFormat[ExtendedPrivateKey] = jsonFormat[ByteVector32, ByteVector32, Int, KeyPath, Long,
-    ExtendedPrivateKey](ExtendedPrivateKey.apply, "secretkeybytes", "chaincode", "depth", "path", "parent")
-
-  implicit val lightningNodeKeysFmt: JsonFormat[LightningNodeKeys] = jsonFormat[ExtendedPrivateKey, (String, String), PrivateKey,
-    LightningNodeKeys](LightningNodeKeys.apply, "extendedNodeKey", "xpub", "hashingKey")
+  implicit val extendedPrivateKeyFmt: JsonFormat[ExtendedPrivateKey] = jsonFormat[ByteVector32, ByteVector32, Int, KeyPath, Long, ExtendedPrivateKey](ExtendedPrivateKey.apply, "secretkeybytes", "chaincode", "depth", "path", "parent")
+  implicit val lightningNodeKeysFmt: JsonFormat[LightningNodeKeys] = jsonFormat[ExtendedPrivateKey, (String, String), PrivateKey, LightningNodeKeys](LightningNodeKeys.apply, "extendedNodeKey", "xpub", "hashingKey")
 
   implicit object StorageFormatFmt extends JsonFormat[StorageFormat] {
     def write(internal: StorageFormat): JsValue = internal match {
@@ -147,4 +144,9 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")
+
+  // Payment summary cache
+
+  implicit val totalStatSummaryFmt: JsonFormat[TotalStatSummary] = jsonFormat[MilliSatoshi, MilliSatoshi, MilliSatoshi, Long, TotalStatSummary](TotalStatSummary.apply, "fees", "received", "sent", "count")
+  implicit val totalStatSummaryExtFmt: JsonFormat[TotalStatSummaryExt] = jsonFormat[Option[TotalStatSummary], Long, Long, TotalStatSummaryExt](TotalStatSummaryExt.apply, "summary", "from", "to")
 }

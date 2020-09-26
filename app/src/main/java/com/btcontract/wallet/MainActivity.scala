@@ -21,7 +21,7 @@ import android.view.View
 
 
 object MainActivity {
-  def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit= {
+  def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit = {
     val normalNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
     val hostedNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
     val channelBag = new SQliteChannelBag(WalletApp.db)
@@ -34,7 +34,7 @@ object MainActivity {
       }
 
     val channelMaster: ChannelMaster =
-      new ChannelMaster(WalletApp.paymentBag, channelBag, pf, WalletApp.chainLink) {
+      new ChannelMaster(WalletApp.paymentBag.bag, channelBag, pf, WalletApp.chainLink) {
         val socketToChannelBridge: ConnectionListener = new ConnectionListener {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
@@ -107,7 +107,7 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
   def readNonNdefMessage: Unit = proceed(null)
 
   def proceed(disregard: Any): Unit = WalletApp.isAlive match {
-    case false => runAnd(WalletApp.app.initAppVars)(me proceed null)
+    case false => runAnd(WalletApp.app.makeAlive)(me proceed null)
     case true if WalletApp.isOperational => me exitTo classOf[HubActivity]
     case true =>
       val checkTor = WalletApp.app.prefs.getBoolean(WalletApp.ENSURE_TOR, false)

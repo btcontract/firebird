@@ -5,8 +5,10 @@ import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import com.btcontract.wallet.lnutils.{LNUrl, SQLiteInterface, SQliteDataBag, SQlitePaymentBag}
+
+import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
+import fr.acinq.eclair.wire.{NodeAddress, UpdateAddHtlc, UpdateFulfillHtlc}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import com.btcontract.wallet.ln.{ChainLink, LNParams, PaymentRequestExt}
 import scala.util.{Success, Try}
@@ -18,7 +20,6 @@ import com.btcontract.wallet.FiatRates.Rates
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.eclair.wire.NodeAddress
 import org.bitcoinj.crypto.MnemonicCode
 import com.blockstream.libwally.Wally
 import fr.acinq.eclair.MilliSatoshi
@@ -36,19 +37,20 @@ object WalletApp {
   var denom: Denomination = _
   var db: SQLiteInterface = _
   var dataBag: SQliteDataBag = _
-  var paymentBag: SQlitePaymentBag = _
+  var paymentBag: CachedSQlitePaymentBag = _
   var chainLink: ChainLink = _
   var value: Any = new String
 
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
   val denoms = List(SatDenomination, BtcDenomination)
 
+  final val USE_AUTH = "useAuth"
   final val FIAT_TYPE = "fiatType"
+  final val DENOM_TYPE = "denomType"
+  final val ENSURE_TOR = "ensureTor"
   final val FIAT_RATES_DATA = "fiatRatesData"
   final val LAST_GOSSIP_SYNC = "lastGossipSync"
-  final val ENSURE_TOR = "ensureTor"
-  final val DENOM_TYPE = "denomType"
-  final val USE_AUTH = "useAuth"
+  final val PAYMENT_SUMMARY_CACHE = "paymentSummaryCache"
 
   private[this] val prefixes = PaymentRequest.prefixes.values mkString "|"
   private[this] val lnUrl = s"(?im).*?(lnurl)([0-9]{1,}[a-z0-9]+){1}".r.unanchored
@@ -134,7 +136,7 @@ class WalletApp extends Application {
 
     // Currently night theme is the only option, should be set by default
     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-    initAppVars
+    makeAlive
 
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
       val srvChan = new NotificationChannel(AwaitService.CHANNEL_ID, "NC", NotificationManager.IMPORTANCE_DEFAULT)
@@ -155,7 +157,7 @@ class WalletApp extends Application {
     WalletApp.db = null
   }
 
-  def initAppVars: Unit = {
+  def makeAlive: Unit = {
     freePossiblyUsedResouces
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
@@ -164,7 +166,8 @@ class WalletApp extends Application {
     WalletApp.chainLink.start
 
     WalletApp.db = new SQLiteInterface(this, "firebird.db")
-    WalletApp.paymentBag = new SQlitePaymentBag(WalletApp.db)
+    val bag: SQlitePaymentBag = new SQlitePaymentBag(WalletApp.db)
+    WalletApp.paymentBag = new CachedSQlitePaymentBag(bag)
     WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
 
     FiatRates.ratesInfo = Try {
@@ -183,4 +186,49 @@ class WalletApp extends Application {
   def clipboardManager: ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE).asInstanceOf[ClipboardManager]
   def plur1OrZero(opts: Array[String], num: Long): String = if (num > 0) plur(opts, num).format(num) else opts(0)
   def getBufferUnsafe: String = clipboardManager.getPrimaryClip.getItemAt(0).getText.toString
+}
+
+class CachedSQlitePaymentBag(val bag: SQlitePaymentBag) extends PaymentUpdaterToSuccess {
+  private def get: String = WalletApp.app.prefs.getString(WalletApp.PAYMENT_SUMMARY_CACHE, new String)
+  private def put(raw: String): Unit = WalletApp.app.prefs.edit.putString(WalletApp.PAYMENT_SUMMARY_CACHE, raw).commit
+  def getCurrent: TotalStatSummaryExt = current getOrElse restoreAndUpdateCurrent
+  private var current: Option[TotalStatSummaryExt] = None
+
+  private def restoreAndUpdateCurrent: TotalStatSummaryExt = {
+    val (restoredExt, updateCache) = Try(get) map to[TotalStatSummaryExt] match {
+      case Success(summaryWithCache) if summaryWithCache.summary.isDefined => summaryWithCache -> false
+      case Success(noCache) => TotalStatSummaryExt(bag.betweenSummary(noCache.from, noCache.to).toOption, noCache.from, noCache.to) -> true
+      case _ => TotalStatSummaryExt(bag.betweenSummary(from = 0L, to = Long.MaxValue).toOption, from = 0L, to = Long.MaxValue) -> true
+    }
+
+    if (updateCache) put(restoredExt.toJson.toString)
+    // Called after invalidation or on app restart
+    current = Some(restoredExt)
+    restoredExt
+  }
+
+  def invlidateContent: Unit = {
+    // Remove stale content snapshot, but retain from/to boundaries
+    current.map(_.copy(summary = None).toJson.toString).foreach(put)
+    // Next call to `getCurrent` will trigger restoring from db
+    current = None
+  }
+
+  def invlidateBoundaries(from: Long, until: Long): Unit = {
+    put(TotalStatSummaryExt(None, from, until).toJson.toString)
+    // Next call to `getCurrent` will trigger restoring from db
+    current = None
+  }
+
+  def updOkOutgoing(upd: UpdateFulfillHtlc, sent: MilliSatoshi, fee: MilliSatoshi): Unit = {
+    // Summary counts SUCCEEDED records, need to invalidate
+    bag.updOkOutgoing(upd, sent, fee)
+    invlidateContent
+  }
+
+  def updOkIncoming(add: UpdateAddHtlc): Unit = {
+    // Summary counts SUCCEEDED records, need to invalidate
+    bag.updOkIncoming(add)
+    invlidateContent
+  }
 }

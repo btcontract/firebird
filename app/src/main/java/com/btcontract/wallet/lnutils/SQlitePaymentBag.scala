@@ -13,11 +13,17 @@ import fr.acinq.eclair.MilliSatoshi
 import android.content.Context
 import scala.util.Try
 
+trait PaymentUpdaterToSuccess {
+  // These MUST be the only two methods capabe of updating payment state to SUCCEEDED
+  def updOkOutgoing(upd: UpdateFulfillHtlc, sent: MilliSatoshi, fee: MilliSatoshi): Unit
+  def updOkIncoming(add: UpdateAddHtlc): Unit
+}
 
 case class SentToNodeSummary(fees: MilliSatoshi, sent: MilliSatoshi, count: Long)
 case class TotalStatSummary(fees: MilliSatoshi, received: MilliSatoshi, sent: MilliSatoshi, count: Long)
+case class TotalStatSummaryExt(summary: Option[TotalStatSummary], from: Long, to: Long)
 
-class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag {
+class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentUpdaterToSuccess {
   def uiNotify(ctxt: Context): Unit = ctxt.getContentResolver.notifyChange(db sqlPath PaymentTable.table, null)
   def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = db.select(PaymentTable.selectOneSql, paymentHash.toHex).headTry(toPaymentInfo).toOption
   def addSearchablePayment(search: String, paymentHash: ByteVector32): Unit = db.change(PaymentTable.newVirtualSql, search, paymentHash.toHex)
@@ -28,10 +34,7 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag {
     db.change(PaymentTable.updOkOutgoingSql, PaymentMaster.SUCCEEDED, upd.paymentPreimage.toHex,
       sent.toLong: java.lang.Long, fee.toLong: java.lang.Long, upd.paymentHash.toHex)
 
-  def updOkIncoming(add: UpdateAddHtlc): Unit =
-    db.change(PaymentTable.updOkIncomingSql, PaymentMaster.SUCCEEDED,
-      add.amountMsat.toLong: java.lang.Long, System.currentTimeMillis: java.lang.Long,
-      add.paymentHash.toHex)
+  def updOkIncoming(add: UpdateAddHtlc): Unit = db.change(PaymentTable.updOkIncomingSql, PaymentMaster.SUCCEEDED, add.amountMsat.toLong: java.lang.Long, System.currentTimeMillis: java.lang.Long, add.paymentHash.toHex)
 
   def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentMaster.ABORTED, paymentHash.toHex)
 
