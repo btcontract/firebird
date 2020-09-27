@@ -9,12 +9,14 @@ import com.btcontract.wallet.R
 import android.view.View
 
 
-class OpenWallet(host: FirebirdActivity, title: String) extends Step[Boolean](title, true) { me =>
+class OpenWallet(host: FirebirdActivity, title: String, account: SetupAccount) extends Step[Boolean](title, true) { me =>
+  var restoreExistingAccountDisabled: View = _
   var restoreExistingAccount: CheckBox = _
 
   override def createStepContentLayout: View = {
     val view = host.getLayoutInflater.inflate(R.layout.frag_step_open, null).asInstanceOf[LinearLayout]
     restoreExistingAccount = view.findViewById(R.id.restoreExistingAccount).asInstanceOf[CheckBox]
+    restoreExistingAccountDisabled = view.findViewById(R.id.restoreExistingAccountDisabled)
     view
   }
 
@@ -22,7 +24,16 @@ class OpenWallet(host: FirebirdActivity, title: String) extends Step[Boolean](ti
   override def getStepData: Boolean = restoreExistingAccount.isChecked
   override def getStepDataAsHumanReadableString: String = new String
 
-  override def onStepOpened(animated: Boolean): Unit = Tools.none
+  override def onStepOpened(animated: Boolean): Unit =
+    if (account.getStepData.blocksAccountCheck) {
+      restoreExistingAccountDisabled setVisibility View.VISIBLE
+      restoreExistingAccount setEnabled false
+      restoreExistingAccount setChecked false
+    } else {
+      restoreExistingAccountDisabled setVisibility View.GONE
+      restoreExistingAccount setEnabled true
+    }
+
   override def onStepClosed(animated: Boolean): Unit = Tools.none
   override def onStepMarkedAsCompleted(animated: Boolean): Unit = Tools.none
   override def onStepMarkedAsUncompleted(animated: Boolean): Unit = Tools.none

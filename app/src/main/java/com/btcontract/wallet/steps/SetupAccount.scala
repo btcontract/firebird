@@ -20,24 +20,24 @@ import android.os.Build
 
 
 trait AccountType {
-  def toFormat(providers: Set[NodeAnnouncement] = Set.empty): StorageFormat
-  def getSeed: Bytes = throw new RuntimeException
+  def toFormat(providers: Set[NodeAnnouncement] = Set.empty): StorageFormat = throw new RuntimeException
+  def makeKeys: LightningNodeKeys = throw new RuntimeException
+  def blocksAccountCheck: Boolean = false
   def asString: String = new String
 }
 
-case object NoAccountType extends AccountType {
-  def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = throw new RuntimeException
-}
+case object NoAccountType extends AccountType
 
 case class MnemonicAccount(mnemonic: List[String] = Nil) extends AccountType {
-  def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = MnemonicStorageFormat(providers, LightningNodeKeys makeFromSeed getSeed)
+  override def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = MnemonicStorageFormat(providers, makeKeys)
+  override def makeKeys: LightningNodeKeys = LightningNodeKeys makeFromSeed WalletApp.getSeedFromMnemonic(mnemonic)
   override def asString: String = WalletApp.app getString R.string.action_recovery_phrase
-  override def getSeed: Bytes = WalletApp.getSeedFromMnemonic(mnemonic)
 }
 
 case class EmailPasswordAccount(email: String, password: String, isRandom: Boolean) extends AccountType {
-  def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = PasswordStorageFormat(providers, LightningNodeKeys makeFromSeed getSeed, email, if (isRandom) password.toSome else None)
-  override def getSeed: Bytes = WalletApp.scryptDerive(email, password)
+  override def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = PasswordStorageFormat(providers, makeKeys, email, if (isRandom) password.toSome else None)
+  override def makeKeys: LightningNodeKeys = LightningNodeKeys makeFromSeed WalletApp.scryptDerive(email, password)
+  override def blocksAccountCheck: Boolean = isRandom
   override def asString: String = email
 }
 

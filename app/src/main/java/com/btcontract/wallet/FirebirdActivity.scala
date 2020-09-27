@@ -79,7 +79,7 @@ trait FirebirdActivity extends AppCompatActivity { me =>
 
   def toast(msg: CharSequence): Unit = try {
     val cb = CookieBar.rebuild(me).setMessage(msg)
-    cb.setCookiePosition(CookieBar.BOTTOM).show
+    cb.setCookiePosition(CookieBar.TOP).show
   } catch none
 
   def share(text: String): Unit = startActivity {

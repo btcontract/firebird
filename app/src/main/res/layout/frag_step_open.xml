@@ -13,4 +13,10 @@
         android:text="@string/action_open_restore"
         android:id="@+id/restoreExistingAccount"/>
 
+    <TextView
+        style="@style/FillingView"
+        android:id="@+id/restoreExistingAccountDisabled"
+        android:text="@string/action_open_restore_disabled"
+        android:textSize="14sp"/>
+
 </LinearLayout>

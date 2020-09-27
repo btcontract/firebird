@@ -41,7 +41,9 @@
     <string name="action_email_password_hint_password_again">Retype a password</string>
     <string name="action_email_password_checkbox">Use random password</string>
     <string name="action_recovery_phrase_hint">Type 12 phrase words</string>
+
     <string name="action_open_restore">Restore existing account</string>
+    <string name="action_open_restore_disabled">Disabled since random password is chosen</string>
 
     <string name="password_match">MATCH</string>
     <string name="password_mismatch">MISMATCH</string>

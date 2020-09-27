@@ -24,13 +24,13 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
   lazy val stepper: VerticalStepperFormView = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
   lazy val providers: ChooseProviders = new ChooseProviders(me, me getString step_title_choose)
   lazy val account: SetupAccount = new SetupAccount(me, me getString step_title_account)
-  lazy val wallet: OpenWallet = new OpenWallet(me, me getString step_title_open)
+  lazy val open: OpenWallet = new OpenWallet(me, me getString step_title_open, account)
   def onCancelledForm: Unit = stepper.cancelFormCompletionOrCancellationAttempt
 
   def INIT(state: Bundle): Unit =
     if (WalletApp.isAlive) {
       setContentView(R.layout.activity_setup)
-      stepper.setup(me, providers, account, wallet).init
+      stepper.setup(me, providers, account, open).init
     } else me exitTo classOf[MainActivity]
 
   type ChanExistenceResult = Option[Boolean]
@@ -73,12 +73,12 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
       override def onPresentAccount: Unit = proceedTask.run
     }
 
-    // Check all default providers + maybe user scanned external provider if user tries to "restore an account"
-    val finalProviders = if (wallet.getStepData) providers.getStepData.set ++ SyncMaster.hostedChanNodes else providers.getStepData.set
-    val heavyProcess: Observable[Unit] = RxUtils.ioQueue.map(_ => LNParams.format = account.getStepData toFormat finalProviders)
+    // Check and use all default providers + maybe user scanned external provider if user tries to "restore an account"
+    val finalProviders = if (open.getStepData) providers.getStepData.set ++ SyncMaster.hostedChanNodes else providers.getStepData.set
     alert setOnDismissListener new DialogInterface.OnDismissListener { def onDismiss(some: DialogInterface): Unit = cancel }
-    RxUtils.retry(heavyProcess, RxUtils.pickInc, 3 to 9 by 3).foreach(_ => proceedTask.run)
-    proceedTask = UITask { if (wallet.getStepData) checkAccount else exitToWallet }
+    val heavyProcess = RxUtils.ioQueue.map(_ => LNParams.format = account.getStepData toFormat finalProviders)
+    RxUtils.retry(heavyProcess, RxUtils.pickInc, 4 to 12 by 4).foreach(_ => proceedTask.run)
+    proceedTask = UITask { if (open.getStepData) checkAccount else exitToWallet }
   }
 
   // Check state machine
