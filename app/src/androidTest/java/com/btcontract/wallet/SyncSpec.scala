@@ -2,14 +2,18 @@ package com.btcontract.wallet
 
 import com.btcontract.wallet.SyncSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.btcontract.wallet.ln.{LNParams, PureRoutingData, SyncMaster}
+import com.btcontract.wallet.ln.{LNParams, MnemonicStorageFormat, PureRoutingData, SyncMaster}
 import com.btcontract.wallet.lnutils._
 import fr.acinq.eclair._
+import concurrent.ExecutionContext.Implicits.global
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
 import fr.acinq.eclair.router.Router
 import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Assert._
+import scala.concurrent.Future
+import scala.util.Random
 
 
 object SyncSpec {
@@ -60,5 +64,22 @@ class SyncSpec {
   def liveSync(): Unit = {
     run
     synchronized(wait(2000000L))
+  }
+
+  def synchronizedRemoval(): Unit = {
+    LNParams.format = MnemonicStorageFormat(SyncMaster.syncNodes ++ SyncMaster.hostedChanNodes, keys = null)
+    for (ann <- Random.shuffle(LNParams.format.outstandingProviders.toList)) Future {
+      Thread.sleep(secureRandom.nextInt(2))
+      WalletApp syncRmOutstanding ann
+    }
+    synchronized(wait(100L))
+    assertTrue(LNParams.format.outstandingProviders.isEmpty)
+  }
+
+  @Test
+  def manySynchronizedRemovals(): Unit = {
+    WalletApp.db = store.db
+    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+    for (_ <- 0 to 50) synchronizedRemoval()
   }
 }

@@ -84,7 +84,7 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
-  def refundAddress(theirNodeId: PublicKey): ByteVector = {
+  def refundPubKey(theirNodeId: PublicKey): ByteVector = {
     val derivationChain = hardened(276) +: makeKeyPath(theirNodeId.value)
     val p2wpkh = Script.pay2wpkh(derivePrivateKey(extendedNodeKey, derivationChain).publicKey)
     Script.write(p2wpkh)
@@ -98,7 +98,7 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
   }
 }
 
-trait StorageFormat {
+sealed trait StorageFormat {
   def keys: LightningNodeKeys
   def attachedChannelSecret: ByteVector
   def outstandingProviders: Set[NodeAnnouncement]

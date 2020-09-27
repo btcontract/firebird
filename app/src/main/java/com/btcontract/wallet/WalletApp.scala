@@ -1,14 +1,16 @@
 package com.btcontract.wallet
 
 import spray.json._
+import com.softwaremill.quicklens._
 import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+
 import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons}
+import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
-import fr.acinq.eclair.wire.{NodeAddress, UpdateAddHtlc, UpdateFulfillHtlc}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import scala.util.{Success, Try}
 
@@ -105,6 +107,13 @@ object WalletApp {
     Wally.scrypt(pass.trim.getBytes, salt, Math.pow(2, 19).toLong, 8, 2, derived)
     derived
   }
+
+  // Safe removal of outstanding peers
+
+  def syncRmOutstanding(ann: NodeAnnouncement): Unit = synchronized {
+    LNParams.format = LNParams.format.modify(_.outstandingProviders).using(_ - ann)
+    dataBag.put(SQliteDataBag.LABEL_FORMAT, LNParams.format.toJson.compactPrint)
+  }
 }
 
 class WalletApp extends Application {
@@ -182,7 +191,7 @@ class WalletApp extends Application {
 
     FiatRates.subscription = FiatRates.makeObservable(FiatRates.ratesInfo.stamp).subscribe(newFiatRates => {
       val newRatesInfo = RatesInfo(newFiatRates, FiatRates.ratesInfo.rates, System.currentTimeMillis)
-      prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.toString).commit
+      prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.compactPrint).commit
       FiatRates.ratesInfo = newRatesInfo
     }, none)
   }
@@ -207,7 +216,7 @@ class CachedSQlitePaymentBag(val bag: SQlitePaymentBag) extends PaymentUpdaterTo
       case _ => TotalStatSummaryExt(bag.betweenSummary(from = 0L, to = Long.MaxValue).toOption, from = 0L, to = Long.MaxValue) -> true
     }
 
-    if (updateCache) put(restoredExt.toJson.toString)
+    if (updateCache) put(restoredExt.toJson.compactPrint)
     // Called after invalidation or on app restart
     current = Some(restoredExt)
     restoredExt
@@ -215,13 +224,13 @@ class CachedSQlitePaymentBag(val bag: SQlitePaymentBag) extends PaymentUpdaterTo
 
   def invlidateContent: Unit = {
     // Remove stale content snapshot, but retain from/to boundaries
-    current.map(_.copy(summary = None).toJson.toString).foreach(put)
+    current.map(_.copy(summary = None).toJson.compactPrint).foreach(put)
     // Next call to `getCurrent` will trigger restoring from db
     current = None
   }
 
   def invlidateBoundaries(from: Long, until: Long): Unit = {
-    put(TotalStatSummaryExt(None, from, until).toJson.toString)
+    put(TotalStatSummaryExt(None, from, until).toJson.compactPrint)
     // Next call to `getCurrent` will trigger restoring from db
     current = None
   }

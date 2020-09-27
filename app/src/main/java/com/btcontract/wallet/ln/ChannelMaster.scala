@@ -79,7 +79,7 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def withLocalFailure(reason: Int): PaymentSenderData = copy(failures = LocalFailure(reason) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
-  def inFlights: Iterable[InFlightInfo] = parts.values collect { case WaitForRouteOrInFlight(_, _, _, Some(flight), _, _) => flight }
+  def inFlights: Iterable[InFlightInfo] = parts.values.collect { case wait: WaitForRouteOrInFlight => wait.flight }.flatten
   def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.update)
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
@@ -97,9 +97,10 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, MilliSatoshi(0L), invalidPubKey), Map.empty)
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
-  val socketToChannelBridge: ConnectionListener
 
-  var all: Vector[HostedChannel] = chanBag.all.map(mkHostedChannel)
+  val socketToChannelBridge: ConnectionListener
+  val operationalListeners: Set[ChannelListener] = Set(me, PaymentMaster)
+  var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data)
   var listeners: Set[ChannelMasterListener] = Set.empty
 
   val events: ChannelMasterListener = new ChannelMasterListener {
@@ -120,11 +121,11 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     def error(canNotHappen: Throwable): Unit = none
   }
 
-  def mkHostedChannel(cd: ChannelData): HostedChannel = new HostedChannel {
+  def mkHostedChannel(initListeners: Set[ChannelListener], cd: ChannelData): HostedChannel = new HostedChannel {
     def SEND(msg: LightningMessage *): Unit = for (work <- CommsTower.workers get data.announce.nodeSpecificPkap) msg foreach work.handler.process
     def STORE(channelData: HostedCommits): HostedCommits = chanBag.put(channelData.announce.nodeSpecificHostedChanId, channelData)
     def currentBlockDay: Long = cl.currentChainTip / LNParams.blocksPerDay
-    listeners = Set(me, PaymentMaster)
+    listeners = initListeners
     doProcess(cd)
   }
 

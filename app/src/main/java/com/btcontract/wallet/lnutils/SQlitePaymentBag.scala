@@ -39,14 +39,14 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentUpdat
   def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentMaster.ABORTED, paymentHash.toHex)
 
   def addOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: String, action: Option[PaymentAction], finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit =
-    db.change(PaymentTable.newSql, nodeId.toString, prex.raw, NOIMAGE.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, action.map(_.toJson.toString).getOrElse(new String),
+    db.change(PaymentTable.newSql, nodeId.toString, prex.raw, NOIMAGE.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, action.map(_.toJson.compactPrint).getOrElse(new String),
       prex.paymentHashStr, 0L: java.lang.Long /* RECEIVED = 0, OUTGOING */, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* FEE IS UNCERTAIN YET */, balanceSnap.toLong: java.lang.Long,
-      fiatRateSnap.toJson.toString, 0: java.lang.Integer /* INCOMING = 0 */, new String /* EMPTY EXT FOR NOW */)
+      fiatRateSnap.toJson.compactPrint, 0: java.lang.Integer /* INCOMING = 0 */, new String /* EMPTY EXT FOR NOW */)
 
   def addIncomingPayment(prex: PaymentRequestExt, preimage: ByteVector32, description: String, finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit =
     db.change(PaymentTable.newSql, NONODEID.toString, prex.raw, preimage.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, new String /* NO ACTION */,
       prex.paymentHashStr, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* SENT = 0, INCOMING */, 0L: java.lang.Long /* NO FEE FOR INCOMING */, balanceSnap.toLong: java.lang.Long,
-      fiatRateSnap.toJson.toString, 1: java.lang.Integer /* INCOMING = 1 */, new String /* EMPTY EXT FOR NOW */)
+      fiatRateSnap.toJson.compactPrint, 1: java.lang.Integer /* INCOMING = 1 */, new String /* EMPTY EXT FOR NOW */)
 
   def toNodeSummary(nodeId: PublicKey): Try[SentToNodeSummary] = db.select(PaymentTable.selectToNodeSummarySql, nodeId.toString, PaymentMaster.SUCCEEDED) headTry { rc =>
     SentToNodeSummary(fees = MilliSatoshi(rc.c getLong 0), sent = MilliSatoshi(rc.c getLong 1), count = rc.c getLong 2)

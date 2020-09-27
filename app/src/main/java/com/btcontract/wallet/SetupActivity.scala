@@ -16,7 +16,6 @@ import com.btcontract.wallet.ln.crypto.StateMachine
 import com.btcontract.wallet.lnutils.SQliteDataBag
 import android.content.DialogInterface
 import java.util.concurrent.Executors
-import rx.lang.scala.Observable
 import android.os.Bundle
 
 
@@ -62,7 +61,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
     }
 
     def exitToWallet: Unit = runAnd(alert.dismiss) {
-      val jsonFormat: String = LNParams.format.toJson.toString
+      val jsonFormat: String = LNParams.format.toJson.compactPrint
       WalletApp.dataBag.put(SQliteDataBag.LABEL_FORMAT, jsonFormat)
       MainActivity.makeOperational(me, LNParams.format)
     }
@@ -99,7 +98,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
       override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = me process PeerResponse(msg, worker)
 
       override def onOperational(worker: CommsTower.Worker): Unit = {
-        val refundScript = LNParams.format.keys.refundAddress(theirNodeId = worker.ann.nodeId)
+        val refundScript = LNParams.format.keys.refundPubKey(theirNodeId = worker.ann.nodeId)
         val msg = InvokeHostedChannel(LNParams.chainHash, refundScript, LNParams.format.attachedChannelSecret)
         worker.handler process msg
       }

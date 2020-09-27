@@ -85,7 +85,7 @@ object CommsTower {
           lightningMessageCodec.decode(data.bits).require.value match {
             case Ping(replyLength, _) if replyLength > 0 => handler process Pong(ByteVector fromValidHex "00" * replyLength)
             case hostedMessage: HostedChannelMessage => for (lst <- listeners apply pkap) lst.onHostedMessage(me, hostedMessage)
-            case theirInitMessage: Init => handleTheirInit(listeners(pkap), theirInitMessage)
+            case theirInitMessage: Init => handleTheirInit(listeners apply pkap, theirInitMessage)
             case message => for (lst <- listeners apply pkap) lst.onMessage(me, message)
           }
 

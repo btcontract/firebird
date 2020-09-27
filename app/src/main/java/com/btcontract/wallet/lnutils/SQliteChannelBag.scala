@@ -9,7 +9,7 @@ import fr.acinq.bitcoin.ByteVector32
 class SQliteChannelBag(db: SQLiteInterface) extends ChannelBag {
   def put(chanId: ByteVector32, data: HostedCommits): HostedCommits = {
     // Insert and then update because of INSERT IGNORE sqlite effects
-    val dataJson = data.toJson.toString
+    val dataJson = data.toJson.compactPrint
     val chanIdJson = chanId.toHex
 
     db.change(ChannelTable.newSql, chanIdJson, dataJson)

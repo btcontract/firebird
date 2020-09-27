@@ -17,6 +17,6 @@
         style="@style/FillingView"
         android:id="@+id/restoreExistingAccountDisabled"
         android:text="@string/action_open_restore_disabled"
-        android:textSize="14sp"/>
+        android:textSize="16sp"/>
 
 </LinearLayout>

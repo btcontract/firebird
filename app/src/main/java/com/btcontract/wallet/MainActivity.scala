@@ -52,8 +52,9 @@ object MainActivity {
     LNParams.format = format
     LNParams.channelMaster = channelMaster
     require(WalletApp.isOperational, "Not operational")
-    host exitTo classOf[HubActivity]
+
     channelMaster.initConnect
+    host exitTo classOf[HubActivity]
   }
 
   def isVPNOn: Boolean = Try {
