@@ -1,0 +1,36 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_height="match_parent"
+    android:layout_width="fill_parent"
+    android:orientation="horizontal"
+    android:paddingBottom="14dp"
+    android:paddingStart="15dp"
+    android:paddingEnd="15dp"
+    android:paddingTop="12dp">
+
+    <ImageView
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginTop="3sp"
+        android:layout_marginEnd="6sp"
+        android:id="@+id/paymentStatus"
+        android:src="@drawable/ic_check_white_24dp"/>
+
+    <TextView
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_weight="12"
+        android:layout_width="0dp"
+        android:id="@+id/transactSum"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_weight="5"
+        android:layout_width="0dp"
+        android:id="@+id/transactWhen"
+        android:textAlignment="textEnd"
+        android:layout_height="wrap_content"/>
+
+</LinearLayout>

@@ -104,6 +104,31 @@
         <item name="android:layout_marginLeft">12dp</item>
     </style>
 
+    <!-- chip text -->
+
+    <style name="ChipTextWhite">
+        <item name="android:paddingTop">4sp</item>
+        <item name="android:paddingLeft">8sp</item>
+        <item name="android:paddingRight">8sp</item>
+        <item name="android:paddingBottom">6sp</item>
+        <item name="android:textColor">@color/colorAccent</item>
+        <item name="android:background">@drawable/border_accent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_marginRight">6sp</item>
+        <item name="android:layout_marginTop">6sp</item>
+    </style>
+
+    <style name="ChipTextGreen" parent="ChipTextWhite">
+        <item name="android:textColor">@color/buttonGreenRipple</item>
+        <item name="android:background">@drawable/border_green</item>
+    </style>
+
+    <style name="ChipTextBlue" parent="ChipTextWhite">
+        <item name="android:textColor">@color/colorBlue</item>
+        <item name="android:background">@drawable/border_blue</item>
+    </style>
+
     <!-- nachos -->
 
     <style name="DefaultChipSuggestionTextView">
