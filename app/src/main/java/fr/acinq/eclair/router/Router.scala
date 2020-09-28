@@ -25,6 +25,9 @@ import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
 
+object ChannelUpdateExt {
+  def from(cu: ChannelUpdate) = ChannelUpdateExt(cu, score = 1L, crc32 = Sync.getChecksum(cu))
+}
 
 case class ChannelUpdateExt(update: ChannelUpdate, score: Long, crc32: Long) {
   def withNewUpdate(u: ChannelUpdate): ChannelUpdateExt = copy(update = u, crc32 = Sync.getChecksum(u))

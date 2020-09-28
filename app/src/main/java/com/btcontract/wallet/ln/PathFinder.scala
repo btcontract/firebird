@@ -114,7 +114,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
   def resolve(pubChan: PublicChannel, cu: ChannelUpdate, store: NetworkDataStore): Data = {
     val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(cu)
     val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= cu.timestamp)
-    val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate cu) getOrElse ChannelUpdateExt(cu, score = 1L, crc32 = 0L)
+    val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate cu).getOrElse(ChannelUpdateExt from cu)
     resolveKnownDesc(GraphEdge(Router.getDesc(cu, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
   }
 
