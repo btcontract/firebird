@@ -144,7 +144,7 @@ object Graph {
 
           val currentCost = currentWeight.costs.head
 
-          val canRelayAmount = currentCost <= edge.capacity && edge.update.htlcMaximumMsat.forall(currentCost <= _) && currentCost >= edge.update.htlcMinimumMsat
+          val canRelayAmount = currentCost <= edge.capacity && edge.updExt.update.htlcMaximumMsat.forall(currentCost <= _) && currentCost >= edge.updExt.update.htlcMinimumMsat
 
           if (canRelayAmount && boundaries(neighborWeight) && !ignoredEdges.contains(edge.desc) && !ignoredVertices.contains(neighbor)) {
             val previousNeighborWeight = bestWeights.getOrDefaultValue(neighbor)
@@ -195,13 +195,13 @@ object Graph {
     val capFactor = 1 - normalize(edge.capacity.toLong, CAPACITY_CHANNEL_LOW.toLong, CAPACITY_CHANNEL_HIGH.toLong)
 
     // Every edge is weighted by its cltv-delta value, normalized
-    val cltvFactor = normalize(edge.update.cltvExpiryDelta.toInt, CLTV_LOW, CLTV_HIGH)
+    val cltvFactor = normalize(edge.updExt.update.cltvExpiryDelta.toInt, CLTV_LOW, CLTV_HIGH)
 
     // Every edge is weighted by its routing success score, higher score adds less weight
-    val successFactor = 1 - normalize(edge.update.score, SCORE_LOW, SCORE_HIGH)
+    val successFactor = 1 - normalize(edge.updExt.score, SCORE_LOW, SCORE_HIGH)
 
     val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
-    val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.update.cltvExpiryDelta
+    val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.updExt.update.cltvExpiryDelta
 
     // Every factor adds 0 - 100 imginary SAT to edge weight
     val factor = (ageFactor + capFactor + cltvFactor + successFactor) * 100000L
@@ -220,11 +220,11 @@ object Graph {
    */
   private def addEdgeFees(edge: GraphEdge, amountToForward: MilliSatoshi): MilliSatoshi = {
     if (edgeHasZeroFee(edge)) amountToForward + nodeFee(baseFee = 1.msat, proportionalFee = 0, amountToForward)
-    else amountToForward + nodeFee(edge.update.feeBaseMsat, edge.update.feeProportionalMillionths, amountToForward)
+    else amountToForward + nodeFee(edge.updExt.update.feeBaseMsat, edge.updExt.update.feeProportionalMillionths, amountToForward)
   }
 
   private def edgeHasZeroFee(edge: GraphEdge): Boolean = {
-    edge.update.feeBaseMsat.toLong == 0 && edge.update.feeProportionalMillionths == 0
+    edge.updExt.update.feeBaseMsat.toLong == 0 && edge.updExt.update.feeProportionalMillionths == 0
   }
 
   /**
@@ -277,13 +277,13 @@ object Graph {
      * Representation of an edge of the graph
      *
      * @param desc        channel description
-     * @param update      channel info
+     * @param updExt      channel info with extra info
      */
-    case class GraphEdge(desc: ChannelDesc, update: ChannelUpdate) {
+    case class GraphEdge(desc: ChannelDesc, updExt: ChannelUpdateExt) {
 
-      lazy val capacity: MilliSatoshi = update.htlcMaximumMsat.get // All updates MUST have htlcMaximumMsat
+      lazy val capacity: MilliSatoshi = updExt.update.htlcMaximumMsat.get // All updates MUST have htlcMaximumMsat
 
-      def fee(amount: MilliSatoshi): MilliSatoshi = nodeFee(update.feeBaseMsat, update.feeProportionalMillionths, amount)
+      def fee(amount: MilliSatoshi): MilliSatoshi = nodeFee(updExt.update.feeBaseMsat, updExt.update.feeProportionalMillionths, amount)
 
       def toDescAndCapacity: DescAndCapacity = DescAndCapacity(desc, capacity)
     }
@@ -442,11 +442,11 @@ object Graph {
         // add all the vertices and edges in one go
         channels.values.foreach { channel =>
           channel.update_1_opt.foreach { u1 =>
-            val desc1 = Router.getDesc(u1, channel.ann)
+            val desc1 = Router.getDesc(u1.update, channel.ann)
             mutableMap.put(desc1.b, GraphEdge(desc1, u1) :: mutableMap.getOrDefaultValue(desc1.b))
           }
           channel.update_2_opt.foreach { u2 =>
-            val desc2 = Router.getDesc(u2, channel.ann)
+            val desc2 = Router.getDesc(u2.update, channel.ann)
             mutableMap.put(desc2.b, GraphEdge(desc2, u2) :: mutableMap.getOrDefaultValue(desc2.b))
           }
         }

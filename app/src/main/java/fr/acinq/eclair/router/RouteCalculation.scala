@@ -45,12 +45,12 @@ object RouteCalculation {
     ).toSet
   }
 
-  def toFakeUpdate(extraHop: ExtraHop): ChannelUpdate = {
-    ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds,
+  def toFakeUpdate(extraHop: ExtraHop): ChannelUpdateExt = {
+    ChannelUpdateExt(ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = ByteVector32.Zeroes, extraHop.shortChannelId, System.currentTimeMillis.milliseconds.toSeconds,
       messageFlags = 1, // the `direction` bit in flags will not be accurate but it doesn't matter because it is not used what matters is that the `disable` bit is 0 so that this update doesn't get filtered out
       channelFlags = 0, extraHop.cltvExpiryDelta, htlcMinimumMsat = 0L.msat, extraHop.feeBase, extraHop.feeProportionalMillionths,
       Some(MilliSatoshi(Long.MaxValue)) // Lets assume a capacity is infinite, will be corrected by failed-at-amount
-    )
+    ), score = 1L, crc32 = 0)
   }
 
   private def toAssistedChannels(extraRoute: Seq[ExtraHop], targetNodeId: PublicKey): Map[ShortChannelId, AssistedChannel] = {

@@ -80,7 +80,7 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
   def inFlights: Iterable[InFlightInfo] = parts.values.collect { case wait: WaitForRouteOrInFlight => wait.flight }.flatten
-  def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.update)
+  def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.updExt.update)
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
 
@@ -446,14 +446,14 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
               if (isSignatureFine) {
                 pf process failure.update
                 info.route.getEdgeForNode(nodeId) match {
-                  case Some(edge) if edge.update.shortChannelId != failure.update.shortChannelId =>
+                  case Some(edge) if edge.updExt.update.shortChannelId != failure.update.shortChannelId =>
                     // This is fine: remote node has used a different channel than the one we have initially requested
                     // But remote node may send such errors infinitely so increment this specific type of failure
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
                     PaymentMaster doProcess NodeFailed(failedNodeId = nodeId, increment = 1)
                     resolveRemoteFail(data1, wait)
 
-                  case Some(edge) if edge.update.core == failure.update.core =>
+                  case Some(edge) if edge.updExt.update.core == failure.update.core =>
                     // Remote node returned the same update we used, channel is most likely imbalanced
                     // Note: we may have it disabled and new update comes enabled: still same update
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)

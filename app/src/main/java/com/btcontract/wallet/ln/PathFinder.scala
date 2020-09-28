@@ -2,11 +2,12 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
-import fr.acinq.eclair.router.{Announcements, Router}
+import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router}
 import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
+
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.Router.{Data, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
 import java.util.concurrent.Executors
@@ -89,44 +90,43 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     // If disabled channel stays disabled for a long time it will be pruned by peers and then by us
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
-      val currentUpdateOpt = data.channels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)
-      val edge = GraphEdge(Router.getDesc(cu, data.channels(cu.shortChannelId).ann), cu)
-      val newUpdateIsOlder = currentUpdateOpt.exists(_.timestamp >= cu.timestamp)
-      val data1 = resolveKnownDesc(edge, Some(normalStore), newUpdateIsOlder)
-      // Make new update score the same as existing update score
-      currentUpdateOpt.foreach(cu0 => cu.score = cu0.score)
-      become(data1, OPERATIONAL)
+      become(resolve(data.channels(cu.shortChannelId), cu, normalStore), OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.hostedChannels.contains(cu.shortChannelId) =>
-      val currentUpdateOpt = data.hostedChannels(cu.shortChannelId).getChannelUpdateSameSideAs(cu)
-      val edge = GraphEdge(Router.getDesc(cu, data.hostedChannels(cu.shortChannelId).ann), cu)
-      val newUpdateIsOlder = currentUpdateOpt.exists(_.timestamp >= cu.timestamp)
-      val data1 = resolveKnownDesc(edge, Some(hostedStore), newUpdateIsOlder)
-      become(data1, OPERATIONAL)
+      become(resolve(data.hostedChannels(cu.shortChannelId), cu, hostedStore), OPERATIONAL)
 
-    case (cu: ChannelUpdate, OPERATIONAL) if data.extraEdges.contains(cu.shortChannelId) =>
-      // Fake updates do not provide timestamp so any real refresh we are getting here should be newer
-      val data1 = resolveKnownDesc(GraphEdge(data.extraEdges(cu.shortChannelId).desc, cu), None, isOld = false)
-      become(data1, OPERATIONAL)
+    case (cu: ChannelUpdate, OPERATIONAL) =>
+      data.extraEdges get cu.shortChannelId foreach { edge =>
+        val edge1 = edge.copy(updExt = edge.updExt withNewUpdate cu)
+        become(resolveKnownDesc(edge1, None, isOld = false), OPERATIONAL)
+      }
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
       // We add assisted routes to graph as if they are normal channels, also rememeber them to refill later if graph gets reloaded
       // these edges will be private most of the time, but they may be public and we may have them already so checkIfContains == true
-      val data1 = data.copy(extraEdges = data.extraEdges + (edge.update.shortChannelId -> edge), graph = data.graph addEdge edge)
+      val data1 = data.copy(extraEdges = data.extraEdges + (edge.updExt.update.shortChannelId -> edge), graph = data.graph addEdge edge)
       become(data1, state)
 
     case _ =>
   }
 
+  // Common resover for normal/hosted public channel updates
+  def resolve(pubChan: PublicChannel, cu: ChannelUpdate, store: NetworkDataStore): Data = {
+    val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(cu)
+    val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= cu.timestamp)
+    val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate cu) getOrElse ChannelUpdateExt(cu, score = 1L, crc32 = 0L)
+    resolveKnownDesc(GraphEdge(Router.getDesc(cu, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
+  }
+
   // Resolves channel updates which we obtain from node errors while trying to route payments
   // store is optional to make sure private normal/hosted channel updates never make it to our database
   def resolveKnownDesc(edge: GraphEdge, storeOpt: Option[NetworkDataStore], isOld: Boolean): Data = {
-    val isEnabled = Announcements.isEnabled(edge.update.channelFlags)
+    val isEnabled = Announcements.isEnabled(edge.updExt.update.channelFlags)
 
     storeOpt match {
-      case Some(store) if edge.update.htlcMaximumMsat.isEmpty =>
-        // Will be queried on next sync and most likely excluded
-        store.removeChannelUpdate(edge.update.shortChannelId)
+      case Some(store) if edge.updExt.update.htlcMaximumMsat.isEmpty =>
+        // Will be queried on next sync and will most likely be excluded
+        store.removeChannelUpdate(edge.updExt.update.shortChannelId)
         data.copy(graph = data.graph removeEdge edge.desc)
 
       case _ if isOld =>
@@ -135,19 +135,19 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
         data.copy(graph = data.graph removeEdge edge.desc)
 
       case Some(store) if isEnabled =>
-        // This is a legitimate public update
-        store.addChannelUpdateByPosition(edge.update)
+        // This is a legitimate public update, refresh everywhere
+        store.addChannelUpdateByPosition(edge.updExt.update)
         data.copy(graph = data.graph addEdge edge)
 
       case Some(store) =>
         // Save in db because update is fresh
-        store.addChannelUpdateByPosition(edge.update)
+        store.addChannelUpdateByPosition(edge.updExt.update)
         // But remove from runtime graph because it's disabled
         data.copy(graph = data.graph removeEdge edge.desc)
 
       case None if isEnabled =>
-        // This is a legitimate private update
-        val extraEdges1 = data.extraEdges + (edge.update.shortChannelId -> edge)
+        // This is a legitimate private update, don't save in DB but update graph
+        val extraEdges1 = data.extraEdges + (edge.updExt.update.shortChannelId -> edge)
         data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
 
       case None =>

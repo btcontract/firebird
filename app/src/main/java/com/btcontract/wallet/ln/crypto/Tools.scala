@@ -66,7 +66,7 @@ object Tools {
     val randomShortChannelId = ShortChannelId(secureRandom.nextLong)
     val fakeDesc = ChannelDesc(randomShortChannelId, a = from, b = toPeer)
     val fakeHop = ExtraHop(from, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
-    GraphEdge(update = RouteCalculation.toFakeUpdate(fakeHop), desc = fakeDesc)
+    GraphEdge(updExt = RouteCalculation.toFakeUpdate(fakeHop), desc = fakeDesc)
   }
 
   def randomKeyPair: KeyPair = {

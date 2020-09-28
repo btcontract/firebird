@@ -46,7 +46,7 @@ class PathfinderSpec {
     val routingMap = normal.getRoutingData
     assertTrue(normal.listExcludedChannels.contains(6L))
     assertTrue(!normal.listChannelAnnouncements.map(_.shortChannelId).contains(ShortChannelId(6L)))
-    assertTrue(!normal.listChannelUpdates.map(_.shortChannelId).contains(ShortChannelId(6L)))
+    assertTrue(!normal.listChannelUpdates.map(_.update.shortChannelId).contains(ShortChannelId(6L)))
     assertTrue(!routingMap.keySet.contains(ShortChannelId(5L)))
     assertTrue(routingMap.size == 4)
   }
@@ -131,16 +131,13 @@ class PathfinderSpec {
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.last.update.feeBaseMsat == 2.msat)
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.last.updExt.update.feeBaseMsat == 2.msat)
 
     // Public channel has been updated
-    pf.data.channels(ShortChannelId(2L)).update_1_opt.get.score = 2
-    pf.data.channels(ShortChannelId(2L)).update_2_opt.get.score = 2
     val updateACFromA1: ChannelUpdate = makeUpdate(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(154), maxHtlc = 500000.msat) // It got worse because of CLTV
     pf process updateACFromA1
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
-    assertTrue(2 == updateACFromA1.score) // Updated public channel score is retained
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
 
     // Another public channel has been updated

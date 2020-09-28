@@ -20,6 +20,7 @@ import fr.acinq.eclair.router.Router._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair._
 import fr.acinq.eclair.ShortChannelId
+import com.google.common.hash.Hashing
 import scodec.bits.ByteVector
 import shapeless.HNil
 
@@ -38,23 +39,20 @@ object Sync {
 
   def getChannelDigestInfo(channels: Map[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): (ReplyChannelRangeTlv.Timestamps, ReplyChannelRangeTlv.Checksums) = {
     val c = channels(shortChannelId)
-    val timestamp1 = c.update_1_opt.map(_.timestamp).getOrElse(0L)
-    val timestamp2 = c.update_2_opt.map(_.timestamp).getOrElse(0L)
-    val checksum1 = c.update_1_opt.map(getChecksum).getOrElse(0L)
-    val checksum2 = c.update_2_opt.map(getChecksum).getOrElse(0L)
+    val timestamp1 = c.update_1_opt.map(_.update.timestamp).getOrElse(0L)
+    val timestamp2 = c.update_2_opt.map(_.update.timestamp).getOrElse(0L)
+    val checksum1 = c.update_1_opt.map(_.crc32).getOrElse(0L)
+    val checksum2 = c.update_2_opt.map(_.crc32).getOrElse(0L)
     (ReplyChannelRangeTlv.Timestamps(timestamp1 = timestamp1, timestamp2 = timestamp2), ReplyChannelRangeTlv.Checksums(checksum1 = checksum1, checksum2 = checksum2))
   }
 
   def crc32c(data: ByteVector): Long = {
-    import com.google.common.hash.Hashing
     Hashing.crc32c().hashBytes(data.toArray).asInt() & 0xFFFFFFFFL
   }
 
   def getChecksum(u: ChannelUpdate): Long = {
-    import u._
-
-    val data = serializationResult(LightningMessageCodecs.channelUpdateChecksumCodec.encode(chainHash :: shortChannelId :: messageFlags :: channelFlags ::
-      cltvExpiryDelta :: htlcMinimumMsat :: feeBaseMsat :: feeProportionalMillionths :: htlcMaximumMsat :: HNil))
+    val data = serializationResult(LightningMessageCodecs.channelUpdateChecksumCodec.encode(u.chainHash :: u.shortChannelId :: u.messageFlags :: u.channelFlags ::
+      u.cltvExpiryDelta :: u.htlcMinimumMsat :: u.feeBaseMsat :: u.feeProportionalMillionths :: u.htlcMaximumMsat :: HNil))
     crc32c(data)
   }
 }

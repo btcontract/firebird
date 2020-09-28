@@ -185,8 +185,10 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
   // Point useless fields to same object, db-restored should be the same
 
   def lite: ChannelAnnouncement =
-    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
-      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
+    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One,
+      bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
+      features = Features.empty, chainHash = LNParams.chainHash,
+      bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
 }
 
 case class Color(r: Byte, g: Byte, b: Byte) {
@@ -297,8 +299,6 @@ case class ChannelUpdate(signature: ByteVector64,
 
   // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
   def lite: ChannelUpdate = copy(signature = byteVector64One, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
-
-  var score: Long = 1L // Used internally for score estimation, can not be exposed as class field
 }
 
 // @formatter:off

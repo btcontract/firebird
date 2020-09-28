@@ -13,9 +13,12 @@ import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.payment.PaymentRequest
 import java.io.ByteArrayInputStream
+
 import fr.acinq.eclair.crypto.Mac32
 import scodec.bits.ByteVector
 import java.nio.ByteOrder
+
+import fr.acinq.eclair.router.ChannelUpdateExt
 
 
 object LNParams {
@@ -156,7 +159,7 @@ trait NetworkDataStore {
   def listChannelAnnouncements: Vector[ChannelAnnouncement]
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit
-  def listChannelUpdates: Vector[ChannelUpdate]
+  def listChannelUpdates: Vector[ChannelUpdateExt]
 
   // We disregard position and always exclude channel as a whole
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit

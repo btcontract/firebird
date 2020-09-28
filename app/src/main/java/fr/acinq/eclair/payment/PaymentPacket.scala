@@ -174,7 +174,7 @@ object OutgoingPacket {
     hops.reverse.foldLeft((finalPayload.amount, finalPayload.expiry, Seq[Onion.PerHopPayload](finalPayload))) {
       case ((amount, expiry, payloads), hop) =>
         val payload = Onion.createNodeRelayPayload(amount, expiry, hop.desc.a)
-        (amount + hop.fee(amount), expiry + hop.update.cltvExpiryDelta, payload +: payloads)
+        (amount + hop.fee(amount), expiry + hop.updExt.update.cltvExpiryDelta, payload +: payloads)
     }
   }
 

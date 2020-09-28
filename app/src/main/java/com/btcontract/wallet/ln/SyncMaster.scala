@@ -177,7 +177,10 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         val accum = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
         goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
         provenShortIds = accum.collect { case shortId \ confs if confs > data.threshold => shortId }.toSet
+
+        val a = System.currentTimeMillis()
         val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.map(reply2Query).toList
+        println(s"queries: ${System.currentTimeMillis() - a}, qty: ${queries.flatMap(_.shortChannelIds.array).size}")
 
         // Transfer every worker into gossip syncing state
         become(SyncMasterGossipData(activeSyncs, chunksToWait, maxSyncs), GOSSIP_SYNC)

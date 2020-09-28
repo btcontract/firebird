@@ -16,7 +16,6 @@
 
 package fr.acinq.eclair.router
 
-import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import fr.acinq.eclair.{ShortChannelId, TxCoordinates}
 import scala.concurrent.duration._
@@ -54,7 +53,4 @@ object StaleChannels {
     val TxCoordinates(blockHeight, _, _) = ShortChannelId.coordinates(channel.shortChannelId)
     blockHeight < staleThresholdBlocks && update1_opt.forall(isStale) && update2_opt.forall(isStale)
   }
-
-  def getStaleChannels(channels: Iterable[PublicChannel], currentBlockHeight: Long): Iterable[PublicChannel] = channels.filter(data => isStale(data.ann, data.update_1_opt, data.update_2_opt, currentBlockHeight))
-
 }

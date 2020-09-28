@@ -59,36 +59,37 @@ abstract class ChannelAnnouncementTable(val table: String) extends Table {
 }
 
 object NormalChannelAnnouncementTable extends ChannelAnnouncementTable("normal_announcements") {
-  private val select = s"SELECT ${NormalChannelUpdateTable.shortChannelId} FROM ${NormalChannelUpdateTable.table}"
+  private val select = s"SELECT ${NormalChannelUpdateTable.sid} FROM ${NormalChannelUpdateTable.table}"
   val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN ($select LIMIT 1000000)"
   val sigFiller: ByteVector64 = byteVector64One
 }
 
 object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_announcements") {
-  private val select = s"SELECT ${HostedChannelUpdateTable.shortChannelId} FROM ${HostedChannelUpdateTable.table}"
+  private val select = s"SELECT ${HostedChannelUpdateTable.sid} FROM ${HostedChannelUpdateTable.table}"
   val killNotPresentInChans = s"DELETE FROM $table WHERE $shortChannelId NOT IN ($select LIMIT 1000000)"
   val sigFiller: ByteVector64 = ByteVector64.Zeroes
 }
 
 abstract class ChannelUpdateTable(val table: String) extends Table {
-  private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "position", "score")
-  val (shortChannelId, timestamp, messageFlags, channelFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score) = names
+  private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "position", "score", "crc32")
+  val (sid, timestamp, msgFlags, chanFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score, crc32) = names
 
-  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $shortChannelId = ? AND $position = ?"
-  val updSQL = s"UPDATE $table SET $timestamp = ?, $messageFlags = ?, $channelFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ? WHERE $shortChannelId = ? AND $position = ?"
-  val newSql = s"INSERT OR IGNORE INTO $table ($shortChannelId, $timestamp, $messageFlags, $channelFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $position, $score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
-  val selectHavingOneUpdate = s"SELECT $shortChannelId FROM $table GROUP BY $shortChannelId HAVING COUNT($shortChannelId) < 2"
-  val killSql = s"DELETE FROM $table WHERE $shortChannelId = ?"
+  val updScoreSql = s"UPDATE $table SET $score = $score + 1 WHERE $sid = ? AND $position = ?"
+  val updSQL = s"UPDATE $table SET $timestamp = ?, $msgFlags = ?, $chanFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ?, $crc32 = ? WHERE $sid = ? AND $position = ?"
+  val newSql = s"INSERT OR IGNORE INTO $table ($sid, $timestamp, $msgFlags, $chanFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $position, $score, $crc32) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  val selectHavingOneUpdate = s"SELECT $sid FROM $table GROUP BY $sid HAVING COUNT($sid) < 2"
+  val killSql = s"DELETE FROM $table WHERE $sid = ?"
   val selectAllSql = s"SELECT * FROM $table"
 
   def create(db: SQLiteDatabase): Unit = {
     db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL, $timestamp INTEGER NOT NULL,
-      $messageFlags INTEGER NOT NULL, $channelFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,
-      $base INTEGER NOT NULL, $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL, $score INTEGER NOT NULL
+      $id INTEGER PRIMARY KEY AUTOINCREMENT, $sid INTEGER NOT NULL, $timestamp INTEGER NOT NULL, $msgFlags INTEGER NOT NULL,
+      $chanFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL,$minMsat INTEGER NOT NULL,$base INTEGER NOT NULL,
+      $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL,
+      $score INTEGER NOT NULL, $crc32 INTEGER NOT NULL
     )"""
 
-    db execSQL s"CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($shortChannelId, $position)"
+    db execSQL s"CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($sid, $position)"
   }
 }
 
@@ -115,12 +116,12 @@ abstract class ExcludedChannelTable(val table: String) extends Table {
 }
 
 object NormalExcludedChannelTable extends ExcludedChannelTable("normal_excluded_updates") {
-  private val select = s"SELECT ${NormalChannelUpdateTable.shortChannelId} FROM ${NormalChannelUpdateTable.table}"
+  private val select = s"SELECT ${NormalChannelUpdateTable.sid} FROM ${NormalChannelUpdateTable.table}"
   val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN ($select LIMIT 1000000)"
 }
 
 object HostedExcludedChannelTable extends ExcludedChannelTable("hosted_excluded_updates") {
-  private val select = s"SELECT ${HostedChannelUpdateTable.shortChannelId} FROM ${HostedChannelUpdateTable.table}"
+  private val select = s"SELECT ${HostedChannelUpdateTable.sid} FROM ${HostedChannelUpdateTable.table}"
   val killPresentInChans = s"DELETE FROM $table WHERE $shortChannelId IN ($select LIMIT 1000000)"
 }
 

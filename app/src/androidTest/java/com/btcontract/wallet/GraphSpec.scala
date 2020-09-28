@@ -9,7 +9,7 @@ import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
-import fr.acinq.eclair.router.{Announcements, RouteCalculation}
+import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, RouteCalculation, Sync}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, RouteFound, RouteParams, RouteRequest}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
@@ -29,9 +29,8 @@ object GraphSpec {
                  feeProportionalMillionth: Int,
                  minHtlc: MilliSatoshi = 10000.msat,
                  maxHtlc: MilliSatoshi,
-                 cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
-                 score: Int = 1): ChannelUpdate = {
-    val update = ChannelUpdate(
+                 cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0)): ChannelUpdate = {
+    ChannelUpdate(
       signature = PlaceHolderSig,
       chainHash = Block.RegtestGenesisBlock.hash,
       shortChannelId = shortChannelId,
@@ -44,8 +43,6 @@ object GraphSpec {
       feeProportionalMillionths = feeProportionalMillionth,
       htlcMaximumMsat = Some(maxHtlc)
     )
-    update.score = score
-    update
   }
 
   def makeEdge(shortChannelId: ShortChannelId,
@@ -57,8 +54,8 @@ object GraphSpec {
                maxHtlc: MilliSatoshi,
                cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
                score: Int = 1): GraphEdge = {
-    val update = makeUpdate(shortChannelId, nodeId1, nodeId2, feeBase, feeProportionalMillionth, minHtlc, maxHtlc, cltvDelta, score)
-    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), update)
+    val update = makeUpdate(shortChannelId, nodeId1, nodeId2, feeBase, feeProportionalMillionth, minHtlc, maxHtlc, cltvDelta)
+    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), ChannelUpdateExt(update, score = score, crc32 = Sync.getChecksum(update)))
   }
 
   def makeChannel(shortChannelId: Long, nodeIdA: PublicKey, nodeIdB: PublicKey): ChannelAnnouncement = {
