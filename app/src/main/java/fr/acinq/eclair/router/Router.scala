@@ -46,7 +46,6 @@ object Router {
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)
   case class PublicChannel(update_1_opt: Option[ChannelUpdateExt], update_2_opt: Option[ChannelUpdateExt], ann: ChannelAnnouncement) {
-    def getNodeIdSameSideAs(u: ChannelUpdate): PublicKey = if (u.position == ChannelUpdate.POSITION1NODE) ann.nodeId1 else ann.nodeId2
     def getChannelUpdateSameSideAs(u: ChannelUpdate): Option[ChannelUpdateExt] = if (u.position == ChannelUpdate.POSITION1NODE) update_1_opt else update_2_opt
   }
   // @formatter:on

@@ -21,8 +21,6 @@ import fr.acinq.bitcoin.{Btc, MilliBtc}
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router._
-import fr.acinq.eclair.wire.ChannelUpdate
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
@@ -289,7 +287,7 @@ object Graph {
     }
 
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
-    case class DirectedGraph(private val vertices: Map[PublicKey, List[GraphEdge]]) {
+    case class DirectedGraph(vertices: Map[PublicKey, List[GraphEdge]]) {
 
       def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)((acc, edge) => acc.addEdge(edge))
 
@@ -318,38 +316,13 @@ object Graph {
        * @param desc the channel description associated to the edge that will be removed
        * @return a new graph without this edge
        */
-      def removeEdge(desc: ChannelDesc): DirectedGraph = {
-        containsEdge(desc) match {
-          case true => DirectedGraph(vertices.updated(desc.b, vertices(desc.b).filterNot(_.desc == desc)))
-          case false => this
-        }
+      def removeEdge(desc: ChannelDesc): DirectedGraph = containsEdge(desc) match {
+        case true => DirectedGraph(vertices.updated(desc.b, vertices(desc.b).filterNot(_.desc == desc)))
+        case false => this
       }
 
       def removeEdges(descList: Iterable[ChannelDesc]): DirectedGraph = {
         descList.foldLeft(this)((acc, edge) => acc.removeEdge(edge))
-      }
-
-      /**
-       * @return For edges to be considered equal they must have the same in/out vertices AND same shortChannelId
-       */
-      def getEdge(edge: GraphEdge): Option[GraphEdge] = getEdge(edge.desc)
-
-      def getEdge(desc: ChannelDesc): Option[GraphEdge] = {
-        vertices.get(desc.b).flatMap { adj =>
-          adj.find(e => e.desc.shortChannelId == desc.shortChannelId && e.desc.a == desc.a)
-        }
-      }
-
-      /**
-       * @param keyA the key associated with the starting vertex
-       * @param keyB the key associated with the ending vertex
-       * @return all the edges going from keyA --> keyB (there might be more than one if there are multiple channels)
-       */
-      def getEdgesBetween(keyA: PublicKey, keyB: PublicKey): Seq[GraphEdge] = {
-        vertices.get(keyB) match {
-          case None => Seq.empty
-          case Some(adj) => adj.filter(e => e.desc.a == keyA)
-        }
       }
 
       /**
@@ -361,40 +334,12 @@ object Graph {
       }
 
       /**
-       * Removes a vertex and all its associated edges (both incoming and outgoing)
-       */
-      def removeVertex(key: PublicKey): DirectedGraph = {
-        DirectedGraph(removeEdges(getIncomingEdgesOf(key).map(_.desc)).vertices - key)
-      }
-
-      /**
        * Adds a new vertex to the graph, starting with no edges
        */
-      def addVertex(key: PublicKey): DirectedGraph = {
-        vertices.get(key) match {
-          case None => DirectedGraph(vertices + (key -> List.empty))
-          case _ => this
-        }
+      def addVertex(key: PublicKey): DirectedGraph = vertices.get(key) match {
+        case None => DirectedGraph(vertices + (key -> List.empty))
+        case _ => this
       }
-
-      /**
-       * Note this operation will traverse all edges in the graph (expensive)
-       *
-       * @return a list of the outgoing edges of the given vertex. If the vertex doesn't exists an empty list is returned.
-       */
-      def edgesOf(key: PublicKey): Seq[GraphEdge] = {
-        edgeSet().filter(_.desc.a == key).toSeq
-      }
-
-      /**
-       * @return the set of all the vertices in this graph
-       */
-      def vertexSet(): Set[PublicKey] = vertices.keySet
-
-      /**
-       * @return an iterator of all the edges in this graph
-       */
-      def edgeSet(): Iterable[GraphEdge] = vertices.values.flatten
 
       /**
        * @return true if this graph contain a vertex with this key, false otherwise
@@ -408,12 +353,6 @@ object Graph {
         vertices.get(desc.b) match {
           case None => false
           case Some(adj) => adj.exists(neighbor => neighbor.desc.shortChannelId == desc.shortChannelId && neighbor.desc.a == desc.a)
-        }
-      }
-
-      def prettyPrint(): String = {
-        vertices.foldLeft("") { case (acc, (vertex, adj)) =>
-          acc + s"[${vertex.toString().take(5)}]: ${adj.map("-> " + _.desc.b.toString().take(5))} \n"
         }
       }
     }

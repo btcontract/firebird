@@ -33,7 +33,7 @@ class SyncSpec {
   def run: Unit = {
     val channelMap0 = store.getRoutingData
     val data1 = Data(channelMap0, hostedChannels = Map.empty, extraEdges = Map.empty, graph = DirectedGraph.makeGraph(channelMap0))
-    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1, from = 550000, LNParams.routerConf) {
+    new SyncMaster(extraNodes = Set.empty, store.listExcludedChannels, data1) {
       def onChunkSyncComplete(pure: PureRoutingData): Unit = {
         println(s"Chunk complete, announces=${pure.announces.size}, updates=${pure.updates.size}, excluded=${pure.excluded.size}")
         val a = System.currentTimeMillis
@@ -52,7 +52,8 @@ class SyncSpec {
         println(s"Loading data took ${System.currentTimeMillis - a2} msec")
         println(s"Total sync complete, we have ${map1.keys.size} purified channels")
         val a3 = System.currentTimeMillis
-        DirectedGraph.makeGraph(map1)
+        val graph = DirectedGraph.makeGraph(map1)
+        assert(graph.vertices.forall { case (nodeId, incomingEdges) => incomingEdges.forall(_.desc.b == nodeId) })
         println(s"making graph took ${System.currentTimeMillis - a3} msec")
         assert(map1.nonEmpty)
         run
@@ -72,7 +73,7 @@ class SyncSpec {
       Thread.sleep(secureRandom.nextInt(2))
       WalletApp syncRmOutstanding ann
     }
-    synchronized(wait(100L))
+    synchronized(wait(200L))
     assertTrue(LNParams.format.outstandingProviders.isEmpty)
   }
 

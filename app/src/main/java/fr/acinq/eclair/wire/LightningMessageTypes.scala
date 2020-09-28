@@ -178,17 +178,21 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
                                bitcoinKey2: PublicKey,
                                unknownFields: ByteVector = ByteVector.empty) extends RoutingMessage with AnnouncementMessage with HasChainHash {
 
+  def getNodeIdSameSideAs(cu: ChannelUpdate): PublicKey = if (cu.position == ChannelUpdate.POSITION1NODE) nodeId1 else nodeId2
+
   def isPHC: Boolean =
     bitcoinKey1 == invalidPubKey && bitcoinKey2 == invalidPubKey &&
       bitcoinSignature1 == ByteVector64.Zeroes && bitcoinSignature2 == ByteVector64.Zeroes
 
   // Point useless fields to same object, db-restored should be the same
 
+  def litePHC: ChannelAnnouncement =
+    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
+      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
+
   def lite: ChannelAnnouncement =
-    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One,
-      bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
-      features = Features.empty, chainHash = LNParams.chainHash,
-      bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
+    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
+      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
 }
 
 case class Color(r: Byte, g: Byte, b: Byte) {
@@ -268,6 +272,7 @@ case class NodeAnnouncement(signature: ByteVector64,
 object ChannelUpdate {
   final val POSITION1NODE: java.lang.Integer = 1
   final val POSITION2NODE: java.lang.Integer = 2
+  final val fullSet = Set(POSITION1NODE, POSITION2NODE)
 }
 
 case class UpdateCore(position: java.lang.Integer,
@@ -357,6 +362,8 @@ case class GossipTimestampFilter(chainHash: ByteVector32,
                                  firstTimestamp: Long,
                                  timestampRange: Long) extends RoutingMessage with HasChainHash
 
+// HOSTED CHANNELS
+
 trait HostedChannelMessage extends ChannelMessage
 
 case class InvokeHostedChannel(chainHash: ByteVector32, refundScriptPubKey: ByteVector, secret: ByteVector = ByteVector.empty) extends HostedChannelMessage {
@@ -429,6 +436,12 @@ case class StateUpdate(blockDay: Long, localUpdates: Long, remoteUpdates: Long, 
 
 case class StateOverride(blockDay: Long, localBalanceMsat: MilliSatoshi, localUpdates: Long, remoteUpdates: Long, localSigOfRemoteLCSS: ByteVector64) extends HostedChannelMessage
 
+// PHC
+
+case class QueryPublicHostedChannels(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
+
+case class ReplyPublicHostedChannelsEnd(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
+
 // SWAP IN-OUT plugin
 
 sealed trait SwapIn extends LightningMessage
@@ -472,21 +485,5 @@ case object ReplyNoCurrentPaymentLink extends LNUrlPay
 
 case class PayLinkSpec(enabled: Boolean, maxSendable: MilliSatoshi, description: String, nickname: Option[String], messageAction: Option[String],
                        pngImage: Option[ByteVector] = None, commentAllowed: Option[Int] = None) extends LNUrlPay
-
-// NB: blank lines to minimize merge conflicts
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
-
-//
 
 //

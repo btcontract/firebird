@@ -1,12 +1,13 @@
 package com.btcontract.wallet.lnutils
 
 import fr.acinq.eclair._
+import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
 import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
+import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import scodec.bits.ByteVector
 
 
@@ -75,7 +76,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
     tuples.toMap
   }
 
-  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit = db txWrap {
+  def removeGhostChannels(ghostIds: ShortChanIdSet): Unit = db txWrap {
     // We might have shortIds which our peers know nothing about, as well as channels with one update, remove all of them
     val chansWithOneUpdate = db.select(updateTable.selectHavingOneUpdate).set(_ long updateTable.sid).map(ShortChannelId.apply)
     for (shortId <- chansWithOneUpdate) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then

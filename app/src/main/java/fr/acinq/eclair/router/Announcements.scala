@@ -147,6 +147,11 @@ object Announcements {
       verifySignature(witness, ann.bitcoinSignature2, ann.bitcoinKey2)
   }
 
+  def checkPHCSigs(ann: ChannelAnnouncement): Boolean = {
+    val witness = channelAnnouncementWitnessEncode(ann.chainHash, ann.shortChannelId, ann.nodeId1, ann.nodeId2, ann.bitcoinKey1, ann.bitcoinKey2, ann.features, ann.unknownFields)
+    verifySignature(witness, ann.nodeSignature1, ann.nodeId1) && verifySignature(witness, ann.nodeSignature2, ann.nodeId2)
+  }
+
   def checkSig(ann: NodeAnnouncement): Boolean = {
     val witness = nodeAnnouncementWitnessEncode(ann.timestamp, ann.nodeId, ann.rgbColor, ann.alias, ann.features, ann.addresses, ann.unknownFields)
     verifySignature(witness, ann.signature, ann.nodeId)

@@ -2,13 +2,12 @@ package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.PathFinder._
 import com.btcontract.wallet.ln.crypto.Tools._
-import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router}
 import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
-
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouteRequest, RouterConf}
+import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
+import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
 import java.util.concurrent.Executors
 
@@ -49,10 +48,11 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       sender process NotifyRejected
 
     case CMDResync \ OPERATIONAL =>
-      // App has not been opened during ~month, notify that sync will take some time
+      // App has not been opened during about one month, notify that sync might take some time
       if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 30) become(data, INIT_SYNC)
-      new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data, from = 550000, routerConf) { self =>
-        def onChunkSyncComplete(pureRoutingData: PureRoutingData): Unit = me process pureRoutingData
+
+      new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data) { self =>
+        def onChunkSyncComplete(pure: PureRoutingData): Unit = me process pure
         def onTotalSyncComplete: Unit = me process self
       }
 
@@ -70,7 +70,8 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
       // Run in PathFinder thread to not overload SyncMaster thread
-      normalStore.processPureData(pure)
+      if (pure.isHosted) hostedStore.processPureData(pure)
+      else normalStore.processPureData(pure)
 
     case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
       val shortId2ChannelMap = normalStore.getRoutingData

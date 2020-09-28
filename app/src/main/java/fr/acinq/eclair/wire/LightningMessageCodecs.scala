@@ -445,6 +445,8 @@ object LightningMessageCodecs {
     .typecase(55109, currentPaymentsInfoCodec)
     .typecase(55111, payLinkSpecCodec)
     // HC
+    .typecase(65531, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
+    .typecase(65533, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
     .typecase(65531, HostedMessagesCodecs.lastCrossSignedStateCodec)
@@ -505,4 +507,8 @@ object HostedMessagesCodecs {
       (uint32 withContext "remoteUpdates") ::
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateOverride]
+
+  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] = ("chainHash" | bytes32).as[QueryPublicHostedChannels]
+
+  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] = ("chainHash" | bytes32).as[ReplyPublicHostedChannelsEnd]
 }

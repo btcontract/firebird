@@ -10,6 +10,7 @@ import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
+import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
 import fr.acinq.eclair.payment.PaymentRequest
@@ -165,7 +166,7 @@ trait NetworkDataStore {
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
   def removeChannelUpdate(shortId: ShortChannelId): Unit
-  def removeGhostChannels(ghostIds: Set[ShortChannelId] = Set.empty): Unit
+  def removeGhostChannels(ghostIds: ShortChanIdSet = Set.empty): Unit
   def getRoutingData: Map[ShortChannelId, PublicChannel]
   def processPureData(data: PureRoutingData): Unit
 }

@@ -42,15 +42,18 @@ object Tools {
     override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
   }
 
-  def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 = {
+  def hostedNodesCombined(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector = {
     val pubkey1First: Boolean = LexicographicalOrdering.isLessThan(pubkey1, pubkey2)
-    if (pubkey1First) Crypto.sha256(pubkey1 ++ pubkey2) else Crypto.sha256(pubkey2 ++ pubkey1)
+    if (pubkey1First) pubkey1 ++ pubkey2 else pubkey2 ++ pubkey1
   }
 
-  def shortHostedChanId(chanId: ByteVector32): ShortChannelId = {
-    val stream: ByteArrayInputStream = new ByteArrayInputStream(chanId.toArray)
+  def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 =
+    Crypto sha256 hostedNodesCombined(pubkey1, pubkey2)
+
+  def hostedShortChanId(pubkey1: ByteVector, pubkey2: ByteVector): ShortChannelId = {
+    val stream = new ByteArrayInputStream(hostedNodesCombined(pubkey1, pubkey2).toArray)
     def getChunk: Long = Protocol.uint32(stream, ByteOrder.BIG_ENDIAN)
-    val id = Vector.fill(8)(getChunk).foldLeft(Long.MaxValue)(_ * _)
+    val id = Vector.fill(16)(getChunk).foldLeft(Long.MaxValue)(_ % _)
     ShortChannelId(id)
   }
 

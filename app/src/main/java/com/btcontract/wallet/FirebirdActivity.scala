@@ -74,27 +74,19 @@ trait FirebirdActivity extends AppCompatActivity { me =>
     if (whiteContrast > blackContrast * 3.75) BLACK else WHITE
   }
 
-  def toast(code: Int): Unit =
-    toast(me getString code)
-
-  def toast(msg: CharSequence): Unit = try {
-    val cb = CookieBar.rebuild(me).setMessage(msg)
-    cb.setCookiePosition(CookieBar.TOP).show
-  } catch none
-
   def share(text: String): Unit = startActivity {
     val share = new Intent setAction Intent.ACTION_SEND
     share.setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
   }
 
+  def toast(code: Int): Unit = toast(me getString code)
+  def toast(msg: CharSequence): Unit = try CookieBar.rebuild(me).setMessage(msg).setCookiePosition(CookieBar.TOP).show catch none
+  def onButtonTap(exec: => Unit): OnClickListener = new OnClickListener { def onClick(view: View): Unit = exec }
+
   def onTextChange(exec: CharSequence => Unit): TextWatcher = new TextWatcher {
     override def onTextChanged(c: CharSequence, x: Int, y: Int, z: Int): Unit = exec(c)
     override def beforeTextChanged(s: CharSequence, x: Int, y: Int, z: Int): Unit = none
     override def afterTextChanged(e: Editable): Unit = none
-  }
-
-  def onButtonTap(exec: => Unit): OnClickListener = new OnClickListener {
-    def onClick(view: View): Unit = exec
   }
 
   def runInFutureProcessOnUI[T](fun: => T, no: Throwable => Unit)(ok: T => Unit): Unit = Future(fun) onComplete {
