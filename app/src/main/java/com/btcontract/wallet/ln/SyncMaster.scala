@@ -77,10 +77,7 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
     val nodeId1ToShortIds = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty) + ann.shortChannelId
     val nodeId2ToShortIds = nodeIdToShortIds.getOrElse(ann.nodeId2, Set.empty) + ann.shortChannelId
     val nodeIdToShortIds1 = nodeIdToShortIds.updated(ann.nodeId1, nodeId1ToShortIds).updated(ann.nodeId2, nodeId2ToShortIds)
-
-    copy(expectedPositions = expectedPositions.updated(ann.shortChannelId, ChannelUpdate.fullSet),
-      announces = announces.updated(ann.shortChannelId, ann),
-      nodeIdToShortIds = nodeIdToShortIds1)
+    copy(expectedPositions = expectedPositions.updated(ann.shortChannelId, ChannelUpdate.fullSet), announces = announces.updated(ann.shortChannelId, ann), nodeIdToShortIds = nodeIdToShortIds1)
   }
 
   def withNewUpdate(cu: ChannelUpdate): SyncWorkerPHCData = {
@@ -89,10 +86,10 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   }
 
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
+    val isCorrect = Tools.hostedShortChanId(ann.nodeId1.value, ann.nodeId2.value) == ann.shortChannelId
     val notTooMuchNode1PHCs = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty).size <= 2
     val notTooMuchNode2PHCs = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty).size <= 2
-    val isCorrect = Tools.hostedShortChanId(ann.nodeId1.value, ann.nodeId2.value) == ann.shortChannelId
-    ann.isPHC && notTooMuchNode1PHCs && notTooMuchNode2PHCs && isCorrect && Announcements.checkPHCSigs(ann)
+    ann.isPHC && isCorrect && notTooMuchNode1PHCs && notTooMuchNode2PHCs
   }
 
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =

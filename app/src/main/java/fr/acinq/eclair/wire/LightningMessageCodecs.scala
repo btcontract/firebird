@@ -445,14 +445,14 @@ object LightningMessageCodecs {
     .typecase(55109, currentPaymentsInfoCodec)
     .typecase(55111, payLinkSpecCodec)
     // HC
-    .typecase(65531, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
-    .typecase(65533, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
     .typecase(65531, HostedMessagesCodecs.lastCrossSignedStateCodec)
     .typecase(65529, HostedMessagesCodecs.stateUpdateCodec)
     .typecase(65527, HostedMessagesCodecs.stateOverrideCodec)
     .typecase(65525, HostedMessagesCodecs.hostedChannelBrandingCodec)
+    .typecase(65523, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
+    .typecase(65521, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
 }
 
 object HostedMessagesCodecs {
