@@ -267,9 +267,9 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         data = me STORE data1
 
 
-      case (hc: HostedCommits, upd: ChannelUpdate, OPEN | SLEEPING)
-        if hc.updateOpt.forall(_.timestamp < upd.timestamp) =>
-        data = me STORE hc.copy(updateOpt = upd.toSome)
+      case (hc: HostedCommits, upd: ChannelUpdate, OPEN | SLEEPING) if hc.updateOpt.forall(_.timestamp < upd.timestamp) =>
+        val shortIdMatches = hostedShortChanId(hc.announce.nodeSpecificPubKey.value, hc.announce.na.nodeId.value) == upd.shortChannelId
+        if (shortIdMatches) data = me STORE hc.copy(updateOpt = upd.toSome)
 
 
       case (hc: HostedCommits, brand: HostedChannelBranding, OPEN | SLEEPING) =>

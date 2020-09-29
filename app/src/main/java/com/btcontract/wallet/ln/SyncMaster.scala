@@ -95,7 +95,7 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =
     cu.htlcMaximumMsat.exists(_ >= minHostedCapacity) &&
       expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) &&
-      Announcements.checkSig(cu, announces(cu.shortChannelId) getNodeIdSameSideAs cu)
+      announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu)
 }
 
 case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnouncement) extends StateMachine[SyncWorkerData] { me =>

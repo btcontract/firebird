@@ -440,7 +440,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, failure: Update) =>
               // Pathfinder channels must be fully loaded from db at this point since we have already used them to construct a route
               val originalNodeIdOpt = pf.data.channels.get(failure.update.shortChannelId).map(_.ann getNodeIdSameSideAs failure.update)
-              val isSignatureFine = originalNodeIdOpt.contains(nodeId) && Announcements.checkSig(failure.update, nodeId)
+              val isSignatureFine = originalNodeIdOpt.contains(nodeId) && Announcements.checkSig(failure.update)(nodeId)
               val data1 = data.withRemoteFailure(info.route, pkt)
 
               if (isSignatureFine) {

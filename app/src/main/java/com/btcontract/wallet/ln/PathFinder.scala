@@ -77,13 +77,17 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       normalStore.processPureData(pure)
 
     case (pure: PureHostedRoutingData, OPERATIONAL) =>
-      // First, completely replace PHC data with new one
-      hostedStore.processPureHostedData(pure)
+      if (pure.announces.nonEmpty && pure.updates.nonEmpty) {
+        // First, completely replace PHC data with obtained one
+        hostedStore.processPureHostedData(pure)
 
-      // Then update graph with fresh PHC data
-      val hostedShortIdToPubChan = hostedStore.getRoutingData
-      val searchGraph = DirectedGraph.makeGraph(data.channels ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
-      become(Data(channels = data.channels, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+        // Then reconstruct graph with new PHC data
+        val hostedShortIdToPubChan = hostedStore.getRoutingData
+        val searchGraph = DirectedGraph.makeGraph(data.channels ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
+        become(Data(channels = data.channels, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+      }
+
+      // Then notify listeners we are completely done
       listeners.foreach(_ process NotifyPHCDone)
 
     case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>

@@ -152,7 +152,7 @@ object Announcements {
     verifySignature(witness, ann.signature, ann.nodeId)
   }
 
-  def checkSig(upd: ChannelUpdate, nodeId: PublicKey): Boolean = {
+  def checkSig(upd: ChannelUpdate)(nodeId: PublicKey): Boolean = {
     val witness = channelUpdateWitnessEncode(upd.chainHash, upd.shortChannelId, upd.timestamp, upd.messageFlags, upd.channelFlags, upd.cltvExpiryDelta, upd.htlcMinimumMsat, upd.feeBaseMsat, upd.feeProportionalMillionths, upd.htlcMaximumMsat, upd.unknownFields)
     verifySignature(witness, upd.signature, nodeId)
   }
