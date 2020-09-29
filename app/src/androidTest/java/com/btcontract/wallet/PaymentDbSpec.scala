@@ -9,6 +9,7 @@ import fr.acinq.eclair.payment.PaymentRequest
 import org.junit.runner.RunWith
 import org.junit.Test
 import org.junit.Assert._
+
 import scala.util.Try
 
 
@@ -31,8 +32,8 @@ class PaymentDbSpec {
     val prex = new PaymentRequestExt(PaymentRequest.read(ref), ref) { override def paymentHashStr: String = randomBytes32.toHex }
 
     normal.db.txWrap {
-      for (_ <- 0 to 25000) cachedBag.bag.addOutgoingPayment(randomKey.publicKey, prex, "Outgoing payment description", None, MilliSatoshi(10000000000L), MilliSatoshi(0L), Map.empty)
-      for (_ <- 0 to 25000) cachedBag.bag.addIncomingPayment(prex, randomBytes32, "Incoming payment description", MilliSatoshi(10000000000L), MilliSatoshi(0L), Map.empty)
+      for (_ <- 0 to 2500) cachedBag.bag.addOutgoingPayment(randomKey.publicKey, prex, "Outgoing payment description", None, MilliSatoshi(10000000000L), MilliSatoshi(0L), Map.empty)
+      for (_ <- 0 to 2500) cachedBag.bag.addIncomingPayment(prex, randomBytes32, "Incoming payment description", MilliSatoshi(10000000000L), MilliSatoshi(0L), Map.empty)
     }
 
     cachedBag.invlidateBoundaries(0L, Long.MaxValue)

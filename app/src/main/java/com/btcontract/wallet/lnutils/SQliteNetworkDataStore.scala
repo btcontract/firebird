@@ -3,7 +3,7 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
-import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureRoutingData}
+import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureHostedRoutingData, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
@@ -78,7 +78,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
 
   def removeGhostChannels(ghostIds: ShortChanIdSet): Unit = db txWrap {
     // We might have shortIds which our peers know nothing about, as well as channels with one update, remove all of them
-    val chansWithOneUpdate = db.select(updateTable.selectHavingOneUpdate).set(_ long updateTable.sid).map(ShortChannelId.apply)
+    val chansWithOneUpdate: ShortChanIdSet = db.select(updateTable.selectHavingOneUpdate).set(_ long updateTable.sid).map(ShortChannelId.apply)
     for (shortId <- chansWithOneUpdate) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then
     for (shortId <- ghostIds ++ chansWithOneUpdate) removeChannelUpdate(shortId) // Make sure we only have channels with both updates
 
@@ -96,5 +96,17 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
       val untilStamp = if (core.htlcMaximumMsat.isEmpty) 1000L * 3600 * 24 * 30 else 1000L * 3600 * 24 * 300
       addExcludedChannel(core.shortChannelId, untilStamp)
     }
+  }
+
+  def processPureHostedData(pure: PureHostedRoutingData): Unit = db txWrap {
+    // First, clear out everything in hosted channel databases
+    db.change(announceTable.killAllSql)
+    db.change(updateTable.killAllSql)
+
+    // Then insert new data
+    for (announce <- pure.announces) addChannelAnnouncement(announce)
+    for (update <- pure.updates) addChannelUpdateByPosition(update)
+    // And finally remove announces without any updates
+    db.change(announceTable.killNotPresentInChans)
   }
 }

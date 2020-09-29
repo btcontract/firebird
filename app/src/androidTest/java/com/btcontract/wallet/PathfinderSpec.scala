@@ -56,8 +56,10 @@ class PathfinderSpec {
     var response: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
+      def getLastHostedResyncStamp: Long = System.currentTimeMillis
+      def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
@@ -77,8 +79,10 @@ class PathfinderSpec {
     var response2: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
+      def getLastHostedResyncStamp: Long = System.currentTimeMillis
+      def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
@@ -106,8 +110,10 @@ class PathfinderSpec {
     var response2: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
+      def getLastHostedResyncStamp: Long = System.currentTimeMillis
+      def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 

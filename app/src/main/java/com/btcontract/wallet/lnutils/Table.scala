@@ -46,6 +46,8 @@ abstract class ChannelAnnouncementTable(val table: String) extends Table {
   val (features, shortChannelId, nodeId1, nodeId2) = ("features", "shortchannelid", "nodeid1", "nodeid2")
   val newSql = s"INSERT OR IGNORE INTO $table ($features, $shortChannelId, $nodeId1, $nodeId2) VALUES (?, ?, ?, ?)"
   val selectAllSql = s"SELECT * FROM $table"
+  val killAllSql = s"DELETE * FROM $table"
+
   val killNotPresentInChans: String
   val sigFiller: ByteVector64
 
@@ -70,7 +72,7 @@ object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_a
   val sigFiller: ByteVector64 = ByteVector64.Zeroes
 }
 
-abstract class ChannelUpdateTable(val table: String) extends Table {
+abstract class ChannelUpdateTable(val table: String, val isHosted: Boolean) extends Table {
   private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "position", "score", "crc32")
   val (sid, timestamp, msgFlags, chanFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score, crc32) = names
 
@@ -78,8 +80,10 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
   val updSQL = s"UPDATE $table SET $timestamp = ?, $msgFlags = ?, $chanFlags = ?, $cltvExpiryDelta = ?, $minMsat = ?, $base = ?, $proportional = ?, $maxMsat = ?, $crc32 = ? WHERE $sid = ? AND $position = ?"
   val newSql = s"INSERT OR IGNORE INTO $table ($sid, $timestamp, $msgFlags, $chanFlags, $cltvExpiryDelta, $minMsat, $base, $proportional, $maxMsat, $position, $score, $crc32) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   val selectHavingOneUpdate = s"SELECT $sid FROM $table GROUP BY $sid HAVING COUNT($sid) < 2"
-  val killSql = s"DELETE FROM $table WHERE $sid = ?"
   val selectAllSql = s"SELECT * FROM $table"
+
+  val killSql = s"DELETE FROM $table WHERE $sid = ?"
+  val killAllSql = s"DELETE * FROM $table"
 
   def create(db: SQLiteDatabase): Unit = {
     db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
@@ -93,8 +97,8 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
   }
 }
 
-object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates")
-object HostedChannelUpdateTable extends ChannelUpdateTable("hosted_updates")
+object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates", isHosted = false)
+object HostedChannelUpdateTable extends ChannelUpdateTable("hosted_updates", isHosted = true)
 
 abstract class ExcludedChannelTable(val table: String) extends Table {
   val Tuple2(shortChannelId, until) = ("shortchannelid", "excludeduntilstamp")

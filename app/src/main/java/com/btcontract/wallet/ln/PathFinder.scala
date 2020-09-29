@@ -20,7 +20,13 @@ object PathFinder {
   val NotifyRejected = "notify-rejected"
   val NotifyOperational = "notify-operational"
   val CMDLoadGraph = "cmd-load-graph"
+
+  val CMDHostedResync = "cmd-hosted-resync"
   val CMDResync = "cmd-resync"
+
+  val NORMAL_RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 2
+  val HOSTED_RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 3
+  val LONG_PERIOD: Long = 1000L * 3600 * 24 * 30
 }
 
 abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
@@ -30,10 +36,12 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
   // We don't load routing data on every startup but when user (or system) actually needs it
   become(Data(channels = Map.empty, hostedChannels = Map.empty, extraEdges = Map.empty, DirectedGraph.apply), WAITING)
-  RxUtils.initDelay(RxUtils.ioQueue.map(_ => me process CMDResync), getLastResyncStamp, 1000L * 3600 * 24 * 2).subscribe(none)
+  RxUtils.initDelay(RxUtils.ioQueue, getLastResyncStamp, NORMAL_RESYNC_PERIOD).subscribe(_ => me process CMDResync)
 
   def getLastResyncStamp: Long
+  def getLastHostedResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
+  def updateLastHostedResyncStamp(stamp: Long): Unit
   def getExtraNodes: Set[NodeAnnouncement]
 
   def doProcess(change: Any): Unit = (change, state) match {
@@ -49,8 +57,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
     case CMDResync \ OPERATIONAL =>
       // App has not been opened during about one month, notify that sync might take some time
-      if (System.currentTimeMillis - getLastResyncStamp > 1000L * 3600 * 24 * 30) become(data, INIT_SYNC)
-
+      if (System.currentTimeMillis - getLastResyncStamp > LONG_PERIOD) become(data, INIT_SYNC)
       new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data) { self =>
         def onChunkSyncComplete(pure: PureRoutingData): Unit = me process pure
         def onTotalSyncComplete: Unit = me process self
@@ -63,26 +70,46 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       me process CMDResync
 
     case CMDLoadGraph \ WAITING =>
-      val shortId2ChannelMap = normalStore.getRoutingData
-      val searchGraph = DirectedGraph.makeGraph(shortId2ChannelMap).addEdges(data.extraEdges.values)
-      become(Data(shortId2ChannelMap, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
+      val normalShortIdToPubChan = normalStore.getRoutingData
+      val hostedShortIdToPubChan = hostedStore.getRoutingData
+      val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
+      become(Data(normalShortIdToPubChan, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
       // Run in PathFinder thread to not overload SyncMaster thread
-      if (pure.isHosted) hostedStore.processPureData(pure)
-      else normalStore.processPureData(pure)
+      normalStore.processPureData(pure)
 
     case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
-      val shortId2ChannelMap = normalStore.getRoutingData
-      val ghostShortIdsPeersKnowNothingAbout = shortId2ChannelMap.keySet.diff(sync.provenShortIds)
-      val channelMap1 = shortId2ChannelMap -- ghostShortIdsPeersKnowNothingAbout
+      // Get rid of channels which peers know nothing about
+      val normalShortIdToPubChan = normalStore.getRoutingData
+      val ghostShortIdsPeersKnowNothingAbout = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
+      val normalShortIdToPubChan1 = normalShortIdToPubChan -- ghostShortIdsPeersKnowNothingAbout
 
-      val searchGraph = DirectedGraph.makeGraph(channelMap1).addEdges(data.extraEdges.values)
-      become(Data(channelMap1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
+      // Make pathfinder operational and notify listeners
+      val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan1 ++ data.hostedChannels).addEdges(data.extraEdges.values)
+      become(Data(normalShortIdToPubChan1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
+      listeners.foreach(_ process NotifyOperational)
+
+      // Once normal channel sync is complete we may also need to do PHC one, this may happen in some time so set up a delay check
+      RxUtils.initDelay(RxUtils.ioQueue, getLastHostedResyncStamp, HOSTED_RESYNC_PERIOD).subscribe(_ => me process CMDHostedResync)
       normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
       updateLastResyncStamp(System.currentTimeMillis)
-      listeners.foreach(_ process NotifyOperational)
+
+    case CMDHostedResync \ OPERATIONAL =>
+      // We need a PNCs for this, hence OPERATIONAL only
+      new PHCSyncMaster(process, getExtraNodes, data)
+
+    case (pure: PureHostedRoutingData, OPERATIONAL) =>
+      // First, completely replace PHC data with new one
+      hostedStore.processPureHostedData(pure)
+
+      // Then update graph with fresh PHC data
+      val hostedShortIdToPubChan = hostedStore.getRoutingData
+      val searchGraph = DirectedGraph.makeGraph(data.channels ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
+      become(Data(data.channels, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+      updateLastHostedResyncStamp(System.currentTimeMillis)
+
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled
@@ -91,15 +118,18 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     // If disabled channel stays disabled for a long time it will be pruned by peers and then by us
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
-      become(resolve(data.channels(cu.shortChannelId), cu, normalStore), OPERATIONAL)
+      val data1 = resolve(data.channels(cu.shortChannelId), ChannelUpdateExt.from(cu), normalStore)
+      become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.hostedChannels.contains(cu.shortChannelId) =>
-      become(resolve(data.hostedChannels(cu.shortChannelId), cu, hostedStore), OPERATIONAL)
+      val data1 = resolve(data.hostedChannels(cu.shortChannelId), ChannelUpdateExt.from(cu), hostedStore)
+      become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) =>
       data.extraEdges get cu.shortChannelId foreach { edge =>
         val edge1 = edge.copy(updExt = edge.updExt withNewUpdate cu)
-        become(resolveKnownDesc(edge1, None, isOld = false), OPERATIONAL)
+        val data1 = resolveKnownDesc(edge1, None, isOld = false)
+        become(data1, OPERATIONAL)
       }
 
     case (edge: GraphEdge, WAITING | OPERATIONAL | INIT_SYNC) if !data.channels.contains(edge.desc.shortChannelId) =>
@@ -112,11 +142,11 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
   }
 
   // Common resover for normal/hosted public channel updates
-  def resolve(pubChan: PublicChannel, cu: ChannelUpdate, store: NetworkDataStore): Data = {
-    val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(cu)
-    val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= cu.timestamp)
-    val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate cu).getOrElse(ChannelUpdateExt from cu)
-    resolveKnownDesc(GraphEdge(Router.getDesc(cu, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
+  def resolve(pubChan: PublicChannel, defaultUpdateExt: ChannelUpdateExt, store: NetworkDataStore): Data = {
+    val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(defaultUpdateExt.update)
+    val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= defaultUpdateExt.update.timestamp)
+    val nextUpdateExt: ChannelUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate defaultUpdateExt.update).getOrElse(defaultUpdateExt)
+    resolveKnownDesc(GraphEdge(Router.getDesc(defaultUpdateExt.update, pubChan.ann), nextUpdateExt), Some(store), newUpdateIsOlder)
   }
 
   // Resolves channel updates which we obtain from node errors while trying to route payments

@@ -72,31 +72,31 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
   def makeLinkingKey(domain: String): PrivateKey = {
     val domainBytes = ByteVector.view(domain getBytes "UTF-8")
     val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
-    val chain = hardened(138) +: makeKeyPath(pathMaterial)
+    val chain = hardened(138) :: makeKeyPath(pathMaterial)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def fakeInvoiceKey(paymentHash: ByteVector): PrivateKey = {
-    val chain = hardened(184) +: makeKeyPath(paymentHash)
+    val chain = hardened(184) :: makeKeyPath(paymentHash)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def ourFakeNodeIdKey(theirNodeId: PublicKey): PrivateKey = {
-    val chain = hardened(230) +: makeKeyPath(theirNodeId.value)
+    val chain = hardened(230) :: makeKeyPath(theirNodeId.value)
     derivePrivateKey(extendedNodeKey, chain).privateKey
   }
 
   def refundPubKey(theirNodeId: PublicKey): ByteVector = {
-    val derivationChain = hardened(276) +: makeKeyPath(theirNodeId.value)
+    val derivationChain = hardened(276) :: makeKeyPath(theirNodeId.value)
     val p2wpkh = Script.pay2wpkh(derivePrivateKey(extendedNodeKey, derivationChain).publicKey)
     Script.write(p2wpkh)
   }
 
-  def makeKeyPath(material: ByteVector): Vector[Long] = {
+  def makeKeyPath(material: ByteVector): List[Long] = {
     require(material.size > 15, "Material size must be at least 16")
     val stream = new ByteArrayInputStream(material.slice(0, 16).toArray)
     def getChunk = Protocol.uint32(stream, ByteOrder.BIG_ENDIAN)
-    Vector.fill(4)(getChunk)
+    List.fill(4)(getChunk)
   }
 }
 
@@ -168,6 +168,8 @@ trait NetworkDataStore {
   def removeChannelUpdate(shortId: ShortChannelId): Unit
   def removeGhostChannels(ghostIds: ShortChanIdSet = Set.empty): Unit
   def getRoutingData: Map[ShortChannelId, PublicChannel]
+
+  def processPureHostedData(pure: PureHostedRoutingData): Unit
   def processPureData(data: PureRoutingData): Unit
 }
 

@@ -191,9 +191,9 @@ trait GetNewSyncMachine extends CanBeRepliedTo { me =>
   }
 }
 
-case class SyncMasterGossipData(activeSyncs: Set[SyncWorker], chunksLeft: Int, maxSyncs: Int) extends SyncMasterData
+case class PureRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate], excluded: Set[UpdateCore] = Set.empty)
 case class SyncMasterShortIdData(activeSyncs: Set[SyncWorker], collectedRanges: Map[PublicKey, SyncWorkerShortIdsData], maxSyncs: Int) extends SyncMasterData
-case class PureRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate], excluded: Set[UpdateCore], isHosted: Boolean)
+case class SyncMasterGossipData(activeSyncs: Set[SyncWorker], chunksLeft: Int, maxSyncs: Int) extends SyncMasterData
 
 case class UpdateConifrmState(liteUpdOpt: Option[ChannelUpdate], confirmedBy: ConifrmedBySet) {
   def add(cu: ChannelUpdate, from: PublicKey): UpdateConifrmState = copy(liteUpdOpt = Some(cu), confirmedBy = confirmedBy + from)
@@ -205,11 +205,12 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
   var newExcludedChanUpdates: Set[UpdateCore] = Set.empty
   var provenShortIds: ShortChanIdSet = Set.empty
 
+  def onChunkSyncComplete(pure: PureRoutingData): Unit
+  def onTotalSyncComplete: Unit
+
   def provenAndNotHosted(ann: ChannelAnnouncement): Boolean = provenShortIds.contains(ann.shortChannelId) && !ann.isPHC
   def provenAndTooSmallOrNoInfo(update: ChannelUpdate): Boolean = provenShortIds.contains(update.shortChannelId) && update.htlcMaximumMsat.forall(_ < minCapacity)
   def provenAndNotExcluded(shortId: ShortChannelId): Boolean = provenShortIds.contains(shortId) && !excluded.contains(shortId.id)
-  def onChunkSyncComplete(pure: PureRoutingData): Unit
-  def onTotalSyncComplete: Unit
 
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
@@ -297,7 +298,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
   def sendPureData(data1: SyncMasterGossipData): Unit = {
     val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > data1.threshold => announce }.toSet
     val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > data1.threshold => update }.toSet
-    me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates, isHosted = false)
+    me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates)
     for (announce <- goodAnnounces) confirmedChanAnnounces -= announce
     for (update <- goodUpdates) confirmedChanUpdates -= update.core
     newExcludedChanUpdates = Set.empty
@@ -335,8 +336,9 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
   }
 }
 
+case class PureHostedRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate] = Set.empty)
 case class SyncMasterPHCData(activeSyncs: Set[SyncWorker], attemptsLeft: Int) extends SyncMasterData { final val maxSyncs: Int = 1 }
-abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data) extends StateMachine[SyncMasterPHCData] with GetNewSyncMachine { me =>
+class PHCSyncMaster(onComplete: Any => Unit, extraNodes: Set[NodeAnnouncement], routerData: Data) extends StateMachine[SyncMasterPHCData] with GetNewSyncMachine { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   become(SyncMasterPHCData(Set.empty, attemptsLeft = 12), PHC_SYNC)
@@ -344,13 +346,10 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
 
   // These checks require router and graph
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
-    val interferesWithNormalShortId = routerData.channels.contains(ann.shortChannelId)
     val node1HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).count(_.desc.a != ann.nodeId2) >= 10
     val node2HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).count(_.desc.a != ann.nodeId1) >= 10
-    !interferesWithNormalShortId && node1HasEnoungIncomingChans && node2HasEnoungIncomingChans
+    !routerData.channels.contains(ann.shortChannelId) && node1HasEnoungIncomingChans && node2HasEnoungIncomingChans
   }
-
-  def onTotalSyncComplete(pure: PureRoutingData): Unit
 
   def doProcess(change: Any): Unit = (change, state) match {
     case CMDAddSync \ PHC_SYNC if data.activeSyncs.size < data.maxSyncs =>
@@ -368,8 +367,9 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
       become(null, SHUT_DOWN)
 
     case (d1: SyncWorkerPHCData, PHC_SYNC) =>
-      // Worker has informed us that PHC gossip sync is complete so we shut down too
-      PureRoutingData(d1.announces.values.toSet, d1.updates, Set.empty, isHosted = true)
+      // Worker has informed us that PHC sync is complete, shut down
+      val pure = PureHostedRoutingData(d1.announces.values.toSet, d1.updates)
       become(null, SHUT_DOWN)
+      onComplete(pure)
   }
 }

@@ -10,7 +10,7 @@ object EmojiNodeId {
   def convert(nodeId: PublicKey): Iterator[String] = {
     val stream = new ByteArrayInputStream(nodeId.value.toArray)
     def getChunk: Long = Protocol.uint32(stream, ByteOrder.BIG_ENDIAN)
-    Vector.fill(8)(getChunk).grouped(2).map(_.product % 670).map(_.toInt).map(emojis)
+    List.fill(8)(getChunk).grouped(2).map(_.product % 670).map(_.toInt).map(emojis)
   }
 
   final val emojis = List(
