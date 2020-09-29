@@ -17,15 +17,13 @@ object PathFinder {
   val INIT_SYNC = "state-init-sync"
   val OPERATIONAL = "state-operational"
 
-  val NotifyRejected = "notify-rejected"
-  val NotifyOperational = "notify-operational"
+  val NotifyRejected = "notify-rejected" // Pathfinder can't process a route request right now
+  val NotifyOperational = "notify-operational" // Pathfinder has loaded a graph and is operational
+  val NotifyPHCDone = "notify-phc-operational" // PHC sync is done (OK or failed)
   val CMDLoadGraph = "cmd-load-graph"
-
-  val CMDHostedResync = "cmd-hosted-resync"
   val CMDResync = "cmd-resync"
 
   val NORMAL_RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 2
-  val HOSTED_RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 3
   val LONG_PERIOD: Long = 1000L * 3600 * 24 * 30
 }
 
@@ -39,9 +37,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
   RxUtils.initDelay(RxUtils.ioQueue, getLastResyncStamp, NORMAL_RESYNC_PERIOD).subscribe(_ => me process CMDResync)
 
   def getLastResyncStamp: Long
-  def getLastHostedResyncStamp: Long
   def updateLastResyncStamp(stamp: Long): Unit
-  def updateLastHostedResyncStamp(stamp: Long): Unit
   def getExtraNodes: Set[NodeAnnouncement]
 
   def doProcess(change: Any): Unit = (change, state) match {
@@ -73,32 +69,12 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       val normalShortIdToPubChan = normalStore.getRoutingData
       val hostedShortIdToPubChan = hostedStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
-      become(Data(normalShortIdToPubChan, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(channels = normalShortIdToPubChan, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case (pure: PureRoutingData, OPERATIONAL | INIT_SYNC) =>
       // Run in PathFinder thread to not overload SyncMaster thread
       normalStore.processPureData(pure)
-
-    case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
-      // Get rid of channels which peers know nothing about
-      val normalShortIdToPubChan = normalStore.getRoutingData
-      val ghostShortIdsPeersKnowNothingAbout = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
-      val normalShortIdToPubChan1 = normalShortIdToPubChan -- ghostShortIdsPeersKnowNothingAbout
-
-      // Make pathfinder operational and notify listeners
-      val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan1 ++ data.hostedChannels).addEdges(data.extraEdges.values)
-      become(Data(normalShortIdToPubChan1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
-      listeners.foreach(_ process NotifyOperational)
-
-      // Once normal channel sync is complete we may also need to do PHC one, this may happen in some time so set up a delay check
-      RxUtils.initDelay(RxUtils.ioQueue, getLastHostedResyncStamp, HOSTED_RESYNC_PERIOD).subscribe(_ => me process CMDHostedResync)
-      normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
-      updateLastResyncStamp(System.currentTimeMillis)
-
-    case CMDHostedResync \ OPERATIONAL =>
-      // We need a PNCs for this, hence OPERATIONAL only
-      new PHCSyncMaster(process, getExtraNodes, data)
 
     case (pure: PureHostedRoutingData, OPERATIONAL) =>
       // First, completely replace PHC data with new one
@@ -107,9 +83,27 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       // Then update graph with fresh PHC data
       val hostedShortIdToPubChan = hostedStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(data.channels ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
-      become(Data(data.channels, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
-      updateLastHostedResyncStamp(System.currentTimeMillis)
+      become(Data(channels = data.channels, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+      listeners.foreach(_ process NotifyPHCDone)
 
+    case (sync: SyncMaster, OPERATIONAL | INIT_SYNC) =>
+      // Get rid of channels which peers know nothing about
+      val normalShortIdToPubChan = normalStore.getRoutingData
+      val ghostShortIdsPeersKnowNothingAbout = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
+      val normalShortIdToPubChan1 = normalShortIdToPubChan -- ghostShortIdsPeersKnowNothingAbout
+
+      val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan1 ++ data.hostedChannels).addEdges(data.extraEdges.values)
+      become(Data(channels = normalShortIdToPubChan1, hostedChannels = data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
+      updateLastResyncStamp(System.currentTimeMillis)
+      listeners.foreach(_ process NotifyOperational)
+
+      new PHCSyncMaster(getExtraNodes, data) {
+        def onSyncComplete(pure: PureHostedRoutingData): Unit = me process pure
+        def onSyncFailed: Unit = listeners.foreach(_ process NotifyPHCDone)
+      }
+
+      // Perform normal channels maintenance after notifying listeners
+      normalStore.removeGhostChannels(ghostShortIdsPeersKnowNothingAbout)
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled

@@ -40,9 +40,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -93,9 +91,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -130,9 +126,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -175,9 +169,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -218,9 +210,7 @@ class PaymentMasterSpec {
     fillBasicGraph(normal)
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -252,9 +242,7 @@ class PaymentMasterSpec {
     fillBasicGraph(normal)
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -286,9 +274,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
@@ -339,9 +325,7 @@ class PaymentMasterSpec {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastHostedResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
       def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastHostedResyncStamp: Long = System.currentTimeMillis
       def getLastResyncStamp: Long = System.currentTimeMillis
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }

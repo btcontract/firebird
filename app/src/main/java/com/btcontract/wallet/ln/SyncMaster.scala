@@ -338,7 +338,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
 
 case class PureHostedRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate] = Set.empty)
 case class SyncMasterPHCData(activeSyncs: Set[SyncWorker], attemptsLeft: Int) extends SyncMasterData { final val maxSyncs: Int = 1 }
-class PHCSyncMaster(onComplete: Any => Unit, extraNodes: Set[NodeAnnouncement], routerData: Data) extends StateMachine[SyncMasterPHCData] with GetNewSyncMachine { me =>
+abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data) extends StateMachine[SyncMasterPHCData] with GetNewSyncMachine { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   become(SyncMasterPHCData(Set.empty, attemptsLeft = 12), PHC_SYNC)
@@ -351,6 +351,8 @@ class PHCSyncMaster(onComplete: Any => Unit, extraNodes: Set[NodeAnnouncement], 
     !routerData.channels.contains(ann.shortChannelId) && node1HasEnoungIncomingChans && node2HasEnoungIncomingChans
   }
 
+  def onSyncFailed: Unit
+  def onSyncComplete(pure: PureHostedRoutingData): Unit
   def doProcess(change: Any): Unit = (change, state) match {
     case CMDAddSync \ PHC_SYNC if data.activeSyncs.size < data.maxSyncs =>
       val newSyncWorker: SyncWorker = getNewSync(data, hostedSyncNodes ++ extraNodes)
@@ -365,11 +367,12 @@ class PHCSyncMaster(onComplete: Any => Unit, extraNodes: Set[NodeAnnouncement], 
     case (_: SyncWorker, PHC_SYNC) =>
       // No more reconnect attempts left
       become(null, SHUT_DOWN)
+      onSyncFailed
 
     case (d1: SyncWorkerPHCData, PHC_SYNC) =>
       // Worker has informed us that PHC sync is complete, shut down
       val pure = PureHostedRoutingData(d1.announces.values.toSet, d1.updates)
       become(null, SHUT_DOWN)
-      onComplete(pure)
+      onSyncComplete(pure)
   }
 }

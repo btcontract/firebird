@@ -52,7 +52,6 @@ object WalletApp {
   final val ENSURE_TOR = "ensureTor"
   final val FIAT_RATES_DATA = "fiatRatesData"
   final val LAST_GOSSIP_SYNC = "lastGossipSync"
-  final val LAST_PHC_GOSSIP_SYNC = "lastPHCGossipSync"
   final val PAYMENT_SUMMARY_CACHE = "paymentSummaryCache"
 
   private[this] val prefixes = PaymentRequest.prefixes.values mkString "|"
