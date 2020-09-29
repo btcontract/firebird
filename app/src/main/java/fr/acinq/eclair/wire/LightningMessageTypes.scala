@@ -28,7 +28,7 @@ import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrde
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
 import fr.acinq.eclair.{byteVector64One, invalidPubKey}
-import scodec.bits.ByteVector
+import scodec.bits.{BitVector, ByteVector}
 
 /**
  * Created by PM on 15/11/2016.
@@ -366,7 +366,10 @@ case class GossipTimestampFilter(chainHash: ByteVector32,
 
 trait HostedChannelMessage extends ChannelMessage
 
-case class InvokeHostedChannel(chainHash: ByteVector32, refundScriptPubKey: ByteVector, secret: ByteVector = ByteVector.empty) extends HostedChannelMessage {
+case class InvokeHostedChannel(chainHash: ByteVector32,
+                               refundScriptPubKey: ByteVector,
+                               features: BitVector = BitVector.empty,
+                               secret: ByteVector = ByteVector.empty) extends HostedChannelMessage {
   require(secret.size <= 64, s"Hosted channel secret size=${secret.size}, max allowed=64")
   val finalSecret: ByteVector = secret.take(64)
 }
@@ -378,7 +381,7 @@ case class InitHostedChannel(maxHtlcValueInFlightMsat: UInt64,
                              liabilityDeadlineBlockdays: Int,
                              minimalOnchainRefundAmountSatoshis: Satoshi,
                              initialClientBalanceMsat: MilliSatoshi,
-                             features: ByteVector) extends HostedChannelMessage
+                             features: BitVector = BitVector.empty) extends HostedChannelMessage
 
 case class HostedChannelBranding(rgbColor: Color, pngIcon: ByteVector) extends HostedChannelMessage
 

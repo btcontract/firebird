@@ -459,6 +459,7 @@ object HostedMessagesCodecs {
   val invokeHostedChannelCodec: Codec[InvokeHostedChannel] = {
     (bytes32 withContext "chainHash") ::
       (varsizebinarydata withContext "refundScriptPubKey") ::
+      (variableSizeBits(uint8, bits) withContext "features") ::
       (varsizebinarydata withContext "secret")
   }.as[InvokeHostedChannel]
 
@@ -470,7 +471,7 @@ object HostedMessagesCodecs {
       (uint16 withContext "liabilityDeadlineBlockdays") ::
       (satoshi withContext "minimalOnchainRefundAmountSatoshis") ::
       (millisatoshi withContext "initialClientBalanceMsat") ::
-      (varsizebinarydata withContext "features")
+      (variableSizeBits(uint8, bits) withContext "features")
   }.as[InitHostedChannel]
 
   val hostedChannelBrandingCodec: Codec[HostedChannelBranding] = {
