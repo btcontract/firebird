@@ -3,21 +3,22 @@ package com.btcontract.wallet
 import spray.json._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.R.string._
+
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-
-import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons}
+import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
-import scala.util.{Success, Try}
 
+import scala.util.{Success, Try}
 import com.btcontract.wallet.helper.AwaitService
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
+
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -156,6 +157,7 @@ class WalletApp extends Application {
 
   def freePossiblyUsedResouces: Unit = {
     // Safely disconnect from possibly remaining sockets
+    WebSocketBus.workers.keys.foreach(WebSocketBus.forget)
     CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
     if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
     if (null != LNParams.channelMaster) LNParams.channelMaster.listeners = Set.empty
@@ -165,6 +167,7 @@ class WalletApp extends Application {
     if (null != WalletApp.db) WalletApp.db.close
     // Make sure application is not alive
     LNParams.channelMaster = null
+    WalletApp.usedAddons = null
     WalletApp.chainLink = null
     WalletApp.db = null
   }
