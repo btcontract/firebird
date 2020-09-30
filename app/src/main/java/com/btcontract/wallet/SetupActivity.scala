@@ -101,7 +101,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
       override def onOperational(worker: CommsTower.Worker): Unit = {
         val attachedSecret: ByteVector = LNParams.format.attachedChannelSecret
         val refundScript: ByteVector = LNParams.format.keys.refundPubKey(theirNodeId = worker.ann.nodeId)
-        worker.handler process InvokeHostedChannel(LNParams.chainHash, refundScript, HostedFeatures.IS_BASIC, attachedSecret)
+        worker.handler process InvokeHostedChannel(LNParams.chainHash, refundScript, attachedSecret, HostedFeatures.IS_BASIC)
       }
     }
 

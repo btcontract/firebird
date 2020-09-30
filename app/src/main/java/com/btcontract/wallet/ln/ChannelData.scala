@@ -109,7 +109,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   } yield paymentPreimage -> add
 
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
-  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, HostedFeatures.IS_BASIC, ByteVector.empty)
+  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty, HostedFeatures.IS_BASIC)
   lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
   lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
 

@@ -29,8 +29,10 @@ object MainActivity {
     val pf: PathFinder =
       new PathFinder(normalNetworkDataStore, hostedNetworkDataStore, LNParams.routerConf) {
         def getExtraNodes: Set[NodeAnnouncement] = LNParams.channelMaster.all.map(_.data.announce.na).toSet
-        def updateLastResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_GOSSIP_SYNC, stamp).commit
-        def getLastResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_GOSSIP_SYNC, 0L)
+        def getLastTotalResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_TOTAL_GOSSIP_SYNC, 0L)
+        def getLastNormalResyncStamp: Long = WalletApp.app.prefs.getLong(WalletApp.LAST_NORMAL_GOSSIP_SYNC, 0L)
+        def updateLastTotalResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_TOTAL_GOSSIP_SYNC, stamp).commit
+        def updateLastNormalResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_NORMAL_GOSSIP_SYNC, stamp).commit
       }
 
     val channelMaster: ChannelMaster =

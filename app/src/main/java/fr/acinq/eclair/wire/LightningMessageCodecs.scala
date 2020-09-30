@@ -459,8 +459,8 @@ object HostedMessagesCodecs {
   val invokeHostedChannelCodec: Codec[InvokeHostedChannel] = {
     (bytes32 withContext "chainHash") ::
       (varsizebinarydata withContext "refundScriptPubKey") ::
-      (variableSizeBits(uint8, bits) withContext "features") ::
-      (varsizebinarydata withContext "secret")
+      (varsizebinarydata withContext "secret") ::
+      (variableSizeBits(uint8, bits) withContext "features")
   }.as[InvokeHostedChannel]
 
   val initHostedChannelCodec: Codec[InitHostedChannel] = {

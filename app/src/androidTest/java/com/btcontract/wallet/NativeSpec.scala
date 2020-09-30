@@ -179,16 +179,16 @@ class NativeSpec {
   @Test
   def channelFeatures(): Unit = {
     val invokeCodec = fr.acinq.eclair.wire.HostedMessagesCodecs.invokeHostedChannelCodec
-    val invoke1 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), HostedFeatures.IS_BASIC, randomBytes(32))
+    val invoke1 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), randomBytes(32), HostedFeatures.IS_BASIC)
     assertTrue(!HostedFeatures.isSet(invoke1.features, HostedFeatures.ANNOUNCE_CHANNEL))
     assertTrue(invokeCodec.decode(invokeCodec.encode(invoke1).require).require.value == invoke1)
-    val invoke2 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), HostedFeatures.IS_ANNOUNCE_CHANNEL, ByteVector.empty)
+    val invoke2 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), ByteVector.empty, HostedFeatures.IS_ANNOUNCE_CHANNEL)
     assertTrue(HostedFeatures.isSet(invoke2.features, HostedFeatures.ANNOUNCE_CHANNEL))
     assertTrue(invokeCodec.decode(invokeCodec.encode(invoke2).require).require.value == invoke2)
-    val invoke3 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), BitVector.empty, randomBytes(32))
+    val invoke3 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), randomBytes(32), BitVector.empty)
     assertTrue(!HostedFeatures.isSet(invoke3.features, HostedFeatures.ANNOUNCE_CHANNEL))
     assertTrue(invokeCodec.decode(invokeCodec.encode(invoke3).require).require.value == invoke3)
-    val invoke4 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), BitVector.empty, ByteVector.empty)
+    val invoke4 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), ByteVector.empty, BitVector.empty)
     assertTrue(invokeCodec.decode(invokeCodec.encode(invoke4).require).require.value == invoke4)
 
     val initCodec = fr.acinq.eclair.wire.HostedMessagesCodecs.initHostedChannelCodec

@@ -56,8 +56,10 @@ class PathfinderSpec {
     var response: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def getLastTotalResyncStamp: Long = System.currentTimeMillis
+      def getLastNormalResyncStamp: Long = System.currentTimeMillis
+      def updateLastTotalResyncStamp(stamp: Long): Unit = println("updateLastTotalResyncStamp")
+      def updateLastNormalResyncStamp(stamp: Long): Unit = println("updateLastNormalResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
@@ -77,8 +79,10 @@ class PathfinderSpec {
     var response2: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def getLastTotalResyncStamp: Long = System.currentTimeMillis
+      def getLastNormalResyncStamp: Long = System.currentTimeMillis
+      def updateLastTotalResyncStamp(stamp: Long): Unit = println("updateLastTotalResyncStamp")
+      def updateLastNormalResyncStamp(stamp: Long): Unit = println("updateLastNormalResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
@@ -106,8 +110,10 @@ class PathfinderSpec {
     var response2: Any = null
 
     val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
-      def updateLastResyncStamp(stamp: Long): Unit = println("updateLastResyncStamp")
-      def getLastResyncStamp: Long = System.currentTimeMillis
+      def getLastTotalResyncStamp: Long = System.currentTimeMillis
+      def getLastNormalResyncStamp: Long = System.currentTimeMillis
+      def updateLastTotalResyncStamp(stamp: Long): Unit = println("updateLastTotalResyncStamp")
+      def updateLastNormalResyncStamp(stamp: Long): Unit = println("updateLastNormalResyncStamp")
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 

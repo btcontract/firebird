@@ -163,7 +163,9 @@ case class UpdateFee(channelId: ByteVector32,
 case class AnnouncementSignatures(channelId: ByteVector32,
                                   shortChannelId: ShortChannelId,
                                   nodeSignature: ByteVector64,
-                                  bitcoinSignature: ByteVector64) extends RoutingMessage with HasChannelId
+                                  bitcoinSignature: ByteVector64) extends RoutingMessage with HasChannelId {
+  def isPHC: Boolean = bitcoinSignature == ByteVector64.Zeroes
+}
 
 case class ChannelAnnouncement(nodeSignature1: ByteVector64,
                                nodeSignature2: ByteVector64,
@@ -368,8 +370,8 @@ trait HostedChannelMessage extends ChannelMessage
 
 case class InvokeHostedChannel(chainHash: ByteVector32,
                                refundScriptPubKey: ByteVector,
-                               features: BitVector = BitVector.empty,
-                               secret: ByteVector = ByteVector.empty) extends HostedChannelMessage {
+                               secret: ByteVector = ByteVector.empty,
+                               features: BitVector = BitVector.empty) extends HostedChannelMessage {
   require(secret.size <= 64, s"Hosted channel secret size=${secret.size}, max allowed=64")
   val finalSecret: ByteVector = secret.take(64)
 }

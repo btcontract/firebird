@@ -351,7 +351,6 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
     !routerData.channels.contains(ann.shortChannelId) && node1HasEnoungIncomingChans && node2HasEnoungIncomingChans
   }
 
-  def onSyncFailed: Unit
   def onSyncComplete(pure: PureHostedRoutingData): Unit
   def doProcess(change: Any): Unit = (change, state) match {
     case CMDAddSync \ PHC_SYNC if data.activeSyncs.size < data.maxSyncs =>
@@ -367,7 +366,6 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
     case (_: SyncWorker, PHC_SYNC) =>
       // No more reconnect attempts left
       become(null, SHUT_DOWN)
-      onSyncFailed
 
     case (d1: SyncWorkerPHCData, PHC_SYNC) =>
       // Worker has informed us that PHC sync is complete, shut down
