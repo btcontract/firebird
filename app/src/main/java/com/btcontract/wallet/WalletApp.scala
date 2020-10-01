@@ -3,7 +3,6 @@ package com.btcontract.wallet
 import spray.json._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.R.string._
-
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
@@ -12,13 +11,12 @@ import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, Updat
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
-
 import scala.util.{Success, Try}
+
 import com.btcontract.wallet.helper.AwaitService
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import com.btcontract.wallet.FiatRates.Rates
-
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey

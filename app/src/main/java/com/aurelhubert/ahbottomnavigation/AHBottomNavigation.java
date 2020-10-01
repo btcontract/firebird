@@ -919,8 +919,7 @@ public class AHBottomNavigation extends FrameLayout {
 			final AHNotification notificationItem = notifications.get(i);
 			final int currentTextColor = AHNotificationHelper.getTextColor(notificationItem, notificationTextColor);
 			final int currentBackgroundColor = AHNotificationHelper.getBackgroundColor(notificationItem, notificationBackgroundColor);
-
-			final TextView notification = (TextView) views.get(i).findViewById(R.id.bottom_navigation_notification);
+			final TextView notification = views.get(i).findViewById(R.id.bottom_navigation_notification);
 
 			String currentValue = notification.getText().toString();
 			boolean animate = !currentValue.equals(String.valueOf(notificationItem.getText()));
@@ -934,22 +933,11 @@ public class AHBottomNavigation extends FrameLayout {
 				}
 
 				if (notificationBackgroundDrawable != null) {
-					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-						Drawable drawable = notificationBackgroundDrawable.getConstantState().newDrawable();
-						notification.setBackground(drawable);
-					} else {
-						notification.setBackgroundDrawable(notificationBackgroundDrawable);
-					}
+					notification.setBackgroundDrawable(notificationBackgroundDrawable);
 
 				} else if (currentBackgroundColor != 0) {
 					Drawable defautlDrawable = ContextCompat.getDrawable(context, R.drawable.notification_background);
-					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-						notification.setBackground(AHHelper.getTintDrawable(defautlDrawable,
-								currentBackgroundColor, forceTint));
-					} else {
-						notification.setBackgroundDrawable(AHHelper.getTintDrawable(defautlDrawable,
-								currentBackgroundColor, forceTint));
-					}
+					notification.setBackgroundDrawable(AHHelper.getTintDrawable(defautlDrawable, currentBackgroundColor, forceTint));
 				}
 			}
 
@@ -1443,34 +1431,15 @@ public class AHBottomNavigation extends FrameLayout {
 		}
 	}
 
-	/**
-	 * Set the notification number
-	 *
-	 * @param nbNotification int
-	 * @param itemPosition   int
-	 */
-	@Deprecated
-	public void setNotification(int nbNotification, int itemPosition) {
-		if (itemPosition < 0 || itemPosition > items.size() - 1) {
-            throw new IndexOutOfBoundsException(String.format(Locale.US, EXCEPTION_INDEX_OUT_OF_BOUNDS, itemPosition, items.size()));
+	public void setNotificationByTag(String tag) {
+		for (AHBottomNavigationItem item : items) {
+			if (item.getTag().equals(tag)) {
+				int itemPosition = items.indexOf(item);
+				notifications.set(itemPosition, AHNotification.justText(" "));
+				updateNotifications(false, itemPosition);
+				break;
+			}
 		}
-        final String title = nbNotification == 0 ? "" : String.valueOf(nbNotification);
-        notifications.set(itemPosition, AHNotification.justText(title));
-		updateNotifications(false, itemPosition);
-	}
-
-	/**
-	 * Set notification text
-	 *
-	 * @param title        String
-	 * @param itemPosition int
-	 */
-	public void setNotification(String title, int itemPosition) {
-        if (itemPosition < 0 || itemPosition > items.size() - 1) {
-            throw new IndexOutOfBoundsException(String.format(Locale.US, EXCEPTION_INDEX_OUT_OF_BOUNDS, itemPosition, items.size()));
-        }
-        notifications.set(itemPosition, AHNotification.justText(title));
-        updateNotifications(false, itemPosition);
     }
 
     /**

@@ -52,9 +52,9 @@
     <dimen name="bottom_navigation_small_selected_width_difference">10dp</dimen>
 
     <!-- Notifications -->
-    <dimen name="bottom_navigation_notification_width">16dp</dimen>
-    <dimen name="bottom_navigation_notification_height">16dp</dimen>
-    <dimen name="bottom_navigation_notification_radius">8dp</dimen>
+    <dimen name="bottom_navigation_notification_width">8dp</dimen>
+    <dimen name="bottom_navigation_notification_height">8dp</dimen>
+    <dimen name="bottom_navigation_notification_radius">4dp</dimen>
     <dimen name="bottom_navigation_notification_elevation">1dp</dimen>
     <dimen name="bottom_navigation_notification_padding">3dp</dimen>
     <dimen name="bottom_navigation_notification_margin_top_classic">4dp</dimen>
@@ -62,7 +62,7 @@
     <dimen name="bottom_navigation_notification_margin_left_active">16dp</dimen>
     <dimen name="bottom_navigation_notification_margin_top">14dp</dimen>
     <dimen name="bottom_navigation_notification_margin_top_active">3dp</dimen>
-    <dimen name="bottom_navigation_notification_text_size">9sp</dimen>
+    <dimen name="bottom_navigation_notification_text_size">4sp</dimen>
 
     <!-- floating search view -->
 
