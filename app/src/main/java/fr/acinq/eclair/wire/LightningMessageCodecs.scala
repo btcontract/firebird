@@ -287,24 +287,27 @@ object LightningMessageCodecs {
 
   val swapInResponseCodec: Codec[SwapInResponse] = (
     ("chainHash" | bytes32) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
       ("bitcoinAddress" | variableSizeBytes(uint16, utf8))
     ).as[SwapInResponse]
 
   val swapInPendingCodec: Codec[SwapInPending] = (
     ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
-      ("tx" | varsizebinarydata) ::
+      ("txid" | variableSizeBytes(uint16, utf8)) ::
+      ("outIndex" | uint8) ::
+      ("threshold" | uint8) ::
       ("amount" | satoshi)
     ).as[SwapInPending]
 
   val swapInConfirmedCodec: Codec[SwapInConfirmed] = (
     ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
-      ("tx" | varsizebinarydata) ::
+      ("txid" | variableSizeBytes(uint16, utf8)) ::
+      ("outIndex" | uint8) ::
+      ("threshold" | uint8) ::
       ("amount" | satoshi)
     ).as[SwapInConfirmed]
+
   //
+
   val swapOutRequestCodec: Codec[SwapOutRequest] = (
     ("chainHash" | bytes32) ::
       ("amountSatoshis" | satoshi) ::
@@ -427,9 +430,9 @@ object LightningMessageCodecs {
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
     // SWAP IN-OUT plugin
-    .typecase(55005, swapInPendingCodec)
-    .typecase(55007, swapInRequestCodec)
-    .typecase(55009, swapInResponseCodec)
+    .typecase(55005, swapInRequestCodec)
+    .typecase(55007, swapInResponseCodec)
+    .typecase(55009, swapInPendingCodec)
     .typecase(55011, swapInConfirmedCodec)
     //
     .typecase(55013, swapOutRequestCodec)

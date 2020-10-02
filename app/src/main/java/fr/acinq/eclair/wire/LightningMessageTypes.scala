@@ -453,11 +453,11 @@ sealed trait SwapIn extends LightningMessage
 
 case class SwapInRequest(chainHash: ByteVector32) extends SwapIn with HasChainHash
 
-case class SwapInResponse(chainHash: ByteVector32, id: String, bitcoinAddress: String) extends SwapIn with HasChainHash
+case class SwapInResponse(chainHash: ByteVector32, bitcoinAddress: String) extends SwapIn with HasChainHash
 
-case class SwapInPending(bitcoinAddress: String, id: String, tx: ByteVector, amount: Satoshi) extends SwapIn
+case class SwapInPending(bitcoinAddress: String, txid: String, outIndex: Int, threshold: Int, amount: Satoshi) extends SwapIn
 
-case class SwapInConfirmed(bitcoinAddress: String, id: String, tx: ByteVector, amount: Satoshi) extends SwapIn
+case class SwapInConfirmed(bitcoinAddress: String, txid: String, outIndex: Int, threshold: Int, amount: Satoshi) extends SwapIn
 
 
 sealed trait SwapOut extends LightningMessage
