@@ -10,6 +10,7 @@ import android.content.{DialogInterface, Intent}
 import android.widget.{EditText, LinearLayout, TextView}
 import android.text.{Editable, Html, Spanned, TextWatcher}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import com.google.android.material.snackbar.{BaseTransientBottomBar, Snackbar}
 import com.cottacush.android.currencyedittext.CurrencyEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.btcontract.wallet.FirebirdActivity.StringOps
@@ -24,7 +25,6 @@ import android.content.pm.PackageManager
 import android.view.View.OnClickListener
 import androidx.core.graphics.ColorUtils
 import androidx.core.app.ActivityCompat
-import org.aviran.cookiebar2.CookieBar
 import scala.concurrent.Future
 import scodec.bits.ByteVector
 import android.app.Dialog
@@ -79,8 +79,12 @@ trait FirebirdActivity extends AppCompatActivity { me =>
     share.setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
   }
 
-  def toast(code: Int): Unit = toast(me getString code)
-  def toast(msg: CharSequence): Unit = try CookieBar.rebuild(me).setMessage(msg).setCookiePosition(CookieBar.TOP).show catch none
+  def toast(parent: View, msg: CharSequence): Unit = try {
+    val snackbar = Snackbar.make(parent, msg, BaseTransientBottomBar.LENGTH_INDEFINITE)
+    snackbar.getView.findViewById(com.google.android.material.R.id.snackbar_text).asInstanceOf[TextView].setMaxLines(15)
+    snackbar.setAction(dialog_ok, me onButtonTap snackbar.dismiss).show
+  } catch none
+
   def onButtonTap(exec: => Unit): OnClickListener = new OnClickListener { def onClick(view: View): Unit = exec }
 
   def onTextChange(exec: CharSequence => Unit): TextWatcher = new TextWatcher {

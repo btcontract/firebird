@@ -37,7 +37,7 @@ object MainActivity {
 
     val channelMaster: ChannelMaster =
       new ChannelMaster(WalletApp.paymentBag.bag, channelBag, pf, WalletApp.chainLink) {
-        val socketToChannelBridge: ConnectionListener = new ConnectionListener {
+        override val socketToChannelBridge: ConnectionListener = new ConnectionListener {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
           override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
@@ -133,9 +133,9 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
   trait Step { def makeAttempt: Unit }
 
   class EnsureAuth(next: Step) extends Step {
-    def makeAttempt: Unit = new helper.Auth(me) {
-      def onNoHardware: Unit = WalletApp.app.quickToast(fp_no_support)
+    def makeAttempt: Unit = new helper.Auth(findViewById(R.id.mainLayout), me) {
       def onHardwareUnavailable: Unit = WalletApp.app.quickToast(fp_not_available)
+      def onNoHardware: Unit = WalletApp.app.quickToast(fp_no_support)
       def onCanAuthenticate: Unit = callAuthDialog
       def onAuthSucceeded: Unit = next.makeAttempt
       def onNoneEnrolled: Unit = next.makeAttempt

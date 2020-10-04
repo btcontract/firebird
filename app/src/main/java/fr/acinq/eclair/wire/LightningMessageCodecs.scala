@@ -347,7 +347,9 @@ object LightningMessageCodecs {
       ("id" | variableSizeBytes(uint16, utf8)) ::
       ("tx" | varsizebinarydata)
     ).as[SwapOutConfirmed]
+
   //
+
   val swapOutFeerateRequestCodec: Codec[SwapOutFeerateRequest] =
     ("chainHash" | bytes32).as[SwapOutFeerateRequest]
 
@@ -356,47 +358,6 @@ object LightningMessageCodecs {
       ("feeratesPerKw6to36" | list(uint32)) ::
       ("batchFeeratePerKw" | optional(bool, uint32))
     ).as[SwapOutFeerateResponse]
-
-  // LNURL-PAY plugin
-
-  val payLinkTxInfoCodec: Codec[PayLinkTxInfo] = (
-    ("amount" | millisatoshi) ::
-      ("stampUnix" | uint32) ::
-      ("comment" | optional(bool, utf8))
-    ).as[PayLinkTxInfo]
-
-  val currentPaymentsInfoCodec: Codec[CurrentPaymentsInfo] = (
-    ("payments" | listOfN(uint16, payLinkTxInfoCodec)) ::
-      ("sinceStampUnix" | uint32) ::
-      ("balance" | millisatoshi) ::
-      ("enabled" | bool)
-    ).as[CurrentPaymentsInfo]
-
-  val payLinkSpecCodec: Codec[PayLinkSpec] = (
-    ("enabled" | bool) ::
-      ("maxSendable" | millisatoshi) ::
-      ("description" | utf8) ::
-      ("nickname" | optional(bool, utf8)) ::
-      ("messageAction" | optional(bool, utf8)) ::
-      ("pngImage" | optional(bool, varsizebinarydata)) ::
-      ("commentAllowed" | optional(bool, uint16))
-    ).as[PayLinkSpec]
-
-  // NB: blank lines to minimize merge conflicts
-
-  //
-
-  //
-
-  //
-
-  //
-
-  //
-
-  //
-
-  //
 
   //
 
@@ -442,11 +403,6 @@ object LightningMessageCodecs {
     .typecase(55021, swapOutConfirmedCodec)
     .typecase(55023, swapOutFeerateRequestCodec)
     .typecase(55025, swapOutFeerateResponseCodec)
-    // LNURL-PAY plugin
-    .typecase(55105, provide(QueryCurrentPaymentLink))
-    .typecase(55107, provide(ReplyNoCurrentPaymentLink))
-    .typecase(55109, currentPaymentsInfoCodec)
-    .typecase(55111, payLinkSpecCodec)
     // HC
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)

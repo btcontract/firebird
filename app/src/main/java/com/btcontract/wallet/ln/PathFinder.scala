@@ -33,7 +33,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
   // We don't load routing data on every startup but when user (or system) actually needs it
   become(Data(channels = Map.empty, hostedChannels = Map.empty, extraEdges = Map.empty, DirectedGraph.apply), WAITING)
-  RxUtils.initDelay(RxUtils.ioQueue, getLastTotalResyncStamp, RESYNC_PERIOD).subscribe(_ => me process CMDResync)
+  RxUtils.initDelay(RxUtils.ioQueue, getLastTotalResyncStamp, RESYNC_PERIOD).foreach(_ => me process CMDResync)
 
   def getLastTotalResyncStamp: Long
   def getLastNormalResyncStamp: Long

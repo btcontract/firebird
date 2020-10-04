@@ -5,11 +5,11 @@ import com.btcontract.wallet.FirebirdActivity.StringOps
 import com.btcontract.wallet.FirebirdActivity
 import androidx.core.content.ContextCompat
 import com.btcontract.wallet.R
+import android.view.View
 
 
-abstract class Auth(host: FirebirdActivity) {
-  val biometricManager: BiometricManager =
-    BiometricManager.from(host)
+abstract class Auth(view: View, host: FirebirdActivity) {
+  val biometricManager: BiometricManager = BiometricManager.from(host)
 
   def onAuthSucceeded: Unit
   def onHardwareUnavailable: Unit
@@ -39,7 +39,7 @@ abstract class Auth(host: FirebirdActivity) {
       }
 
       override def onAuthenticationError(errorCode: Int, errString: CharSequence): Unit = {
-        host toast host.getString(R.string.fp_auth_error).format(errString, errorCode).html
+        host.toast(view, host.getString(R.string.fp_auth_error).format(errString, errorCode).html)
         super.onAuthenticationError(errorCode, errString)
       }
 
