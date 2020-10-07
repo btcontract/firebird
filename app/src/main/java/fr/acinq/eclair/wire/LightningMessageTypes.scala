@@ -16,6 +16,7 @@
 
 package fr.acinq.eclair.wire
 
+import scala.concurrent.duration._
 import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
@@ -455,9 +456,11 @@ case object SwapInRequest extends SwapIn
 
 case class SwapInResponse(btcAddress: String) extends SwapIn
 
-case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi, stamp: Long)
+case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi,
+                          stamp: Long = System.currentTimeMillis.milliseconds.toSeconds)
 
-case class SwapInState(balance: MilliSatoshi, maxWithdrawable: MilliSatoshi, activeFeeReserve: MilliSatoshi, inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn
+case class SwapInState(balance: MilliSatoshi, maxWithdrawable: MilliSatoshi, activeFeeReserve: MilliSatoshi,
+                       inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn
 
 
 sealed trait SwapOut extends LightningMessage

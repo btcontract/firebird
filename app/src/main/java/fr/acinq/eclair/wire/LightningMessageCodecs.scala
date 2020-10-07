@@ -312,7 +312,7 @@ object LightningMessageCodecs {
 
   val swapOutRequestCodec: Codec[SwapOutRequest] = (
     ("amount" | satoshi) ::
-      ("btcddress" | variableSizeBytes(uint16, utf8)) ::
+      ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
       ("blockTarget" | uint16)
     ).as[SwapOutRequest]
 
@@ -353,13 +353,14 @@ object LightningMessageCodecs {
     .typecase(263, queryChannelRangeCodec)
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
-    // SWAP IN-OUT plugin
+    // SWAP IN
     .typecase(55001, provide(SwapInRequest))
-    .typecase(55003, swapInStateCodec)
-    //
-    .typecase(55005, swapOutFeeratesCodec)
-    .typecase(55007, swapOutRequestCodec)
-    .typecase(55009, SwapOutResponseCodec)
+    .typecase(55003, swapInResponseCodec)
+    .typecase(55005, swapInStateCodec)
+    // SWAP OUT
+    .typecase(55007, swapOutFeeratesCodec)
+    .typecase(55009, swapOutRequestCodec)
+    .typecase(55011, SwapOutResponseCodec)
     // HC
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
