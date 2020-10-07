@@ -451,27 +451,21 @@ case class ReplyPublicHostedChannelsEnd(chainHash: ByteVector32) extends Routing
 
 sealed trait SwapIn extends LightningMessage
 
-case class SwapInRequest(chainHash: ByteVector32) extends SwapIn with HasChainHash
+case object SwapInRequest extends SwapIn
 
-case class SwapInResponse(chainHash: ByteVector32, bitcoinAddress: String) extends SwapIn with HasChainHash
+case class SwapInResponse(btcAddress: String) extends SwapIn
 
-case class SwapInPending(bitcoinAddress: String, txid: String, outIndex: Int, threshold: Int, amount: Satoshi) extends SwapIn
+case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi, stamp: Long)
 
-case class SwapInConfirmed(bitcoinAddress: String, txid: String, outIndex: Int, threshold: Int, amount: Satoshi) extends SwapIn
+case class SwapInState(balance: MilliSatoshi, maxWithdrawable: MilliSatoshi, activeFeeReserve: MilliSatoshi, inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn
 
 
 sealed trait SwapOut extends LightningMessage
 
-case class SwapOutFeerateRequest(chainHash: ByteVector32) extends SwapOut with HasChainHash
+case class BlockTargetAndFee(blockTarget: Int, fee: Satoshi)
 
-case class SwapOutFeerateResponse(chainHash: ByteVector32, feeratesPerKw6to36: List[Long], batchFeeratePerKw: Option[Long] = None) extends SwapOut with HasChainHash
+case class SwapOutFeerates(feerates: List[BlockTargetAndFee] = Nil) extends SwapOut
 
-case class SwapOutRequest(chainHash: ByteVector32, amountSatoshis: Satoshi, bitcoinAddress: String, feeratePerKw: Long, useBatch: Boolean) extends SwapOut with HasChainHash
+case class SwapOutRequest(amount: Satoshi, btcAddress: String, blockTarget: Int) extends SwapOut
 
-case class SwapOutResponse(chainHash: ByteVector32, amountSatoshis: Satoshi, feeSatoshis: Satoshi, paymentRequest: String, id: String) extends SwapOut with HasChainHash
-
-case class BatchedSwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, slotsLeft: Int) extends SwapOut
-
-case class SwapOutPending(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends SwapOut
-
-case class SwapOutConfirmed(amountSatoshis: Satoshi, feeSatoshis: Satoshi, bitcoinAddress: String, id: String, tx: ByteVector) extends SwapOut
+case class SwapOutResponse(amount: Satoshi, fee: Satoshi, paymentRequest: String) extends SwapOut

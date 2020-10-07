@@ -282,82 +282,45 @@ object LightningMessageCodecs {
 
   // SWAP IN-OUT plugin
 
-  val swapInRequestCodec: Codec[SwapInRequest] =
-    ("chainHash" | bytes32).as[SwapInRequest]
+  val swapInResponseCodec: Codec[SwapInResponse] =
+    ("btcAddress" | variableSizeBytes(uint16, utf8)).as[SwapInResponse]
 
-  val swapInResponseCodec: Codec[SwapInResponse] = (
-    ("chainHash" | bytes32) ::
-      ("bitcoinAddress" | variableSizeBytes(uint16, utf8))
-    ).as[SwapInResponse]
+  val pendingDepositCodec: Codec[PendingDeposit] = (
+    ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
+      ("txid" | bytes32) ::
+      ("amount" | satoshi) ::
+      ("stamp" | uint32)
+    ).as[PendingDeposit]
 
-  val swapInPendingCodec: Codec[SwapInPending] = (
-    ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("txid" | variableSizeBytes(uint16, utf8)) ::
-      ("outIndex" | uint8) ::
-      ("threshold" | uint8) ::
-      ("amount" | satoshi)
-    ).as[SwapInPending]
-
-  val swapInConfirmedCodec: Codec[SwapInConfirmed] = (
-    ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("txid" | variableSizeBytes(uint16, utf8)) ::
-      ("outIndex" | uint8) ::
-      ("threshold" | uint8) ::
-      ("amount" | satoshi)
-    ).as[SwapInConfirmed]
+  val swapInStateCodec: Codec[SwapInState] = (
+    ("balance" | millisatoshi) ::
+      ("maxWithdrawable" | millisatoshi) ::
+      ("activeFeeReserve" | millisatoshi) ::
+      ("inFlightAmount" | millisatoshi) ::
+      ("pendingChainDeposits" | listOfN(uint16, pendingDepositCodec))
+    ).as[SwapInState]
 
   //
+
+  val blockTargetAndFeeCodec: Codec[BlockTargetAndFee] = (
+    ("blockTarget" | uint16) ::
+      ("fee" | satoshi)
+    ).as[BlockTargetAndFee]
+
+  val swapOutFeeratesCodec: Codec[SwapOutFeerates] =
+    ("feerates" | listOfN(uint16, blockTargetAndFeeCodec)).as[SwapOutFeerates]
 
   val swapOutRequestCodec: Codec[SwapOutRequest] = (
-    ("chainHash" | bytes32) ::
-      ("amountSatoshis" | satoshi) ::
-      ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("feeratePerKw" | uint32) ::
-      ("useBatch" | bool)
+    ("amount" | satoshi) ::
+      ("btcddress" | variableSizeBytes(uint16, utf8)) ::
+      ("blockTarget" | uint16)
     ).as[SwapOutRequest]
 
-  val swapOutResponseCodec: Codec[SwapOutResponse] = (
-    ("chainHash" | bytes32) ::
-      ("amountSatoshis" | satoshi) ::
-      ("feeSatoshis" | satoshi) ::
-      ("paymentRequest" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8))
+  val SwapOutResponseCodec: Codec[SwapOutResponse] = (
+    ("amount" | satoshi) ::
+      ("fee" | satoshi) ::
+      ("paymentRequest" | variableSizeBytes(uint16, utf8))
     ).as[SwapOutResponse]
-
-  val batchedSwapOutPendingCodec: Codec[BatchedSwapOutPending] = (
-    ("amountSatoshis" | satoshi) ::
-      ("feeSatoshis" | satoshi) ::
-      ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
-      ("slotsLeft" | uint16)
-    ).as[BatchedSwapOutPending]
-
-  val swapOutPendingCodec: Codec[SwapOutPending] = (
-    ("amountSatoshis" | satoshi) ::
-      ("feeSatoshis" | satoshi) ::
-      ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
-      ("tx" | varsizebinarydata)
-    ).as[SwapOutPending]
-
-  val swapOutConfirmedCodec: Codec[SwapOutConfirmed] = (
-    ("amountSatoshis" | satoshi) ::
-      ("feeSatoshis" | satoshi) ::
-      ("bitcoinAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("id" | variableSizeBytes(uint16, utf8)) ::
-      ("tx" | varsizebinarydata)
-    ).as[SwapOutConfirmed]
-
-  //
-
-  val swapOutFeerateRequestCodec: Codec[SwapOutFeerateRequest] =
-    ("chainHash" | bytes32).as[SwapOutFeerateRequest]
-
-  val swapOutFeerateResponseCodec: Codec[SwapOutFeerateResponse] = (
-    ("chainHash" | bytes32) ::
-      ("feeratesPerKw6to36" | list(uint32)) ::
-      ("batchFeeratePerKw" | optional(bool, uint32))
-    ).as[SwapOutFeerateResponse]
 
   //
 
@@ -391,18 +354,12 @@ object LightningMessageCodecs {
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
     // SWAP IN-OUT plugin
-    .typecase(55005, swapInRequestCodec)
-    .typecase(55007, swapInResponseCodec)
-    .typecase(55009, swapInPendingCodec)
-    .typecase(55011, swapInConfirmedCodec)
+    .typecase(55001, provide(SwapInRequest))
+    .typecase(55003, swapInStateCodec)
     //
-    .typecase(55013, swapOutRequestCodec)
-    .typecase(55015, swapOutResponseCodec)
-    .typecase(55017, batchedSwapOutPendingCodec)
-    .typecase(55019, swapOutPendingCodec)
-    .typecase(55021, swapOutConfirmedCodec)
-    .typecase(55023, swapOutFeerateRequestCodec)
-    .typecase(55025, swapOutFeerateResponseCodec)
+    .typecase(55005, swapOutFeeratesCodec)
+    .typecase(55007, swapOutRequestCodec)
+    .typecase(55009, SwapOutResponseCodec)
     // HC
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
