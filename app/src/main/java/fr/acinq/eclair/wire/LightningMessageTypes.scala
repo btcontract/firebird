@@ -456,6 +456,10 @@ case object SwapInRequest extends SwapIn
 
 case class SwapInResponse(btcAddress: String) extends SwapIn
 
+case class SwapInWithdrawRequest(paymentRequest: String) extends SwapIn
+
+case class SwapInWithdrawDenied(paymentRequest: String, reason: String) extends SwapIn
+
 case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi,
                           stamp: Long = System.currentTimeMillis.milliseconds.toSeconds)
 
@@ -472,3 +476,5 @@ case class SwapOutFeerates(feerates: List[BlockTargetAndFee] = Nil) extends Swap
 case class SwapOutRequest(amount: Satoshi, btcAddress: String, blockTarget: Int) extends SwapOut
 
 case class SwapOutResponse(amount: Satoshi, fee: Satoshi, paymentRequest: String) extends SwapOut
+
+case class SwapOutDenied(btcAddress: String, reason: String) extends SwapOut

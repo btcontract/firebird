@@ -285,6 +285,14 @@ object LightningMessageCodecs {
   val swapInResponseCodec: Codec[SwapInResponse] =
     ("btcAddress" | variableSizeBytes(uint16, utf8)).as[SwapInResponse]
 
+  val swapInWithdrawRequestCodec: Codec[SwapInWithdrawRequest] =
+    ("paymentRequest" | variableSizeBytes(uint16, utf8)).as[SwapInWithdrawRequest]
+
+  val swapInWithdrawDeniedCodec: Codec[SwapInWithdrawDenied] = (
+    ("paymentRequest" | variableSizeBytes(uint16, utf8)) ::
+      ("reason" | variableSizeBytes(uint16, utf8))
+    ).as[SwapInWithdrawDenied]
+
   val pendingDepositCodec: Codec[PendingDeposit] = (
     ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
       ("txid" | bytes32) ::
@@ -316,11 +324,16 @@ object LightningMessageCodecs {
       ("blockTarget" | uint16)
     ).as[SwapOutRequest]
 
-  val SwapOutResponseCodec: Codec[SwapOutResponse] = (
+  val swapOutResponseCodec: Codec[SwapOutResponse] = (
     ("amount" | satoshi) ::
       ("fee" | satoshi) ::
       ("paymentRequest" | variableSizeBytes(uint16, utf8))
     ).as[SwapOutResponse]
+
+  val swapOutDeniedCodec: Codec[SwapOutDenied] = (
+    ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
+      ("reason" | variableSizeBytes(uint16, utf8))
+    ).as[SwapOutDenied]
 
   //
 
@@ -354,13 +367,16 @@ object LightningMessageCodecs {
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
     // SWAP IN
-    .typecase(55001, provide(SwapInRequest))
-    .typecase(55003, swapInResponseCodec)
-    .typecase(55005, swapInStateCodec)
+    .typecase(55021, provide(SwapInRequest))
+    .typecase(55023, swapInResponseCodec)
+    .typecase(55025, swapInWithdrawRequestCodec)
+    .typecase(55027, swapInWithdrawDeniedCodec)
+    .typecase(55029, swapInStateCodec)
     // SWAP OUT
-    .typecase(55007, swapOutFeeratesCodec)
-    .typecase(55009, swapOutRequestCodec)
-    .typecase(55011, SwapOutResponseCodec)
+    .typecase(55031, swapOutFeeratesCodec)
+    .typecase(55033, swapOutRequestCodec)
+    .typecase(55035, swapOutResponseCodec)
+    .typecase(55037, swapOutDeniedCodec)
     // HC
     .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
     .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
