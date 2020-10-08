@@ -79,10 +79,11 @@ trait FirebirdActivity extends AppCompatActivity { me =>
     share.setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
   }
 
-  def snack(parent: View, msg: CharSequence): Unit = try {
-    val snackbar = Snackbar.make(parent, msg, BaseTransientBottomBar.LENGTH_INDEFINITE)
-    snackbar.getView.findViewById(com.google.android.material.R.id.snackbar_text).asInstanceOf[TextView].setMaxLines(15)
-    snackbar.setAction(dialog_ok, me onButtonTap snackbar.dismiss).show
+  def snack(parent: View, msg: CharSequence, actionRes: Int, onTap: Snackbar => Unit): Unit = try {
+    val bottomSnackbar: Snackbar = Snackbar.make(parent, msg, BaseTransientBottomBar.LENGTH_INDEFINITE)
+    bottomSnackbar.getView.findViewById(com.google.android.material.R.id.snackbar_text).asInstanceOf[TextView].setMaxLines(15)
+    val actionListener: OnClickListener = me onButtonTap onTap(bottomSnackbar)
+    bottomSnackbar.setAction(actionRes, actionListener).show
   } catch none
 
   def onButtonTap(exec: => Unit): OnClickListener = new OnClickListener { def onClick(view: View): Unit = exec }

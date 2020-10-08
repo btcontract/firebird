@@ -39,7 +39,8 @@ abstract class Auth(view: View, host: FirebirdActivity) {
       }
 
       override def onAuthenticationError(errorCode: Int, errString: CharSequence): Unit = {
-        host.snack(view, host.getString(R.string.fp_auth_error).format(errString, errorCode).html)
+        val message = host.getString(R.string.fp_auth_error).format(errString, errorCode).html
+        host.snack(view, message, R.string.dialog_ok, _.dismiss)
         super.onAuthenticationError(errorCode, errString)
       }
 

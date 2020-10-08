@@ -4,20 +4,28 @@ import com.btcontract.wallet.ln._
 import com.btcontract.wallet.R.string._
 import com.aurelhubert.ahbottomnavigation._
 import com.btcontract.wallet.ln.crypto.Tools._
-import com.btcontract.wallet.ln.HostedChannel._
 import fr.acinq.eclair.channel.{CMD_CHAIN_TIP_KNOWN, CMD_SOCKET_ONLINE}
-import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
+import com.btcontract.wallet.ln.HostedChannel.{OPEN, SUSPENDED, WAIT_FOR_ACCEPT}
 import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelMessage, LightningMessage}
+import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
+import org.bitcoinj.uri.BitcoinURI
 import android.widget.FrameLayout
+import android.content.ClipData
 import scodec.bits.ByteVector
 import fr.acinq.eclair.wire
 import android.os.Bundle
+import scala.util.Try
 import java.util
 
 
 class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelectedListener { me =>
   lazy val bottomNavigation: AHBottomNavigation = findViewById(R.id.bottomNavigation).asInstanceOf[AHBottomNavigation]
   lazy val contentWindow: FrameLayout = findViewById(R.id.contentWindow).asInstanceOf[FrameLayout]
+
+  override def onResume: Unit = {
+    checkCurrentClipboard
+    super.onResume
+  }
 
   def INIT(state: Bundle): Unit =
     if (WalletApp.isOperational) {
@@ -83,6 +91,30 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
         // This hosted channel already exists
         WalletApp syncRmOutstanding hasChannelAnn
     }
+
+  def checkCurrentClipboard: Unit =
+    Try(WalletApp.app.getBufferUnsafe) foreach { content =>
+      runInFutureProcessOnUI(WalletApp.parse(content), none) {
+
+        case _: PaymentRequestExt =>
+          val message = getString(buffer_invoice_found)
+          snack(contentWindow, message, dialog_view, _.dismiss)
+          clearClipboard
+
+        case _: BitcoinURI =>
+          val message = getString(buffer_address_found)
+          snack(contentWindow, message, dialog_view, _.dismiss)
+          clearClipboard
+
+        case _ =>
+        // Do nothing
+      }
+    }
+
+  def clearClipboard: Unit = {
+    val clip = ClipData.newPlainText(null, new String)
+    WalletApp.app.clipboardManager.setPrimaryClip(clip)
+  }
 
   def onTabSelected(position: Int, tag: String, wasSelected: Boolean): Boolean = true
 }

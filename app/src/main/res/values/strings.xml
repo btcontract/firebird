@@ -12,8 +12,8 @@
     <string name="step_title_account">Setup an account</string>
     <string name="step_title_open">Go to wallet</string>
 
-    <string name="welcome_subtitle">Truly <b>fast</b>, <b>private</b> and <b>cheap</b> Bitcoin payments.</string>
-    <string name="step_choose_or_scan">Start with choosing default providers or scan a QR code to set up your own.</string>
+    <string name="welcome_subtitle">Truly <b>fast</b>, <b>private</b> and <b>cheap</b> Bitcoin payments</string>
+    <string name="step_choose_or_scan">Start with choosing some providers or scan a QR code to set up your own.</string>
     <string name="step_account_email_pass_random_note">Allow Firebird to generate and store a strong password, you will be able to export it any time.</string>
     <string name="step_account_email_pass"><b>Option 1: provide email and password</b>. Payment providers will know an email and will be able to provide assistance in case of password loss.</string>
     <string name="step_account_recovery_phrase"><b>Option 2: provide BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use BIP39 phrase once to derive payment keys, will NOT store a phrase itself.</string>
@@ -62,7 +62,7 @@
     <string name="dialog_cancel">Cancel</string>
     <string name="dialog_share">Share</string>
     <string name="dialog_auth">Auth</string>
-    <string name="dialog_info">Info</string>
+    <string name="dialog_view">View</string>
     <string name="dialog_pay">Pay</string>
     <string name="dialog_max">Max</string>
     <string name="dialog_ok">OK</string>
@@ -72,6 +72,9 @@
 
     <string name="amount_hint_can_receive">Can receive %1$s</string>
     <string name="amount_hint_can_send">Can send %1$s</string>
+
+    <string name="buffer_invoice_found">An invoice is found in clipboard</string>
+    <string name="buffer_address_found">A Bitcoin address is found in clipboard</string>
 
     <!-- auth -->
 
