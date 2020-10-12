@@ -1,6 +1,6 @@
 /*
  * Copyright 2012, 2014 the original author or authors.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -70,7 +70,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * <li>{@code label} any URL encoded alphanumeric</li>
  * <li>{@code message} any URL encoded alphanumeric</li>
  * </ul>
- * 
+ *
  * @author Andreas Schildbach (initial code)
  * @author Jim Burton (enhancements for MultiBit)
  * @author Gary Rowe (BIP21 support)
@@ -83,6 +83,7 @@ public class BitcoinURI {
     public static final String FIELD_AMOUNT = "amount";
     public static final String FIELD_ADDRESS = "address";
     public static final String FIELD_PAYMENT_REQUEST_URL = "r";
+    public static final String FIELD_LN = "lightning";
 
     /**
      * URI for Bitcoin network. Use {@link AbstractBitcoinNetParams#BITCOIN_SCHEME} if you specifically
@@ -123,8 +124,8 @@ public class BitcoinURI {
         checkNotNull(input);
 
         String scheme = null == params
-            ? AbstractBitcoinNetParams.BITCOIN_SCHEME
-            : params.getUriScheme();
+                ? AbstractBitcoinNetParams.BITCOIN_SCHEME
+                : params.getUriScheme();
 
         // Attempt to form the URI (fail fast syntax checking to official standards).
         URI uri;
@@ -137,7 +138,7 @@ public class BitcoinURI {
         // URI is formed as  bitcoin:<address>?<query parameters>
         // blockchain.info generates URIs of non-BIP compliant form bitcoin://address?....
         // We support both until Ben fixes his code.
-        
+
         // Remove the bitcoin scheme.
         // (Note: getSchemeSpecificPart() is not used as it unescapes the label and parse then fails.
         // For instance with : bitcoin:129mVqKUmJ9uwPxKJBnNdABbuaaNfho4Ha?amount=0.06&label=Tom%20%26%20Jerry
@@ -146,10 +147,9 @@ public class BitcoinURI {
         String blockchainInfoScheme = scheme + "://";
         String correctScheme = scheme + ":";
         String schemeSpecificPart;
-        final String inputLc = input.toLowerCase(Locale.US);
-        if (inputLc.startsWith(blockchainInfoScheme)) {
+        if (input.startsWith(blockchainInfoScheme)) {
             schemeSpecificPart = input.substring(blockchainInfoScheme.length());
-        } else if (inputLc.startsWith(correctScheme)) {
+        } else if (input.startsWith(correctScheme)) {
             schemeSpecificPart = input.substring(correctScheme.length());
         } else {
             throw new BitcoinURIParseException("Unsupported URI scheme: " + uri.getScheme());
@@ -243,7 +243,7 @@ public class BitcoinURI {
 
     /**
      * Put the value against the key in the map checking for duplication. This avoids address field overwrite etc.
-     * 
+     *
      * @param key The key for the map
      * @param value The value to store
      */
@@ -285,6 +285,13 @@ public class BitcoinURI {
      */
     public String getMessage() {
         return (String) parameterMap.get(FIELD_MESSAGE);
+    }
+
+    /**
+     * @return The Lightning payment request from the URI.
+     */
+    public String getLightningRequest() {
+        return (String) parameterMap.get(FIELD_LN);
     }
 
     /**
@@ -370,29 +377,29 @@ public class BitcoinURI {
         if (amount != null && amount.signum() < 0) {
             throw new IllegalArgumentException("Coin must be positive");
         }
-        
+
         StringBuilder builder = new StringBuilder();
         String scheme = params.getUriScheme();
         builder.append(scheme).append(":").append(address);
-        
+
         boolean questionMarkHasBeenOutput = false;
-        
+
         if (amount != null) {
             builder.append(QUESTION_MARK_SEPARATOR).append(FIELD_AMOUNT).append("=");
             builder.append(amount.toPlainString());
             questionMarkHasBeenOutput = true;
         }
-        
+
         if (label != null && !"".equals(label)) {
             if (questionMarkHasBeenOutput) {
                 builder.append(AMPERSAND_SEPARATOR);
             } else {
-                builder.append(QUESTION_MARK_SEPARATOR);                
+                builder.append(QUESTION_MARK_SEPARATOR);
                 questionMarkHasBeenOutput = true;
             }
             builder.append(FIELD_LABEL).append("=").append(encodeURLString(label));
         }
-        
+
         if (message != null && !"".equals(message)) {
             if (questionMarkHasBeenOutput) {
                 builder.append(AMPERSAND_SEPARATOR);
@@ -401,13 +408,13 @@ public class BitcoinURI {
             }
             builder.append(FIELD_MESSAGE).append("=").append(encodeURLString(message));
         }
-        
+
         return builder.toString();
     }
 
     /**
      * Encode a string using URL encoding
-     * 
+     *
      * @param stringToEncode The string to URL encode
      */
     static String encodeURLString(String stringToEncode) {
