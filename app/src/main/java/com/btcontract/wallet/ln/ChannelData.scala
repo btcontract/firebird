@@ -81,15 +81,6 @@ object CommitmentSpec {
   }
 }
 
-object HostedFeatures {
-  final val ANNOUNCE_CHANNEL = 0
-  final val LENGTH_BITS: Int = 4 * 8
-  def setBit(bit: Int): BitVector = BitVector.low(LENGTH_BITS).set(bit).reverse
-  def isSet(bits: BitVector, bit: Int): Boolean = LENGTH_BITS == bits.size && bits.reverse.get(bit)
-  final val IS_BASIC: BitVector = BitVector.fromValidBin("00000000000000000000000000000000")
-  final val IS_ANNOUNCE_CHANNEL: BitVector = IS_BASIC | setBit(ANNOUNCE_CHANNEL)
-}
-
 sealed trait ChannelData { val announce: NodeAnnouncementExt }
 case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: HostedCommits) extends ChannelData
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
@@ -109,7 +100,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   } yield paymentPreimage -> add
 
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
-  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty, HostedFeatures.IS_BASIC)
+  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
   lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
   lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
 

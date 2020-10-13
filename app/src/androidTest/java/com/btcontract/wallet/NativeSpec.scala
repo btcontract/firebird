@@ -5,7 +5,7 @@ import java.math.BigInteger
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.blockstream.libwally.Wally
 import com.btcontract.wallet.ln.crypto.Tools
-import com.btcontract.wallet.ln.{HostedFeatures, LightningNodeKeys, MnemonicStorageFormat}
+import com.btcontract.wallet.ln.{LightningNodeKeys, MnemonicStorageFormat}
 import fr.acinq.bitcoin.Base58.Prefix
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey, curve, one}
 import fr.acinq.bitcoin.{Base58, Base58Check, ByteVector32, ByteVector64, Crypto}
@@ -174,29 +174,5 @@ class NativeSpec {
     val sig64 = Crypto.sign(message, priv)
     val check = Crypto.recoverPublicKey(sig64, message, recid)
     assertTrue(check == pub)
-  }
-
-  @Test
-  def channelFeatures(): Unit = {
-    val invokeCodec = fr.acinq.eclair.wire.HostedMessagesCodecs.invokeHostedChannelCodec
-    val invoke1 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), randomBytes(32), HostedFeatures.IS_BASIC)
-    assertTrue(!HostedFeatures.isSet(invoke1.features, HostedFeatures.ANNOUNCE_CHANNEL))
-    assertTrue(invokeCodec.decode(invokeCodec.encode(invoke1).require).require.value == invoke1)
-    val invoke2 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), ByteVector.empty, HostedFeatures.IS_ANNOUNCE_CHANNEL)
-    assertTrue(HostedFeatures.isSet(invoke2.features, HostedFeatures.ANNOUNCE_CHANNEL))
-    assertTrue(invokeCodec.decode(invokeCodec.encode(invoke2).require).require.value == invoke2)
-    val invoke3 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), randomBytes(32), BitVector.empty)
-    assertTrue(!HostedFeatures.isSet(invoke3.features, HostedFeatures.ANNOUNCE_CHANNEL))
-    assertTrue(invokeCodec.decode(invokeCodec.encode(invoke3).require).require.value == invoke3)
-    val invoke4 = InvokeHostedChannel(ByteVector32.Zeroes, randomBytes(32), ByteVector.empty, BitVector.empty)
-    assertTrue(invokeCodec.decode(invokeCodec.encode(invoke4).require).require.value == invoke4)
-
-    val initCodec = fr.acinq.eclair.wire.HostedMessagesCodecs.initHostedChannelCodec
-    val init1 = InitHostedChannel(UInt64(100000000L), 10.msat, 20, 200000000L.msat, 5000, 1000000.sat, 0.msat, HostedFeatures.IS_BASIC)
-    assertTrue(!HostedFeatures.isSet(init1.features, HostedFeatures.ANNOUNCE_CHANNEL))
-    assertTrue(initCodec.decode(initCodec.encode(init1).require).require.value == init1)
-    val init2 = InitHostedChannel(UInt64(100000000L), 10.msat, 20, 200000000L.msat, 5000, 1000000.sat, 0.msat, BitVector.empty)
-    assertTrue(!HostedFeatures.isSet(init2.features, HostedFeatures.ANNOUNCE_CHANNEL))
-    assertTrue(initCodec.decode(initCodec.encode(init2).require).require.value == init2)
   }
 }

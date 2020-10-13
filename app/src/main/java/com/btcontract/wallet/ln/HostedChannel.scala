@@ -74,13 +74,13 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def doProcess(change: Any): Unit = {
     Tuple3(data, change, state) match {
       case (wait @ WaitRemoteHostedReply(_, refundScriptPubKey, secret), CMD_SOCKET_ONLINE, WAIT_FOR_INIT) =>
-        if (isChainHeightKnown) me SEND InvokeHostedChannel(LNParams.chainHash, refundScriptPubKey, secret, HostedFeatures.IS_BASIC)
+        if (isChainHeightKnown) me SEND InvokeHostedChannel(LNParams.chainHash, refundScriptPubKey, secret)
         if (isChainHeightKnown) BECOME(wait, WAIT_FOR_ACCEPT)
         isSocketConnected = true
 
 
       case (wait @ WaitRemoteHostedReply(_, refundScriptPubKey, secret), CMD_CHAIN_TIP_KNOWN, WAIT_FOR_INIT) =>
-        if (isSocketConnected) me SEND InvokeHostedChannel(LNParams.chainHash, refundScriptPubKey, secret, HostedFeatures.IS_BASIC)
+        if (isSocketConnected) me SEND InvokeHostedChannel(LNParams.chainHash, refundScriptPubKey, secret)
         if (isSocketConnected) BECOME(wait, WAIT_FOR_ACCEPT)
         isChainHeightKnown = true
 

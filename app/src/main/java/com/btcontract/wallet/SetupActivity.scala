@@ -7,7 +7,7 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
-import com.btcontract.wallet.ln.{CommsTower, ConnectionListener, HostedFeatures, LNParams, NodeAnnouncementExt, RxUtils, SyncMaster}
+import com.btcontract.wallet.ln.{CommsTower, ConnectionListener, LNParams, NodeAnnouncementExt, RxUtils, SyncMaster}
 import fr.acinq.eclair.wire.{HostedChannelMessage, InitHostedChannel, InvokeHostedChannel, LastCrossSignedState, NodeAnnouncement}
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
@@ -101,7 +101,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
       override def onOperational(worker: CommsTower.Worker): Unit = {
         val attachedSecret: ByteVector = LNParams.format.attachedChannelSecret
         val refundScript: ByteVector = LNParams.format.keys.refundPubKey(theirNodeId = worker.ann.nodeId)
-        worker.handler process InvokeHostedChannel(LNParams.chainHash, refundScript, attachedSecret, HostedFeatures.IS_BASIC)
+        worker.handler process InvokeHostedChannel(LNParams.chainHash, refundScript, attachedSecret)
       }
     }
 
