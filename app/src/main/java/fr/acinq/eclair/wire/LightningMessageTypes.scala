@@ -382,8 +382,7 @@ case class InitHostedChannel(maxHtlcValueInFlightMsat: UInt64,
                              channelCapacityMsat: MilliSatoshi,
                              liabilityDeadlineBlockdays: Int,
                              minimalOnchainRefundAmountSatoshis: Satoshi,
-                             initialClientBalanceMsat: MilliSatoshi,
-                             features: BitVector = BitVector.empty) extends HostedChannelMessage
+                             initialClientBalanceMsat: MilliSatoshi) extends HostedChannelMessage
 
 case class HostedChannelBranding(rgbColor: Color, pngIcon: ByteVector) extends HostedChannelMessage
 

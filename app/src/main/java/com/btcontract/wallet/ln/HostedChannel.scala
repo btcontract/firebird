@@ -86,7 +86,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
 
       case (WaitRemoteHostedReply(ext, refundScriptPubKey, _), init: InitHostedChannel, WAIT_FOR_ACCEPT) =>
-        require(Features areSupported Features(init.features), "Unsupported features found, you should probably update an app")
         if (init.liabilityDeadlineBlockdays < LNParams.minHostedLiabilityBlockdays) throw new LightningException("Their liability deadline is too low")
         if (init.initialClientBalanceMsat > init.channelCapacityMsat) throw new LightningException("Their init balance for us is larger than capacity")
         if (init.minimalOnchainRefundAmountSatoshis > LNParams.minHostedOnChainRefund) throw new LightningException("Their min refund is too high")

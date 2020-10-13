@@ -402,8 +402,7 @@ object HostedMessagesCodecs {
       (millisatoshi withContext "channelCapacityMsat") ::
       (uint16 withContext "liabilityDeadlineBlockdays") ::
       (satoshi withContext "minimalOnchainRefundAmountSatoshis") ::
-      (millisatoshi withContext "initialClientBalanceMsat") ::
-      (variableSizeBits(uint8, bits) withContext "features")
+      (millisatoshi withContext "initialClientBalanceMsat")
   }.as[InitHostedChannel]
 
   val hostedChannelBrandingCodec: Codec[HostedChannelBranding] = {
