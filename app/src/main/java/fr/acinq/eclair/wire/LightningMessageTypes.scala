@@ -440,6 +440,8 @@ case class StateUpdate(blockDay: Long, localUpdates: Long, remoteUpdates: Long, 
 
 case class StateOverride(blockDay: Long, localBalanceMsat: MilliSatoshi, localUpdates: Long, remoteUpdates: Long, localSigOfRemoteLCSS: ByteVector64) extends HostedChannelMessage
 
+case class RefundPending(startedAt: Long) extends HostedChannelMessage
+
 // PHC
 
 case class QueryPublicHostedChannels(chainHash: ByteVector32) extends RoutingMessage with HasChainHash

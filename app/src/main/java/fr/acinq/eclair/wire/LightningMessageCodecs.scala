@@ -384,8 +384,9 @@ object LightningMessageCodecs {
     .typecase(65529, HostedMessagesCodecs.stateUpdateCodec)
     .typecase(65527, HostedMessagesCodecs.stateOverrideCodec)
     .typecase(65525, HostedMessagesCodecs.hostedChannelBrandingCodec)
-    .typecase(65523, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
-    .typecase(65521, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
+    .typecase(65523, HostedMessagesCodecs.refundPendingCodec)
+    .typecase(65521, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
+    .typecase(65519, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
 }
 
 object HostedMessagesCodecs {
@@ -440,7 +441,10 @@ object HostedMessagesCodecs {
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateOverride]
 
-  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] = ("chainHash" | bytes32).as[QueryPublicHostedChannels]
+  val refundPendingCodec: Codec[RefundPending] =
+    (uint32 withContext "startedAt").as[RefundPending]
 
-  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] = ("chainHash" | bytes32).as[ReplyPublicHostedChannelsEnd]
+  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] = (bytes32 withContext "chainHash").as[QueryPublicHostedChannels]
+
+  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] = (bytes32 withContext "chainHash").as[ReplyPublicHostedChannelsEnd]
 }
