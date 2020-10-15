@@ -162,14 +162,15 @@ trait NetworkDataStore {
 
   // We disregard position and always exclude channel as a whole
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit
+  def listChannelsWithOneUpdate: ShortChanIdSet
   def listExcludedChannels: Set[Long]
 
   def incrementChannelScore(cu: ChannelUpdate): Unit
   def removeChannelUpdate(shortId: ShortChannelId): Unit
-  def removeGhostChannels(ghostIds: ShortChanIdSet = Set.empty): Unit
+  def removeGhostChannels(ghostIds: ShortChanIdSet, oneSideIds: ShortChanIdSet): Unit
   def getRoutingData: Map[ShortChannelId, PublicChannel]
 
-  def processPureHostedData(pure: PureHostedRoutingData): Unit
+  def processCompleteHostedData(pure: CompleteHostedRoutingData): Unit
   def processPureData(data: PureRoutingData): Unit
 }
 

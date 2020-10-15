@@ -75,15 +75,11 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case CMDResync \ OPERATIONAL =>
       // Normal resync has happened recently, but PHC resync is outdated (PHC failed last time due to running out of attempts)
       // in this case we skip normal sync and start directly with PHC sync to save time and increase PHC sync success chances
-      new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: PureHostedRoutingData): Unit = me process pure }
+      new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }
 
-    case (pure: PureRoutingData, OPERATIONAL) =>
-      // Run in this thread to not overload SyncMaster
-      normalStore.processPureData(pure)
-
-    case (pure: PureHostedRoutingData, OPERATIONAL) =>
+    case (pure: CompleteHostedRoutingData, OPERATIONAL) =>
       // First, completely replace PHC data with obtained one
-      hostedStore.processPureHostedData(pure)
+      hostedStore.processCompleteHostedData(pure)
 
       // Then reconstruct graph with new PHC data
       val hostedShortIdToPubChan = hostedStore.getRoutingData
@@ -92,18 +88,24 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       // And finally update a total sync checkpoint, a sync is considered fully done, there will be no new attempts for a while
       updateLastTotalResyncStamp(System.currentTimeMillis)
 
+    case (pure: PureRoutingData, OPERATIONAL) =>
+      // Run in this thread to not overload SyncMaster
+      normalStore.processPureData(pure)
+
     case (sync: SyncMaster, OPERATIONAL) =>
       // Get rid of channels which peers know nothing about
       val normalShortIdToPubChan = normalStore.getRoutingData
-      val ghostIds: ShortChanIdSet = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
-      val normalShortIdToPubChan1: Map[ShortChannelId, PublicChannel] = normalShortIdToPubChan -- ghostIds
+      val oneSideShortIds = normalStore.listChannelsWithOneUpdate
+      val ghostIds = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
+      val normalShortIdToPubChan1 = normalShortIdToPubChan -- ghostIds -- oneSideShortIds
       val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan1 ++ data.hostedChannels).addEdges(data.extraEdges.values)
       become(Data(channels = normalShortIdToPubChan1, hostedChannels = data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
-      new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: PureHostedRoutingData): Unit = me process pure }
-      // Update normal checkpoint, if PHC sync is to fail this time we'll start with it on next quick launch
+      new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }
+      // Perform database cleaning in a different thread since it's relatively slow and we are operational now
+      RxUtils.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), log)
+      // Update normal checkpoint, if PHC sync is to fail this time we'll jump to it next time
       updateLastNormalResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
-      normalStore.removeGhostChannels(ghostIds)
 
     // We always accept and store disabled channels:
     // - to reduce subsequent sync traffic if channel remains disabled

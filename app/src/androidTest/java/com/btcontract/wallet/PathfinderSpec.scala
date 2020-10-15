@@ -42,7 +42,8 @@ class PathfinderSpec {
     // This will be removed because one-sided
     normal.addChannelUpdateByPosition(updateASFromSOneSide)
 
-    normal.removeGhostChannels(Set(ShortChannelId(5L)))
+    val oneSideShortIds = normal.listChannelsWithOneUpdate
+    normal.removeGhostChannels(Set(ShortChannelId(5L)), oneSideShortIds)
     val routingMap = normal.getRoutingData
     assertTrue(normal.listExcludedChannels.contains(6L))
     assertTrue(!normal.listChannelAnnouncements.map(_.shortChannelId).contains(ShortChannelId(6L)))

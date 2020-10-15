@@ -45,7 +45,8 @@ class SyncSpec {
         val map = store.getRoutingData
         println(s"Total sync complete, we have ${map.keys.size} channels")
         val a1 = System.currentTimeMillis
-        store.removeGhostChannels(map.keySet.diff(provenShortIds))
+        val oneSidedShortIds = store.listChannelsWithOneUpdate
+        store.removeGhostChannels(map.keySet.diff(provenShortIds), oneSidedShortIds)
         println(s"removeGhostChannels took ${System.currentTimeMillis - a1} msec")
         val a2 = System.currentTimeMillis
         val map1: Map[ShortChannelId, Router.PublicChannel] = store.getRoutingData

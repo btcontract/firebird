@@ -3,7 +3,7 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
-import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, PureHostedRoutingData, PureRoutingData}
+import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, CompleteHostedRoutingData, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
@@ -15,6 +15,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(announceTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit = db.change(excludedTable.newSql, shortId.toJavaLong, System.currentTimeMillis + untilStamp: java.lang.Long)
   def listExcludedChannels: Set[Long] = db.select(excludedTable.selectSql, System.currentTimeMillis.toString).set(_ long excludedTable.shortChannelId)
+  def listChannelsWithOneUpdate: ShortChanIdSet = db.select(updateTable.selectHavingOneUpdate).set(_ long updateTable.sid).map(ShortChannelId.apply)
   def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(updateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.position)
   def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(updateTable.killSql, shortId.toJavaLong)
 
@@ -76,11 +77,9 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
     tuples.toMap
   }
 
-  def removeGhostChannels(ghostIds: ShortChanIdSet): Unit = db txWrap {
-    // We might have shortIds which our peers know nothing about, as well as channels with one update, remove all of them
-    val chansWithOneUpdate: ShortChanIdSet = db.select(updateTable.selectHavingOneUpdate).set(_ long updateTable.sid).map(ShortChannelId.apply)
-    for (shortId <- chansWithOneUpdate) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then
-    for (shortId <- ghostIds ++ chansWithOneUpdate) removeChannelUpdate(shortId) // Make sure we only have channels with both updates
+  def removeGhostChannels(ghostIds: ShortChanIdSet, oneSideIds: ShortChanIdSet): Unit = db txWrap {
+    for (shortId <- oneSideIds) addExcludedChannel(shortId, 1000L * 3600 * 24 * 14) // Exclude for two weeks, maybe second update will show up by then
+    for (shortId <- ghostIds ++ oneSideIds) removeChannelUpdate(shortId) // Make sure we only have known channels with both updates
 
     db.change(excludedTable.killPresentInChans) // Remove from excluded if present in channels (minority says it's bad, majority says it's good)
     db.change(announceTable.killNotPresentInChans) // Remove from announces if not present in channels (announce for excluded channel)
@@ -98,7 +97,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
     }
   }
 
-  def processPureHostedData(pure: PureHostedRoutingData): Unit = db txWrap {
+  def processCompleteHostedData(pure: CompleteHostedRoutingData): Unit = db txWrap {
     // First, clear out everything in hosted channel databases
     db.change(announceTable.killAllSql)
     db.change(updateTable.killAllSql)
