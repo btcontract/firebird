@@ -58,7 +58,7 @@ object Crypto {
     lazy val bigInt = new BigInteger(1, value.toArray)
 
     def publicKey: PublicKey = if (Secp256k1Context.isEnabled) {
-      PublicKey.fromBin(ByteVector.view(NativeSecp256k1.computePubkey(value.toArray, true)))
+      PublicKey.fromBin(ByteVector.view(NativeSecp256k1.computePubkey(value.toArray)))
     } else {
       PublicKey(ByteVector.view(params.getG().multiply(bigInt).getEncoded(true)))
     }
@@ -105,6 +105,10 @@ object Crypto {
     * @param value serialized public key, in compressed format (33 bytes)
     */
   case class PublicKey(value: ByteVector) {
+    require(value.length == 33)
+    require(isPubKeyValidLax(value))
+
+
     def hash160: ByteVector = Crypto.hash160(value)
 
     def isValid: Boolean = isPubKeyValidStrict(this.value)
@@ -536,7 +540,7 @@ object Crypto {
     */
   def recoverPublicKey(signature: ByteVector64, message: ByteVector, recoveryId: Int): PublicKey = {
     if (Secp256k1Context.isEnabled) {
-      val bin = NativeSecp256k1.ecdsaRecover(signature.toArray, message.toArray, recoveryId, true)
+      val bin = NativeSecp256k1.ecdsaRecover(signature.toArray, message.toArray, recoveryId)
       PublicKey.fromBin(ByteVector.view(bin))
     } else {
       val (pub0, pub1) = recoverPublicKey(signature, message)
@@ -549,8 +553,8 @@ object Crypto {
     val m = new BigInteger(1, message.toArray)
 
     val (p1, p2) = recoverPoint(r)
-    val Q1 = p1.multiply(s).subtract(Crypto.curve.getG.multiply(m)).multiply(r.modInverse(Crypto.curve.getN))
-    val Q2 = p2.multiply(s).subtract(Crypto.curve.getG.multiply(m)).multiply(r.modInverse(Crypto.curve.getN))
+    val Q1 = (p1.multiply(s).subtract(Crypto.curve.getG.multiply(m))).multiply(r.modInverse(Crypto.curve.getN))
+    val Q2 = (p2.multiply(s).subtract(Crypto.curve.getG.multiply(m))).multiply(r.modInverse(Crypto.curve.getN))
     (PublicKey(Q1), PublicKey(Q2))
   }
 }
