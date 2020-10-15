@@ -45,7 +45,7 @@ package object eclair {
 
   def randomKey: PrivateKey = PrivateKey(randomBytes32)
 
-  lazy val invalidPubKey: PublicKey = PublicKey.fromBin(ByteVector.fromValidHex("00" * 33), checkValid = false)
+  lazy val invalidPubKey: PublicKey = PublicKey.fromBin(ByteVector.fromValidHex("02" * 33), checkValid = false)
 
   lazy val byteVector64One = ByteVector64(hex"01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
 

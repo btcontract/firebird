@@ -98,6 +98,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   }
 
   def processCompleteHostedData(pure: CompleteHostedRoutingData): Unit = db txWrap {
+    // Unlike normal channels here we allow one-sided update channels to be used for now
     // First, clear out everything in hosted channel databases
     db.change(announceTable.killAllSql)
     db.change(updateTable.killAllSql)
