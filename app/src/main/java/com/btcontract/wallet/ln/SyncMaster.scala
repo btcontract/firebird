@@ -37,11 +37,13 @@ object SyncMaster {
   val lightning: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03baa70886d9200af0ffbd3f9e18d96008331c858456b16e3a9b41e735c6208fef"), NodeAddress.unresolved(9735, host = 45, 20, 67, 1), "LIGHTNING")
   val cheese: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "0276e09a267592e7451a939c932cf685f0754de382a3ca85d2fb3a864d4c365ad5"), NodeAddress.unresolved(9735, host = 94, 177, 171, 73), "Cheese")
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
-  val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq)
-  val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq)
-  val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq)
-  val minHostedCapacity = MilliSatoshi(1000000000000L) // 10 BTC
+  val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
+  val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
+  val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
+  val minPHCCapacity = MilliSatoshi(1000000000000L) // 10 BTC
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
+  val minNormalChansForPHC = 10
+  val maxPHCPerNode = 2
   val chunksToWait = 3
 }
 
@@ -86,16 +88,16 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   }
 
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
+    val notTooMuchNode1PHCs = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty).size < maxPHCPerNode
+    val notTooMuchNode2PHCs = nodeIdToShortIds.getOrElse(ann.nodeId2, Set.empty).size < maxPHCPerNode
     val isCorrect = Tools.hostedShortChanId(ann.nodeId1.value, ann.nodeId2.value) == ann.shortChannelId
-    val notTooMuchNode1PHCs = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty).size <= 2
-    val notTooMuchNode2PHCs = nodeIdToShortIds.getOrElse(ann.nodeId1, Set.empty).size <= 2
     ann.isPHC && isCorrect && notTooMuchNode1PHCs && notTooMuchNode2PHCs
   }
 
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =
-    cu.htlcMaximumMsat.exists(_ >= minHostedCapacity) &&
-      expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) &&
-      announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu)
+    cu.htlcMaximumMsat.exists(_ >= minPHCCapacity) && // Minimum capacity requirements are met
+      expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) && // Remote node does not send the same update twice
+      announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu) // We have received a related announce, signature is valid
 }
 
 case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnouncement) extends StateMachine[SyncWorkerData] { me =>
@@ -346,8 +348,8 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
 
   // These checks require router and graph
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
-    val node1HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).count(_.desc.a != ann.nodeId2) >= 10
-    val node2HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).count(_.desc.a != ann.nodeId1) >= 10
+    val node1HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).count(_.desc.a != ann.nodeId2) >= minNormalChansForPHC
+    val node2HasEnoungIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).count(_.desc.a != ann.nodeId1) >= minNormalChansForPHC
     !routerData.channels.contains(ann.shortChannelId) && node1HasEnoungIncomingChans && node2HasEnoungIncomingChans
   }
 
