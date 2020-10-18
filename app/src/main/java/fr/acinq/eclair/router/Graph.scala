@@ -186,24 +186,31 @@ object Graph {
   private def addEdgeWeight(sender: PublicKey, edge: GraphEdge, prev: RichWeight, currentBlockHeight: Long): RichWeight = {
     import RoutingHeuristics._
 
-    // Every edge is weighted by funding block height where older blocks add less weight, the window considered is 2 months.
-    val ageFactor = normalize(ShortChannelId.blockHeight(edge.desc.shortChannelId), min = currentBlockHeight - BLOCK_TIME_8_YEARS, max = currentBlockHeight)
-
-    // Every edge is weighted by channel capacity, larger channels add less weight
-    val capFactor = 1 - normalize(edge.capacity.toLong, CAPACITY_CHANNEL_LOW.toLong, CAPACITY_CHANNEL_HIGH.toLong)
-
-    // Every edge is weighted by its cltv-delta value, normalized
-    val cltvFactor = normalize(edge.updExt.update.cltvExpiryDelta.toInt, CLTV_LOW, CLTV_HIGH)
-
     // Every edge is weighted by its routing success score, higher score adds less weight
     val successFactor = 1 - normalize(edge.updExt.score, SCORE_LOW, SCORE_HIGH)
+
+    val factor = if (edge.updExt.useHeuristics) {
+      // Every edge is weighted by funding block height where older blocks add less weight, the window considered is 2 months.
+      val ageFactor = normalize(ShortChannelId.blockHeight(edge.desc.shortChannelId), min = currentBlockHeight - BLOCK_TIME_8_YEARS, max = currentBlockHeight)
+
+      // Every edge is weighted by channel capacity, larger channels add less weight
+      val capFactor = 1 - normalize(edge.capacity.toLong, CAPACITY_CHANNEL_LOW.toLong, CAPACITY_CHANNEL_HIGH.toLong)
+
+      // Every edge is weighted by its cltv-delta value, normalized
+      val cltvFactor = normalize(edge.updExt.update.cltvExpiryDelta.toInt, CLTV_LOW, CLTV_HIGH)
+
+      ageFactor + capFactor + cltvFactor + successFactor
+    } else {
+      // Max out all heuristics except success rate on assisted and hosted channels
+      // this makes these channels less likely to be used for routing at first
+      1 + 1 + 1 + successFactor
+    }
 
     val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
     val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.updExt.update.cltvExpiryDelta
 
-    // Every factor adds 0 - 100 imginary SAT to edge weight
-    val factor = (ageFactor + capFactor + cltvFactor + successFactor) * 100000L
-    val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.head.toLong + factor
+    // Every heuristic adds 0 - 100 imgainary SAT to edge weight (which is based on fee cost in msat), the better heuristic is the less SAT it adds
+    val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.head.toLong + factor * 100000L
 
     RichWeight(totalCost, prev.length + 1, totalCltv, totalWeight)
   }
@@ -380,11 +387,11 @@ object Graph {
 
         // add all the vertices and edges in one go
         channels.values.foreach { channel =>
-          channel.update_1_opt.foreach { u1 =>
+          channel.update1Opt.foreach { u1 =>
             val desc1 = Router.getDesc(u1.update, channel.ann)
             mutableMap.put(desc1.b, GraphEdge(desc1, u1) :: mutableMap.getOrDefaultValue(desc1.b))
           }
-          channel.update_2_opt.foreach { u2 =>
+          channel.update2Opt.foreach { u2 =>
             val desc2 = Router.getDesc(u2.update, channel.ann)
             mutableMap.put(desc2.b, GraphEdge(desc2, u2) :: mutableMap.getOrDefaultValue(desc2.b))
           }

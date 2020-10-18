@@ -72,7 +72,7 @@ object HostedChannelAnnouncementTable extends ChannelAnnouncementTable("hosted_a
   val sigFiller: ByteVector64 = ByteVector64.Zeroes
 }
 
-abstract class ChannelUpdateTable(val table: String) extends Table {
+abstract class ChannelUpdateTable(val table: String, val useHeuristics: Boolean) extends Table {
   private val names = ("shortchannelid", "timestamp", "messageflags", "channelflags", "cltvdelta", "htlcminimum", "feebase", "feeproportional", "htlcmaximum", "position", "score", "crc32")
   val (sid, timestamp, msgFlags, chanFlags, cltvExpiryDelta, minMsat, base, proportional, maxMsat, position, score, crc32) = names
 
@@ -97,8 +97,8 @@ abstract class ChannelUpdateTable(val table: String) extends Table {
   }
 }
 
-object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates")
-object HostedChannelUpdateTable extends ChannelUpdateTable("hosted_updates")
+object NormalChannelUpdateTable extends ChannelUpdateTable("normal_updates", useHeuristics = true)
+object HostedChannelUpdateTable extends ChannelUpdateTable("hosted_updates", useHeuristics = false)
 
 abstract class ExcludedChannelTable(val table: String) extends Table {
   val Tuple2(shortChannelId, until) = ("shortchannelid", "excludeduntilstamp")

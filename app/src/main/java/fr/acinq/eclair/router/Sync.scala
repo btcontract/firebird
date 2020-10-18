@@ -39,10 +39,10 @@ object Sync {
 
   def getChannelDigestInfo(channels: Map[ShortChannelId, PublicChannel])(shortChannelId: ShortChannelId): (ReplyChannelRangeTlv.Timestamps, ReplyChannelRangeTlv.Checksums) = {
     val c = channels(shortChannelId)
-    val timestamp1 = c.update_1_opt.map(_.update.timestamp).getOrElse(0L)
-    val timestamp2 = c.update_2_opt.map(_.update.timestamp).getOrElse(0L)
-    val checksum1 = c.update_1_opt.map(_.crc32).getOrElse(0L)
-    val checksum2 = c.update_2_opt.map(_.crc32).getOrElse(0L)
+    val timestamp1 = c.update1Opt.map(_.update.timestamp).getOrElse(0L)
+    val timestamp2 = c.update2Opt.map(_.update.timestamp).getOrElse(0L)
+    val checksum1 = c.update1Opt.map(_.crc32).getOrElse(0L)
+    val checksum2 = c.update2Opt.map(_.crc32).getOrElse(0L)
     (ReplyChannelRangeTlv.Timestamps(timestamp1 = timestamp1, timestamp2 = timestamp2), ReplyChannelRangeTlv.Checksums(checksum1 = checksum1, checksum2 = checksum2))
   }
 

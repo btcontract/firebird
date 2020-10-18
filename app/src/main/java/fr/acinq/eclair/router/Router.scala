@@ -25,7 +25,7 @@ import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
 
-case class ChannelUpdateExt(update: ChannelUpdate, crc32: Long, score: Long) {
+case class ChannelUpdateExt(update: ChannelUpdate, crc32: Long, score: Long, useHeuristics: Boolean) {
   def withNewUpdate(u: ChannelUpdate): ChannelUpdateExt = copy(crc32 = Sync.getChecksum(u), update = u)
 }
 
@@ -41,8 +41,8 @@ object Router {
 
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)
-  case class PublicChannel(update_1_opt: Option[ChannelUpdateExt], update_2_opt: Option[ChannelUpdateExt], ann: ChannelAnnouncement) {
-    def getChannelUpdateSameSideAs(u: ChannelUpdate): Option[ChannelUpdateExt] = if (u.position == ChannelUpdate.POSITION1NODE) update_1_opt else update_2_opt
+  case class PublicChannel(update1Opt: Option[ChannelUpdateExt], update2Opt: Option[ChannelUpdateExt], ann: ChannelAnnouncement) {
+    def getChannelUpdateSameSideAs(u: ChannelUpdate): Option[ChannelUpdateExt] = if (u.position == ChannelUpdate.POSITION1NODE) update1Opt else update2Opt
   }
   // @formatter:on
 

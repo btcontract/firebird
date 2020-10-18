@@ -1,15 +1,14 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
-import com.btcontract.wallet.ln.PaymentInfo._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.{PaymentAction, PaymentInfo, PaymentBag, PaymentMaster, PaymentRequestExt}
 import fr.acinq.eclair.wire.{UpdateAddHtlc, UpdateFulfillHtlc}
+import fr.acinq.eclair.{MilliSatoshi, invalidPubKey}
 import com.btcontract.wallet.helper.RichCursor
 import com.btcontract.wallet.FiatRates.Rates
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
-import fr.acinq.eclair.MilliSatoshi
 import android.content.Context
 import scala.util.Try
 
@@ -39,13 +38,13 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentUpdat
   def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentMaster.ABORTED, paymentHash.toHex)
 
   def addOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: String, action: Option[PaymentAction], finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit =
-    db.change(PaymentTable.newSql, nodeId.toString, prex.raw, NOIMAGE.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, action.map(_.toJson.compactPrint).getOrElse(new String),
-      prex.paymentHashStr, 0L: java.lang.Long /* RECEIVED = 0, OUTGOING */, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* FEE IS UNCERTAIN YET */, balanceSnap.toLong: java.lang.Long,
+    db.change(PaymentTable.newSql, nodeId.toString, prex.raw, ByteVector32.Zeroes.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, action.map(_.toJson.compactPrint).getOrElse(new String),
+      prex.paymentHashStr, 0L: java.lang.Long /* RECEIVED = 0 MSAT, OUTGOING */, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* FEE IS UNCERTAIN YET */, balanceSnap.toLong: java.lang.Long,
       fiatRateSnap.toJson.compactPrint, 0: java.lang.Integer /* INCOMING = 0 */, new String /* EMPTY EXT FOR NOW */)
 
   def addIncomingPayment(prex: PaymentRequestExt, preimage: ByteVector32, description: String, finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit =
-    db.change(PaymentTable.newSql, NONODEID.toString, prex.raw, preimage.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, new String /* NO ACTION */,
-      prex.paymentHashStr, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* SENT = 0, INCOMING */, 0L: java.lang.Long /* NO FEE FOR INCOMING */, balanceSnap.toLong: java.lang.Long,
+    db.change(PaymentTable.newSql, invalidPubKey.toString, prex.raw, preimage.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, new String /* NO ACTION */,
+      prex.paymentHashStr, finalAmount.toLong: java.lang.Long, 0L: java.lang.Long /* SENT = 0 MSAT, INCOMING */, 0L: java.lang.Long /* NO FEE FOR INCOMING */, balanceSnap.toLong: java.lang.Long,
       fiatRateSnap.toJson.compactPrint, 1: java.lang.Integer /* INCOMING = 1 */, new String /* EMPTY EXT FOR NOW */)
 
   def toNodeSummary(nodeId: PublicKey): Try[SentToNodeSummary] = db.select(PaymentTable.selectToNodeSummarySql, nodeId.toString, PaymentMaster.SUCCEEDED) headTry { rc =>
