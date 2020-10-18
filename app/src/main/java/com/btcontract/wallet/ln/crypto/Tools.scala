@@ -3,7 +3,6 @@ package com.btcontract.wallet.ln.crypto
 import fr.acinq.eclair._
 import fr.acinq.bitcoin._
 import scala.util.{Success, Try}
-import java.nio.{ByteBuffer, ByteOrder}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.{CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId}
 import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
@@ -18,13 +17,12 @@ import java.io.ByteArrayInputStream
 import language.implicitConversions
 import scala.collection.mutable
 import scodec.bits.ByteVector
+import java.nio.ByteOrder
 
 
 object Tools {
   type Bytes = Array[Byte]
   def log(info: Any): Unit = println(s"LN LOG: $info")
-  def wrap(run: => Unit)(go: => Unit): Unit = try go catch none finally run
-  def bin2readable(bin: Bytes) = new String(bin, "UTF-8")
   def none: PartialFunction[Any, Unit] = { case _ => }
   def runAnd[T](result: T)(action: Any): T = result
 
@@ -47,8 +45,10 @@ object Tools {
     if (pubkey1First) pubkey1 ++ pubkey2 else pubkey2 ++ pubkey1
   }
 
-  def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 =
-    Crypto sha256 hostedNodesCombined(pubkey1, pubkey2)
+  def hostedChanId(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector32 = {
+    val nodesCombined = hostedNodesCombined(pubkey1, pubkey2)
+    Crypto.sha256(nodesCombined)
+  }
 
   def hostedShortChanId(pubkey1: ByteVector, pubkey2: ByteVector): ShortChannelId = {
     val stream = new ByteArrayInputStream(hostedNodesCombined(pubkey1, pubkey2).toArray)
@@ -77,13 +77,6 @@ object Tools {
     KeyPair(pk.publicKey.value, pk.value)
   }
 
-  def writeUInt64Array(input: Long, order: ByteOrder): Bytes = {
-    val bin = new Array[Byte](8)
-    val buffer = ByteBuffer.wrap(bin).order(order)
-    buffer.putLong(input)
-    bin
-  }
-
   def isValidFinalScriptPubkey(raw: ByteVector): Boolean = Try(Script parse raw) match {
     case Success(OP_DUP :: OP_HASH160 :: OP_PUSHDATA(pkh, _) :: OP_EQUALVERIFY :: OP_CHECKSIG :: Nil) => pkh.size == 20
     case Success(OP_HASH160 :: OP_PUSHDATA(scriptHash, _) :: OP_EQUAL :: Nil) => scriptHash.size == 20
@@ -98,8 +91,8 @@ object Tools {
   }
 }
 
-case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int) extends LightningException
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
+case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int) extends LightningException
 trait CanBeRepliedTo { def process(reply: Any): Unit }
 
 abstract class StateMachine[T] {

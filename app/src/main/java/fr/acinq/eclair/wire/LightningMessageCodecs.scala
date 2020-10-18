@@ -387,6 +387,11 @@ object LightningMessageCodecs {
     .typecase(65523, HostedMessagesCodecs.refundPendingCodec)
     .typecase(65521, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
     .typecase(65519, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
+    // PHC sync
+    .typecase(65517, channelAnnouncementCodec) // Gossip, we should not be getting it but won't hurt if we do
+    .typecase(65515, channelAnnouncementCodec)
+    .typecase(65513, channelUpdateCodec) // Gossip, we should not be getting it but won't hurt if we do
+    .typecase(65511, channelUpdateCodec)
 }
 
 object HostedMessagesCodecs {

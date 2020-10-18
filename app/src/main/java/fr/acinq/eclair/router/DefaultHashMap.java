@@ -3,7 +3,7 @@ package fr.acinq.eclair.router;
 import java.util.HashMap;
 
 public class DefaultHashMap<K,V> extends HashMap<K,V> {
-    protected V defaultValue;
+    private V defaultValue;
 
     public DefaultHashMap(V defaultValue, int initialCapacity) {
         super(initialCapacity);
