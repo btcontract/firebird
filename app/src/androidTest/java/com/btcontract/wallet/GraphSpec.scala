@@ -55,7 +55,7 @@ object GraphSpec {
                cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
                score: Int = 1): GraphEdge = {
     val update = makeUpdate(shortChannelId, nodeId1, nodeId2, feeBase, feeProportionalMillionth, minHtlc, maxHtlc, cltvDelta)
-    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), ChannelUpdateExt(update, score = score, crc32 = Sync.getChecksum(update)))
+    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), ChannelUpdateExt(update, Sync.getChecksum(update), score, useHeuristics = true))
   }
 
   def makeChannel(shortChannelId: Long, nodeIdA: PublicKey, nodeIdB: PublicKey): ChannelAnnouncement = {
@@ -210,5 +210,21 @@ class GraphSpec {
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, chainTip = 900000L, amount = 500000000L.msat))
 
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+  }
+
+  @Test
+  def hostedChannelAffectsResult(): Unit = {
+    import com.softwaremill.quicklens._
+    val g = DirectedGraph(List(
+      makeEdge(ShortChannelId(1L), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(2L), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(3L), a, c, 100.msat, 10, cltvDelta = CltvExpiryDelta(9), maxHtlc = 500000000000L.msat).modify(_.updExt.useHeuristics).setTo(false), // Not used despite better parameters
+      makeEdge(ShortChannelId(4L), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId(5L), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(576), maxHtlc = 6000000000L.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
+
+    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, b))
   }
 }

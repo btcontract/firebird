@@ -55,11 +55,13 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
       val htlcMinimumMsat = MilliSatoshi(rc long updateTable.minMsat)
       val cltvExpiryDelta = CltvExpiryDelta(rc int updateTable.cltvExpiryDelta)
 
-      ChannelUpdateExt(ChannelUpdate(signature = byteVector64One, chainHash = LNParams.chainHash, shortChannelId,
+      val update = ChannelUpdate(signature = byteVector64One, chainHash = LNParams.chainHash, shortChannelId,
         timestamp = rc long updateTable.timestamp, messageFlags.toByte, channelFlags.toByte, cltvExpiryDelta,
         htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths = rc long updateTable.proportional,
-        htlcMaximumMsat = Some(htlcMaximumMsat), unknownFields = ByteVector.empty),
-        score = rc long updateTable.score, crc32 = rc long updateTable.crc32)
+        htlcMaximumMsat = Some(htlcMaximumMsat), unknownFields = ByteVector.empty)
+
+      ChannelUpdateExt(update, rc long updateTable.crc32,
+        rc long updateTable.score, updateTable.useHeuristics)
     }
 
   def getRoutingData: Map[ShortChannelId, PublicChannel] = {

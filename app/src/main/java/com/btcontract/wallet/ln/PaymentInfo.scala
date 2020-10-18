@@ -13,9 +13,6 @@ object PaymentInfo {
   final val NOT_SENDABLE_LOW_BALANCE = 1
   final val NOT_SENDABLE_IN_FLIGHT = 2
   final val NOT_SENDABLE_SUCCESS = 3
-
-  final val NOIMAGE = ByteVector fromValidHex "3030303030303030"
-  final val NONODEID = PublicKey(ByteVector fromValidHex "00" * 33)
 }
 
 case class PaymentInfo(payeeNodeIdString: String, rawPr: String, preimageString: String, status: String, stamp: Long,

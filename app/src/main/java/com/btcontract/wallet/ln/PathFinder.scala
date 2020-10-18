@@ -5,13 +5,11 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import fr.acinq.eclair.wire.{ChannelUpdate, NodeAnnouncement}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine}
-import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router}
+import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router, Sync}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
-import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import java.util.concurrent.Executors
-import fr.acinq.eclair.ShortChannelId
 
 
 object PathFinder {
@@ -114,11 +112,11 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     // If disabled channel stays disabled for a long time it will be pruned by peers and then by us
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.channels.contains(cu.shortChannelId) =>
-      val data1 = resolve(data.channels(cu.shortChannelId), ChannelUpdateExt.from(cu), normalStore)
+      val data1 = resolve(data.channels(cu.shortChannelId), cu, normalStore)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) if data.hostedChannels.contains(cu.shortChannelId) =>
-      val data1 = resolve(data.hostedChannels(cu.shortChannelId), ChannelUpdateExt.from(cu), hostedStore)
+      val data1 = resolve(data.hostedChannels(cu.shortChannelId), cu, hostedStore)
       become(data1, OPERATIONAL)
 
     case (cu: ChannelUpdate, OPERATIONAL) =>
@@ -138,11 +136,11 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
   }
 
   // Common resover for normal/hosted public channel updates
-  def resolve(pubChan: PublicChannel, defaultUpdateExt: ChannelUpdateExt, store: NetworkDataStore): Data = {
-    val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(defaultUpdateExt.update)
-    val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= defaultUpdateExt.update.timestamp)
-    val nextUpdateExt: ChannelUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate defaultUpdateExt.update).getOrElse(defaultUpdateExt)
-    resolveKnownDesc(GraphEdge(Router.getDesc(defaultUpdateExt.update, pubChan.ann), nextUpdateExt), Some(store), newUpdateIsOlder)
+  def resolve(pubChan: PublicChannel, newUpdate: ChannelUpdate, store: NetworkDataStore): Data = {
+    val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(newUpdate)
+    val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= newUpdate.timestamp)
+    val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate newUpdate) getOrElse ChannelUpdateExt(newUpdate, Sync.getChecksum(newUpdate), score = 1L, useHeuristics = false)
+    resolveKnownDesc(edge = GraphEdge(desc = Router.getDesc(newUpdate, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
   }
 
   // Resolves channel updates which we obtain from node errors while trying to route payments
