@@ -59,7 +59,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
         timestamp = rc long updateTable.timestamp, messageFlags.toByte, channelFlags.toByte, cltvExpiryDelta,
         htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths = rc long updateTable.proportional,
         htlcMaximumMsat = Some(htlcMaximumMsat), unknownFields = ByteVector.empty),
-        score = rc long updateTable.score, crc32 = rc long updateTable.crc32)
+        crc32 = rc long updateTable.crc32, score = rc long updateTable.score)
     }
 
   def getRoutingData: Map[ShortChannelId, PublicChannel] = {

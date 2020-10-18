@@ -55,7 +55,7 @@ object GraphSpec {
                cltvDelta: CltvExpiryDelta = CltvExpiryDelta(0),
                score: Int = 1): GraphEdge = {
     val update = makeUpdate(shortChannelId, nodeId1, nodeId2, feeBase, feeProportionalMillionth, minHtlc, maxHtlc, cltvDelta)
-    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), ChannelUpdateExt(update, score = score, crc32 = Sync.getChecksum(update)))
+    GraphEdge(ChannelDesc(shortChannelId, nodeId1, nodeId2), ChannelUpdateExt(update, Sync.getChecksum(update), score))
   }
 
   def makeChannel(shortChannelId: Long, nodeIdA: PublicKey, nodeIdB: PublicKey): ChannelAnnouncement = {
