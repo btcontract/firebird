@@ -120,9 +120,6 @@
 /* Define this symbol to use a statically generated ecmult table */
 /* #define USE_ECMULT_STATIC_PRECOMPUTATION 1 */
 
-/* Define this symbol to use endomorphism optimization */
-/* #undef USE_ENDOMORPHISM */
-
 /* Define this symbol if an external (non-inline) assembly implementation is
    used */
 /* #undef USE_EXTERNAL_ASM */
