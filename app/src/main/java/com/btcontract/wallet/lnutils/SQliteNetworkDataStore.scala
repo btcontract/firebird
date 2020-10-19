@@ -3,11 +3,12 @@ package com.btcontract.wallet.lnutils
 import fr.acinq.eclair._
 import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
-import com.btcontract.wallet.ln.{LNParams, NetworkDataStore, CompleteHostedRoutingData, PureRoutingData}
+import com.btcontract.wallet.ln.{CompleteHostedRoutingData, LNParams, NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
+import fr.acinq.bitcoin.ByteVector64
 import scodec.bits.ByteVector
 
 
@@ -20,7 +21,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(updateTable.killSql, shortId.toJavaLong)
 
   def listChannelAnnouncements: Vector[ChannelAnnouncement] = db select announceTable.selectAllSql vec { rc =>
-    ChannelAnnouncement(nodeSignature1 = announceTable.sigFiller, nodeSignature2 = announceTable.sigFiller, bitcoinSignature1 = announceTable.sigFiller, bitcoinSignature2 = announceTable.sigFiller,
+    ChannelAnnouncement(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes, bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
       features = Features.empty, chainHash = LNParams.chainHash, shortChannelId = ShortChannelId(rc long announceTable.shortChannelId), nodeId1 = PublicKey(rc bytes announceTable.nodeId1),
       nodeId2 = PublicKey(rc bytes announceTable.nodeId2), bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
   }
@@ -55,7 +56,7 @@ class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
       val htlcMinimumMsat = MilliSatoshi(rc long updateTable.minMsat)
       val cltvExpiryDelta = CltvExpiryDelta(rc int updateTable.cltvExpiryDelta)
 
-      val update = ChannelUpdate(signature = byteVector64One, chainHash = LNParams.chainHash, shortChannelId,
+      val update = ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, shortChannelId,
         timestamp = rc long updateTable.timestamp, messageFlags.toByte, channelFlags.toByte, cltvExpiryDelta,
         htlcMinimumMsat, feeBaseMsat, feeProportionalMillionths = rc long updateTable.proportional,
         htlcMaximumMsat = Some(htlcMaximumMsat), unknownFields = ByteVector.empty)

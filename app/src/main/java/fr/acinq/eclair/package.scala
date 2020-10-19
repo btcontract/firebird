@@ -47,8 +47,6 @@ package object eclair {
 
   lazy val invalidPubKey: PublicKey = PublicKey.fromBin(ByteVector.fromValidHex("02" * 33), checkValid = false)
 
-  lazy val byteVector64One = ByteVector64(hex"01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-
   def toLongId(fundingTxHash: ByteVector32, fundingOutputIndex: Int): ByteVector32 = {
     require(fundingOutputIndex < 65536, "fundingOutputIndex must not be greater than FFFF")
     require(fundingTxHash.size == 32, "fundingTxHash must be of length 32B")

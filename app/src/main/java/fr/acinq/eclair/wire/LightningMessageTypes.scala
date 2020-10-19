@@ -28,8 +28,8 @@ import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrdering, Protocol, Satoshi}
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
-import fr.acinq.eclair.{byteVector64One, invalidPubKey}
-import scodec.bits.{BitVector, ByteVector}
+import fr.acinq.eclair.invalidPubKey
+import scodec.bits.ByteVector
 
 /**
  * Created by PM on 15/11/2016.
@@ -183,19 +183,15 @@ case class ChannelAnnouncement(nodeSignature1: ByteVector64,
 
   def getNodeIdSameSideAs(cu: ChannelUpdate): PublicKey = if (cu.position == ChannelUpdate.POSITION1NODE) nodeId1 else nodeId2
 
-  def isPHC: Boolean =
-    bitcoinKey1 == invalidPubKey && bitcoinKey2 == invalidPubKey &&
-      bitcoinSignature1 == ByteVector64.Zeroes && bitcoinSignature2 == ByteVector64.Zeroes
+  def isPHC: Boolean = bitcoinKey1 == nodeId1 && bitcoinKey2 == nodeId2 && bitcoinSignature1 == nodeSignature1 && bitcoinSignature2 == nodeSignature2
 
   // Point useless fields to same object, db-restored should be the same
 
-  def litePHC: ChannelAnnouncement =
-    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
-      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
-
   def lite: ChannelAnnouncement =
-    copy(nodeSignature1 = byteVector64One, nodeSignature2 = byteVector64One, bitcoinSignature1 = byteVector64One, bitcoinSignature2 = byteVector64One,
-      features = Features.empty, chainHash = LNParams.chainHash, bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
+    copy(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes,
+      bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
+      features = Features.empty, chainHash = LNParams.chainHash,
+      bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
 }
 
 case class Color(r: Byte, g: Byte, b: Byte) {
@@ -305,8 +301,8 @@ case class ChannelUpdate(signature: ByteVector64,
 
   lazy val core: UpdateCore = UpdateCore(position, shortChannelId, feeBaseMsat, feeProportionalMillionths, cltvExpiryDelta, htlcMaximumMsat)
 
-  // Reference useless fields to same objects to reduce memory footprint and set timestamp to current moment, make sure it does not erase channelUpdateChecksumCodec fields
-  def lite: ChannelUpdate = copy(signature = byteVector64One, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
+  // Reference useless fields to same objects to reduce memory footprint, make sure it does not erase channelUpdateChecksumCodec fields
+  def lite: ChannelUpdate = copy(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, unknownFields = ByteVector.empty)
 }
 
 // @formatter:off
