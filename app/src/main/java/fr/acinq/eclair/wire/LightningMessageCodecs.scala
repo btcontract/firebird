@@ -349,18 +349,13 @@ object LightningMessageCodecs {
     .typecase(36, fundingLockedCodec)
     .typecase(38, shutdownCodec)
     .typecase(39, closingSignedCodec)
-    .typecase(128, updateAddHtlcCodec)
-    .typecase(130, updateFulfillHtlcCodec)
-    .typecase(131, updateFailHtlcCodec)
     .typecase(132, commitSigCodec)
     .typecase(133, revokeAndAckCodec)
     .typecase(134, updateFeeCodec)
-    .typecase(135, updateFailMalformedHtlcCodec)
     .typecase(136, channelReestablishCodec)
     .typecase(256, channelAnnouncementCodec)
     .typecase(257, nodeAnnouncementCodec)
     .typecase(258, channelUpdateCodec)
-    .typecase(259, announcementSignaturesCodec)
     .typecase(261, queryShortChannelIdsCodec)
     .typecase(262, replyShortChanelIdsEndCodec)
     .typecase(263, queryChannelRangeCodec)
@@ -388,10 +383,17 @@ object LightningMessageCodecs {
     .typecase(65521, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
     .typecase(65519, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
     // PHC sync
-    .typecase(65517, channelAnnouncementCodec) // Gossip, we should not be getting it but won't hurt if we do
-    .typecase(65515, channelAnnouncementCodec)
-    .typecase(65513, channelUpdateCodec) // Gossip, we should not be getting it but won't hurt if we do
-    .typecase(65511, channelUpdateCodec)
+    .typecase(65517, channelAnnouncementCodec) // Gossip
+    .typecase(65515, channelAnnouncementCodec) // Sync
+    .typecase(65513, channelUpdateCodec) // Gossip
+    .typecase(65511, channelUpdateCodec) // Sync
+    // HC-adjusted normal messages
+    .typecase(65509, updateAddHtlcCodec)
+    .typecase(65507, updateFulfillHtlcCodec)
+    .typecase(65505, updateFailHtlcCodec)
+    .typecase(65503, updateFailMalformedHtlcCodec)
+    .typecase(65501, announcementSignaturesCodec)
+    .typecase(65499, errorCodec)
 }
 
 object HostedMessagesCodecs {
