@@ -1,6 +1,6 @@
 package com.btcontract.wallet.steps
 
-import android.widget.{CheckBox, LinearLayout}
+import android.widget.{CheckBox, LinearLayout, TextView}
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
 import ernestoyaquello.com.verticalstepperform.Step
 import com.btcontract.wallet.FirebirdActivity
@@ -10,13 +10,13 @@ import android.view.View
 
 
 class OpenWallet(host: FirebirdActivity, title: String, account: SetupAccount) extends Step[Boolean](title, true) { me =>
-  var restoreExistingAccountDisabled: View = _
+  var restoreExistingAccountDisabled: TextView = _
   var restoreExistingAccount: CheckBox = _
 
   override def createStepContentLayout: View = {
     val view = host.getLayoutInflater.inflate(R.layout.frag_step_open, null).asInstanceOf[LinearLayout]
+    restoreExistingAccountDisabled = view.findViewById(R.id.restoreExistingAccountDisabled).asInstanceOf[TextView]
     restoreExistingAccount = view.findViewById(R.id.restoreExistingAccount).asInstanceOf[CheckBox]
-    restoreExistingAccountDisabled = view.findViewById(R.id.restoreExistingAccountDisabled)
     view
   }
 
@@ -25,13 +25,16 @@ class OpenWallet(host: FirebirdActivity, title: String, account: SetupAccount) e
   override def getStepDataAsHumanReadableString: String = new String
 
   override def onStepOpened(animated: Boolean): Unit =
-    if (account.getStepData.blocksAccountCheck) {
-      restoreExistingAccountDisabled setVisibility View.VISIBLE
-      restoreExistingAccount setEnabled false
-      restoreExistingAccount setChecked false
-    } else {
-      restoreExistingAccountDisabled setVisibility View.GONE
-      restoreExistingAccount setEnabled true
+    account.getStepData.accountCheckBlock match {
+      case Some(explanationResId) =>
+        restoreExistingAccountDisabled.setText(host getString explanationResId)
+        restoreExistingAccountDisabled.setVisibility(View.VISIBLE)
+        restoreExistingAccount setEnabled false
+        restoreExistingAccount setChecked false
+
+      case None =>
+        restoreExistingAccountDisabled.setVisibility(View.GONE)
+        restoreExistingAccount setEnabled true
     }
 
   override def onStepClosed(animated: Boolean): Unit = Tools.none

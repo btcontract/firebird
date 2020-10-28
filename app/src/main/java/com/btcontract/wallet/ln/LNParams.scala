@@ -106,7 +106,7 @@ sealed trait StorageFormat {
   def outstandingProviders: Set[NodeAnnouncement]
 }
 
-case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys) extends StorageFormat {
+case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: Option[ByteVector] = None) extends StorageFormat {
   override def attachedChannelSecret: ByteVector = Crypto.hash256(keys.extendedNodeKey.secretkeybytes)
 }
 

@@ -2,16 +2,58 @@
     style="@style/StandardLinearLayout"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <com.hootsuite.nachos.NachoTextView
+    <RadioGroup
         style="@style/XYSmallMarginFillingView"
-        android:hint="@string/action_recovery_phrase_hint"
-        android:id="@+id/restoreCode"/>
+        android:id="@+id/phraseRadioGroup"
+        android:orientation="vertical">
 
-    <TextView
-        android:text="@string/step_account_recovery_phrase_note"
-        style="@style/XMarginFillingView"/>
+        <RadioButton
+            style="@style/FillingView"
+            android:id="@+id/existingPhrase"
+            android:text="@string/action_recovery_phrase_existing"/>
 
-    <View
-        android:layout_marginTop="25dp"
-        style="@style/GrayDivider"/>
+        <LinearLayout
+            style="@style/FillingView"
+            android:orientation="vertical"
+            android:id="@+id/existingPhraseView">
+
+            <com.hootsuite.nachos.NachoTextView
+                style="@style/XSmallMarginFillingView"
+                android:hint="@string/action_recovery_phrase_hint"
+                android:id="@+id/restoreCode"/>
+
+            <TextView
+                style="@style/XMarginFillingView"
+                android:text="@string/step_account_recovery_phrase_existing_note"
+                android:layout_marginBottom="25dp"
+                android:layout_marginTop="5dp"/>
+
+        </LinearLayout>
+
+        <RadioButton
+            style="@style/FillingView"
+            android:id="@+id/generatedPhrase"
+            android:text="@string/action_recovery_phrase_new"/>
+
+        <LinearLayout
+            style="@style/FillingView"
+            android:orientation="vertical"
+            android:id="@+id/generatedPhraseView">
+
+            <TextView
+                style="@style/XMarginFillingView"
+                android:textColor="@color/colorAccent"
+                android:id="@+id/generatedPhraseContent"
+                android:layout_marginTop="15dp"
+                android:textSize="24sp"/>
+
+            <TextView
+                style="@style/XMarginFillingView"
+                android:text="@string/step_account_recovery_phrase_new_note"
+                android:layout_marginTop="15dp"/>
+
+        </LinearLayout>
+    </RadioGroup>
+
+    <View style="@style/GrayDivider"/>
 </LinearLayout>

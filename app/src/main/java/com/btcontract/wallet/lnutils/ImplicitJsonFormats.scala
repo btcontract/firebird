@@ -1,20 +1,20 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
-import com.btcontract.wallet.ln.{CommitmentSpec, FailAndAdd, HostedCommits, Htlc, LightningNodeKeys, MalformAndAdd, MnemonicStorageFormat, NodeAnnouncementExt, PasswordStorageFormat, PaymentAction, StorageFormat}
+import com.btcontract.wallet.ln._
 import fr.acinq.eclair.wire.LightningMessageCodecs.{channelUpdateCodec, errorCodec, lightningMessageCodec, nodeAnnouncementCodec, updateAddHtlcCodec, updateFailHtlcCodec, updateFailMalformedHtlcCodec}
 import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelBranding, LastCrossSignedState, LightningMessage, NodeAnnouncement, UpdateAddHtlc, UpdateFailHtlc, UpdateFailMalformedHtlc}
 import com.btcontract.wallet.{Bitpay, BitpayItem, BlockchainInfoItem, CoinGecko, CoinGeckoItem, RatesInfo}
 import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec}
+import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
 import com.btcontract.wallet.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
 import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
-import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey}
 import fr.acinq.eclair.{MilliSatoshi, wire}
+import scodec.bits.{BitVector, ByteVector}
 
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.bitcoin.Crypto.PrivateKey
 import fr.acinq.bitcoin.ByteVector32
-import scodec.bits.BitVector
 import scodec.Codec
 
 
@@ -48,6 +48,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val hostedChannelBrandingFmt: JsonFormat[HostedChannelBranding] = sCodecJsonFmt(hostedChannelBrandingCodec)
   implicit val updateFailMalformedHtlcFmt: JsonFormat[UpdateFailMalformedHtlc] = sCodecJsonFmt(updateFailMalformedHtlcCodec)
   implicit val updateFailHtlcFmt: JsonFormat[UpdateFailHtlc] = sCodecJsonFmt(updateFailHtlcCodec)
+  implicit val bytesFmt: JsonFormat[ByteVector] = sCodecJsonFmt(varsizebinarydata)
   implicit val privateKeyFmt: JsonFormat[PrivateKey] = sCodecJsonFmt(privateKey)
   implicit val bytes32Fmt: JsonFormat[ByteVector32] = sCodecJsonFmt(bytes32)
 
@@ -139,8 +140,8 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     }
   }
 
-  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys,
-    MnemonicStorageFormat](MnemonicStorageFormat.apply, "outstandingProviders", "keys"), tag = "MnemonicStorageFormat")
+  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, Option[ByteVector],
+    MnemonicStorageFormat](MnemonicStorageFormat.apply, "outstandingProviders", "keys", "seed"), tag = "MnemonicStorageFormat")
 
   implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")

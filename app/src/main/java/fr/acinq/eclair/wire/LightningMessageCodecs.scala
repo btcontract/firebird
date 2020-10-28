@@ -356,6 +356,7 @@ object LightningMessageCodecs {
     .typecase(256, channelAnnouncementCodec)
     .typecase(257, nodeAnnouncementCodec)
     .typecase(258, channelUpdateCodec)
+    .typecase(259, announcementSignaturesCodec)
     .typecase(261, queryShortChannelIdsCodec)
     .typecase(262, replyShortChanelIdsEndCodec)
     .typecase(263, queryChannelRangeCodec)

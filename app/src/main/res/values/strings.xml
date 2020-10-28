@@ -14,15 +14,13 @@
 
     <string name="welcome_subtitle">Truly <b>fast</b>, <b>private</b> and <b>cheap</b> Bitcoin payments</string>
     <string name="step_choose_or_scan">Start with choosing some providers or scan a QR code to set up your own.</string>
-    <string name="step_account_email_pass_random_note">Allow Firebird to generate and store a strong password, you will be able to export it any time.</string>
-    <string name="step_account_email_pass"><b>Option 1: provide email and password</b>. Payment providers will know an email and will be able to provide assistance in case of password loss.</string>
-    <string name="step_account_recovery_phrase"><b>Option 2: provide BIP39 recovery phrase</b>. Payment providers will know nothing about you, Firebird will only use BIP39 phrase once to derive payment keys, will NOT store a phrase itself.</string>
-    <string name="step_account_recovery_phrase_note">Note that Firebird will neither store a provided phrase nor use any standard derivation paths.\n\nEven if this wallet gets compromised the rest of funds attached to phrase will remain safe.</string>
+    <string name="step_account_email_pass">Payment providers will know an email and will be able to provide an assistance in case of password loss.</string>
+    <string name="step_account_recovery_phrase">Fully anonymous option, but make sure that recovery phrase is written down and stored in a safe place.</string>
     <string name="step_open_note">Everything is set up, the wallet is ready to be used. Thanks for choosing <b>Firebird</b>!</string>
 
     <string name="check_no_account"><![CDATA[
         No matching account exists, here are possible reasons why:<br><br>
-        - <b>Incorrect credentials</b>. Please make sure your email and password combination (or BIP39 recovery phrase) is exactly the same you used when creating a wallet.<br><br>
+        - <b>Incorrect credentials</b>. Please make sure your email and password combination (or recovery phrase) is exactly the same you used when creating a wallet.<br><br>
         - <b>Missing payment provider</b>. You could have used a provider which is not on default list, in that case please choose that provider by scanning its QR code and try again.
     ]]></string>
 
@@ -34,16 +32,23 @@
 
     <string name="action_scan_qr">Scan QR code</string>
     <string name="action_email_password">Email and password</string>
-    <string name="action_recovery_phrase">BIP39 recovery phrase</string>
-
     <string name="action_email_password_hint_email">Type your email</string>
     <string name="action_email_password_hint_password">Type a password</string>
     <string name="action_email_password_hint_password_again">Retype a password</string>
-    <string name="action_email_password_checkbox">Use random password</string>
+    <string name="action_email_password_random_note">Allow Firebird to generate and store a strong password, it can be exported at any time.</string>
+    <string name="action_email_password_random">Use random password</string>
+
+    <string name="action_recovery_phrase">Recovery phrase</string>
     <string name="action_recovery_phrase_hint">Type 12 phrase words</string>
+    <string name="action_recovery_phrase_new">Random recovery phrase</string>
+    <string name="action_recovery_phrase_existing">Your own recovery phrase</string>
+    <string name="error_short_phrase">Recovery phrase must be 12 words long</string>
+    <string name="step_account_recovery_phrase_new_note">Use this phrase to restore balance if wallet gets lost or deleted. Please make sure to write it down sooner rather than later.</string>
+    <string name="step_account_recovery_phrase_existing_note">Firebird will not store a provided phrase, will only use it once to derive payment keys.</string>
 
     <string name="action_open_restore">Restore existing account</string>
-    <string name="action_open_restore_disabled">Disabled since random password is chosen</string>
+    <string name="action_open_restore_disabled_random_pass">Disabled since random password is chosen</string>
+    <string name="action_open_restore_disabled_random_phrase">Disabled since random recovery phrase is chosen</string>
 
     <string name="password_match">MATCH</string>
     <string name="password_mismatch">MISMATCH</string>
@@ -53,7 +58,6 @@
     <string name="password_strength_good">STRONG</string>
     <string name="email_invalid">INVALID</string>
 
-    <string name="error_short_phrase">BIP39 phrase must be 12 words long</string>
     <string name="error_pr_expired">Expired payment request</string>
     <string name="error_sum_small">Amount is too small</string>
     <string name="error_sum_big">Amount is too large</string>

@@ -1,20 +1,22 @@
 package com.btcontract.wallet.steps
 
+import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.{FirebirdActivity, R, WalletApp}
 import android.text.InputType.{TYPE_CLASS_TEXT, TYPE_TEXT_VARIATION_PASSWORD}
-import android.widget.{ArrayAdapter, CheckBox, CompoundButton, EditText, FrameLayout, LinearLayout, TextView}
+import android.widget.{ArrayAdapter, CheckBox, CompoundButton, EditText, FrameLayout, LinearLayout, RadioGroup, TextView}
 import com.btcontract.wallet.ln.{LightningNodeKeys, MnemonicStorageFormat, PasswordStorageFormat, StorageFormat}
 import ernestoyaquello.com.verticalstepperform.Step.IsDataValid
 import com.google.android.material.textfield.TextInputLayout
 import android.widget.CompoundButton.OnCheckedChangeListener
 import com.ybs.passwordstrengthmeter.PasswordStrength
 import ernestoyaquello.com.verticalstepperform.Step
+import com.btcontract.wallet.WalletApp.SeedWordSeq
 import fr.acinq.eclair.wire.NodeAnnouncement
 import androidx.appcompat.app.AlertDialog
 import com.ornach.nobobutton.NoboButton
 import org.bitcoinj.crypto.MnemonicCode
-import fr.acinq.eclair.secureRandom
+import scodec.bits.ByteVector
 import android.view.View
 import android.os.Build
 
@@ -22,26 +24,32 @@ import android.os.Build
 trait AccountType {
   def toFormat(providers: Set[NodeAnnouncement] = Set.empty): StorageFormat = throw new RuntimeException
   def makeKeys: LightningNodeKeys = throw new RuntimeException
-  def blocksAccountCheck: Boolean = false
+  def accountCheckBlock: Option[Int] = None
   def asString: String = new String
 }
 
 case object NoAccountType extends AccountType
 
-case class MnemonicAccount(mnemonic: List[String] = Nil) extends AccountType {
-  override def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = MnemonicStorageFormat(providers, makeKeys)
+case class MnemonicAccount(seed: Option[ByteVector], mnemonic: Seq[String] = Nil) extends AccountType {
+  override def accountCheckBlock: Option[Int] = if (seed.isDefined) Some(R.string.action_open_restore_disabled_random_phrase) else None
+  override def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = MnemonicStorageFormat(providers, makeKeys, seed)
   override def makeKeys: LightningNodeKeys = LightningNodeKeys makeFromSeed WalletApp.getSeedFromMnemonic(mnemonic)
-  override def asString: String = WalletApp.app getString R.string.action_recovery_phrase
+
+  override def asString: String = WalletApp.app getString {
+    if (seed.isDefined) R.string.action_recovery_phrase_new
+    else R.string.action_recovery_phrase_existing
+  }
 }
 
 case class EmailPasswordAccount(email: String, password: String, isRandom: Boolean) extends AccountType {
+  override def accountCheckBlock: Option[Int] = if (isRandom) Some(R.string.action_open_restore_disabled_random_pass) else None
   override def toFormat(providers: Set[NodeAnnouncement] = Set.empty) = PasswordStorageFormat(providers, makeKeys, email, if (isRandom) password.toSome else None)
   override def makeKeys: LightningNodeKeys = LightningNodeKeys makeFromSeed WalletApp.scryptDerive(email, password)
-  override def blocksAccountCheck: Boolean = isRandom
   override def asString: String = email
 }
 
 class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountType](title, false) {
+  val preGeneratedMnemonic: SeedWordSeq = WalletApp.getMnemonic(randomBytes(16).toArray)
   var chosenAccountType: AccountType = NoAccountType
   private[this] final val SEPARATOR: String = " "
 
@@ -69,26 +77,74 @@ class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountTy
 
     useRecoveryPhrase setOnClickListener host.onButtonTap {
       val mnemonicWrap = host.getLayoutInflater.inflate(R.layout.frag_mnemonic, null).asInstanceOf[LinearLayout]
-      val mnemonicInput = mnemonicWrap.findViewById(R.id.restoreCode).asInstanceOf[com.hootsuite.nachos.NachoTextView]
-      mnemonicInput.addChipTerminator(' ', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
-      mnemonicInput.addChipTerminator(',', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
-      mnemonicInput.addChipTerminator('\n', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
-      mnemonicInput setAdapter new ArrayAdapter(host, android.R.layout.simple_list_item_1, MnemonicCode.INSTANCE.getWordList)
-      mnemonicInput setDropDownBackgroundResource R.color.button_material_dark
+      val phraseRadioGroup = mnemonicWrap.findViewById(R.id.phraseRadioGroup).asInstanceOf[RadioGroup]
+
+      val existingPhraseView = mnemonicWrap.findViewById(R.id.existingPhraseView).asInstanceOf[LinearLayout]
+      val restoreCode = mnemonicWrap.findViewById(R.id.restoreCode).asInstanceOf[com.hootsuite.nachos.NachoTextView]
+
+      val generatedPhraseView = mnemonicWrap.findViewById(R.id.generatedPhraseView).asInstanceOf[LinearLayout]
+      val generatedPhraseContent = mnemonicWrap.findViewById(R.id.generatedPhraseContent).asInstanceOf[TextView]
+
+      restoreCode.addChipTerminator(' ', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
+      restoreCode.addChipTerminator(',', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
+      restoreCode.addChipTerminator('\n', com.hootsuite.nachos.terminator.ChipTerminatorHandler.BEHAVIOR_CHIPIFY_TO_TERMINATOR)
+      restoreCode setAdapter new ArrayAdapter(host, android.R.layout.simple_list_item_1, MnemonicCode.INSTANCE.getWordList)
+      restoreCode setDropDownBackgroundResource R.color.button_material_dark
 
       def maybeProceed(alert: AlertDialog): Unit =
-        if (mnemonicInput.getAllChips.size != 12) {
-          WalletApp.app.quickToast(R.string.error_short_phrase)
-        } else {
-          val mnemonic = mnemonicInput.getText.toString.trim.toLowerCase
-          val pureMnemonic = mnemonic.replaceAll("[^a-zA-Z0-9']+", SEPARATOR).split(SEPARATOR)
-          chosenAccountType = MnemonicAccount(pureMnemonic.toList)
-          markAsCompletedOrUncompleted(true)
-          getFormView.goToNextStep(true)
-          alert.dismiss
+        phraseRadioGroup.getCheckedRadioButtonId match {
+          case R.id.existingPhrase if restoreCode.getAllChips.size != 12 =>
+            WalletApp.app.quickToast(R.string.error_short_phrase)
+
+          case R.id.existingPhrase =>
+            val mnemonic = restoreCode.getText.toString.trim.toLowerCase
+            val pureMnemonic = mnemonic.replaceAll("[^a-zA-Z0-9']+", SEPARATOR).split(SEPARATOR)
+            chosenAccountType = MnemonicAccount(seed = None, mnemonic = pureMnemonic.toList)
+            markAsCompletedOrUncompleted(true)
+            getFormView.goToNextStep(true)
+            alert.dismiss
+
+          case R.id.generatedPhrase =>
+            val mnemonic = generatedPhraseContent.getText.toString.split(SEPARATOR)
+            val seed = ByteVector.view(WalletApp getSeedFromMnemonic mnemonic)
+            chosenAccountType = MnemonicAccount(Some(seed), mnemonic)
+            markAsCompletedOrUncompleted(true)
+            getFormView.goToNextStep(true)
+            alert.dismiss
+
+          case _ =>
         }
 
-      chosenAccountType match { case MnemonicAccount(mnemonic) => mnemonicInput.setText(mnemonic mkString SEPARATOR) case _ => }
+      phraseRadioGroup setOnCheckedChangeListener new RadioGroup.OnCheckedChangeListener {
+        override def onCheckedChanged(group: RadioGroup, checkedId: Int): Unit =
+          if (checkedId == R.id.generatedPhrase) {
+            generatedPhraseView.setVisibility(View.VISIBLE)
+            existingPhraseView.setVisibility(View.GONE)
+          } else {
+            generatedPhraseView.setVisibility(View.GONE)
+            existingPhraseView.setVisibility(View.VISIBLE)
+          }
+      }
+
+      chosenAccountType match {
+        case MnemonicAccount(None, mnemonic) =>
+          // User has provided an mnemonic of their own
+          // we show a user provided one, but also pre-fill a randomly generated one
+          generatedPhraseContent.setText(preGeneratedMnemonic mkString SEPARATOR)
+          restoreCode.setText(mnemonic mkString SEPARATOR)
+          phraseRadioGroup.check(R.id.existingPhrase)
+
+        case _: MnemonicAccount =>
+          // User has previously chosen a randomly generated mnemonic
+          generatedPhraseContent.setText(preGeneratedMnemonic mkString SEPARATOR)
+          phraseRadioGroup.check(R.id.generatedPhrase)
+
+        case _ =>
+          // This is the first opening: offer existing, but pre-fill a randomly generated one
+          generatedPhraseContent.setText(preGeneratedMnemonic mkString SEPARATOR)
+          phraseRadioGroup.check(R.id.existingPhrase)
+      }
+
       val bld = host.titleBodyAsViewBuilder(host.str2View(host getString R.string.action_recovery_phrase), mnemonicWrap)
       host.mkCheckForm(maybeProceed, none, bld, R.string.dialog_ok, R.string.dialog_cancel)
     }
@@ -163,6 +219,7 @@ class SetupAccount(host: FirebirdActivity, title: String) extends Step[AccountTy
           if (useRandomPasswordText) useRandomPassword.setChecked(true)
           else password.input.setText(passwordText)
           email.input.setText(emailText)
+
         case _ =>
       }
 
