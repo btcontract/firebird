@@ -8,7 +8,6 @@ import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
-
 import rx.lang.scala.{Subscription, Observable => Obs}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
@@ -18,7 +17,7 @@ import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateM
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED, WAIT_FOR_ACCEPT, isOperational, isOperationalAndOpen}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
-import com.btcontract.wallet.helper.ThrottledWork
+import com.btcontract.wallet.ln.utils.ThrottledWork
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.bitcoin.Crypto.PublicKey

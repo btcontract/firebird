@@ -4,7 +4,6 @@ import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
 import com.btcontract.wallet.ln.PaymentMaster.SUCCEEDED
 import com.btcontract.wallet.ln.crypto.Tools.runAnd
 import com.btcontract.wallet.helper.RichCursor
-import fr.acinq.bitcoin.ByteVector64
 import android.content.Context
 import android.net.Uri
 
