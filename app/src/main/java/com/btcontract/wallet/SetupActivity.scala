@@ -7,13 +7,14 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
-import com.btcontract.wallet.ln.{CommsTower, ConnectionListener, LNParams, NodeAnnouncementExt, RxUtils, SyncMaster}
+import com.btcontract.wallet.ln.{CommsTower, ConnectionListener, LNParams, NodeAnnouncementExt, SyncMaster}
 import fr.acinq.eclair.wire.{HostedChannelMessage, InitHostedChannel, InvokeHostedChannel, LastCrossSignedState, NodeAnnouncement}
 import ernestoyaquello.com.verticalstepperform.listener.StepperFormListener
 import ernestoyaquello.com.verticalstepperform.VerticalStepperFormView
 import com.btcontract.wallet.FirebirdActivity.StringOps
 import com.btcontract.wallet.ln.crypto.StateMachine
 import com.btcontract.wallet.lnutils.SQLiteDataBag
+import com.btcontract.wallet.ln.utils.Rx
 import android.content.DialogInterface
 import java.util.concurrent.Executors
 import scodec.bits.ByteVector
@@ -76,8 +77,8 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
     // Check and use all default providers + maybe user scanned external provider if user tries to "restore an account"
     val finalProviders = if (open.getStepData) providers.getStepData.set ++ SyncMaster.hostedChanNodes else providers.getStepData.set
     alert setOnDismissListener new DialogInterface.OnDismissListener { def onDismiss(some: DialogInterface): Unit = cancel }
-    val heavyProcess = RxUtils.ioQueue.map(_ => LNParams.format = account.getStepData toFormat finalProviders)
-    RxUtils.retry(heavyProcess, RxUtils.pickInc, 4 to 12 by 4).foreach(_ => proceedTask.run)
+    val heavyProcess = Rx.ioQueue.map(_ => LNParams.format = account.getStepData toFormat finalProviders)
+    Rx.retry(heavyProcess, Rx.pickInc, 4 to 12 by 4).foreach(_ => proceedTask.run)
     proceedTask = UITask { if (open.getStepData) checkAccount else exitToWallet }
   }
 
@@ -112,7 +113,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
     def doProcess(change: Any): Unit = (change, state) match {
       case PeerDisconnected(worker) \ OPERATIONAL if data.reconnectAttemptsLeft > 0 =>
         become(data.copy(reconnectAttemptsLeft = data.reconnectAttemptsLeft - 1), OPERATIONAL)
-        RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process worker)
+        Rx.ioQueue.delay(3.seconds).foreach(_ => me process worker)
 
       case (_: PeerDisconnected, OPERATIONAL) =>
         // We've run out of reconnect attempts
@@ -165,7 +166,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
         val hosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](LNParams.format.outstandingProviders.map(NodeAnnouncementExt), _.na)
         become(CheckData(hosts, results = hosts.mapValues(_ => None), reconnectAttemptsLeft = hosts.size * 4), OPERATIONAL)
         for (ex <- hosts.values) CommsTower.listen(Set(accountCheckListener), ex.nodeSpecificPkap, ex.na)
-        RxUtils.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
+        Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
     }
   }
 }

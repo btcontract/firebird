@@ -9,6 +9,7 @@ import fr.acinq.eclair.router.{Announcements, ChannelUpdateExt, Router, Sync}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router.{Data, PublicChannel, RouteRequest, RouterConf}
 import fr.acinq.eclair.router.RouteCalculation.handleRouteRequest
+import com.btcontract.wallet.ln.utils.Rx
 import java.util.concurrent.Executors
 
 
@@ -31,7 +32,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
   // We don't load routing data on every startup but when user (or system) actually needs it
   become(Data(channels = Map.empty, hostedChannels = Map.empty, extraEdges = Map.empty, DirectedGraph.apply), WAITING)
-  RxUtils.initDelay(RxUtils.ioQueue, getLastTotalResyncStamp, RESYNC_PERIOD).foreach(_ => me process CMDResync)
+  Rx.initDelay(Rx.ioQueue, getLastTotalResyncStamp, RESYNC_PERIOD).foreach(_ => me process CMDResync)
 
   def getLastTotalResyncStamp: Long
   def getLastNormalResyncStamp: Long
@@ -100,8 +101,8 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       become(Data(channels = normalShortIdToPubChan1, hostedChannels = data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
       new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }
       // Perform database cleaning in a different thread since it's relatively slow and we are operational now
-      RxUtils.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), log)
-      // Update normal checkpoint, if PHC sync is to fail this time we'll jump to it next time
+      Rx.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), log)
+      // Update normal checkpoint, if PHC sync fails this time we'll jump to it next time
       updateLastNormalResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
 

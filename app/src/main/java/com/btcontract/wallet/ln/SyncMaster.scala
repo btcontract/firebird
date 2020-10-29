@@ -12,6 +12,7 @@ import com.btcontract.wallet.ln.crypto.{CanBeRepliedTo, StateMachine, Tools}
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.Router.Data
 import fr.acinq.bitcoin.Crypto.PublicKey
+import com.btcontract.wallet.ln.utils.Rx
 import java.util.concurrent.Executors
 import scala.util.Random.shuffle
 import scala.collection.mutable
@@ -230,7 +231,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
     case (sync: SyncWorker, SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
       val data1 = SyncMasterShortIdData(activeSyncs - sync, ranges - sync.pkap.them, maxSyncs)
       // Sync has disconnected, stop tracking it and try to connect to another one with delay
-      RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
+      Rx.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
       become(data1, SHORT_ID_SYNC)
 
     case (CMDShortIdsComplete(sync, ranges1), SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
@@ -264,7 +265,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
     case (sync: SyncWorker, data1: SyncMasterGossipData, GOSSIP_SYNC) =>
       become(data1.copy(activeSyncs = data1.activeSyncs - sync), GOSSIP_SYNC)
       // Sync has disconnected, stop tracking it and try to connect to another one
-      RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process sync.data)
+      Rx.ioQueue.delay(3.seconds).foreach(_ => me process sync.data)
 
     case (CMDChunkComplete(sync, workerData), data1: SyncMasterGossipData, GOSSIP_SYNC) =>
       for (liteAnnounce <- workerData.announces) confirmedChanAnnounces(liteAnnounce) = confirmedChanAnnounces(liteAnnounce) + sync.pkap.them
@@ -363,7 +364,7 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
     case (sync: SyncWorker, PHC_SYNC) if data.attemptsLeft > 0 =>
       // Sync has disconnected, stop tracking it and try to connect to another one with delay
       become(data.copy(data.activeSyncs - sync, attemptsLeft = data.attemptsLeft - 1), PHC_SYNC)
-      RxUtils.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
+      Rx.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
 
     case (_: SyncWorker, PHC_SYNC) =>
       // No more reconnect attempts left

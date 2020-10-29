@@ -4,8 +4,7 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.FiatRates._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
-import rx.lang.scala.{Subscription, Observable => Obs}
-import com.btcontract.wallet.ln.RxUtils
+import rx.lang.scala.{Subscription, Observable}
 import fr.acinq.eclair.secureRandom
 
 
@@ -28,9 +27,9 @@ object FiatRates {
     case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap
   }
 
-  def makeObservable(stamp: Long): Obs[Rates] =
-    RxUtils.initDelay(RxUtils.retry(RxUtils.ioQueue.map(_ => reloadData),
-      RxUtils.pickInc, times = 3 to 18 by 3), stamp, 60 * 1000 * 30)
+  def makeObservable(stamp: Long): Observable[Rates] =
+    Rx.initDelay(Rx.retry(Rx.ioQueue.map(_ => reloadData),
+      Rx.pickInc, times = 3 to 18 by 3), stamp, 60 * 1000 * 30)
 }
 
 case class CoinGeckoItem(value: Double)

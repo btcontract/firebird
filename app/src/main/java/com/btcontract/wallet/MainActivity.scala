@@ -13,6 +13,7 @@ import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
 import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage, NodeAnnouncement}
 import org.ndeftools.util.activity.NfcReaderActivity
+import com.btcontract.wallet.ln.utils.Rx
 import com.ornach.nobobutton.NoboButton
 import android.widget.TextView
 import org.ndeftools.Message
@@ -46,7 +47,7 @@ object MainActivity {
           override def onDisconnect(worker: CommsTower.Worker): Unit = {
             fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_OFFLINE)
             val mustHalt = WalletApp.app.prefs.getBoolean(WalletApp.ENSURE_TOR, false) && !isVPNOn
-            if (mustHalt) interruptWallet else RxUtils.ioQueue.delay(5.seconds).foreach(_ => initConnect)
+            if (mustHalt) interruptWallet else Rx.ioQueue.delay(5.seconds).foreach(_ => initConnect)
           }
         }
     }

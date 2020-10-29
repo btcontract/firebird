@@ -5,7 +5,7 @@ import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
-import com.btcontract.wallet.ln.{LNParams, PaymentAction, RxUtils}
+import com.btcontract.wallet.ln.{LNParams, PaymentAction}
 import android.graphics.{Bitmap, BitmapFactory}
 import fr.acinq.bitcoin.{Bech32, Crypto}
 
@@ -13,6 +13,7 @@ import com.btcontract.wallet.lnutils.LNUrl.LNUrlAndData
 import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
 import com.github.kevinsawicki.http.HttpRequest
 import fr.acinq.eclair.payment.PaymentRequest
+import com.btcontract.wallet.ln.utils.Rx
 import fr.acinq.eclair.wire.NodeAddress
 import rx.lang.scala.Observable
 import scodec.bits.ByteVector
@@ -63,7 +64,7 @@ case class LNUrl(request: String) {
       k1 = uri getQueryParameter "k1")
   }
 
-  def lnUrlAndDataObs: Observable[LNUrlAndData] = RxUtils.ioQueue map { _ =>
+  def lnUrlAndDataObs: Observable[LNUrlAndData] = Rx.ioQueue map { _ =>
     val level1DataResponse = HttpRequest.get(uri.toString, false).header("Connection", "close")
     val lnUrlData = to[LNUrlData](LNUrl guardResponse level1DataResponse.connectTimeout(15000).body)
     require(lnUrlData.checkAgainstParent(this), "1st/2nd level callback domains mismatch")

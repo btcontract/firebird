@@ -5,7 +5,7 @@ import scala.concurrent._
 import fr.acinq.eclair.wire._
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
-import rx.lang.scala.{Subscription, Observable => Obs}
+import rx.lang.scala.{Subscription, Observable}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
 import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, log, none}
 import fr.acinq.eclair.wire.LightningMessageCodecs.lightningMessageCodec
@@ -97,7 +97,7 @@ object CommsTower {
 
         def handleEnterOperationalState: Unit = {
           handler process LNParams.makeLocalInitMessage
-          pinging = Obs.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { length =>
+          pinging = Observable.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { length =>
             // We disconnect if we are still awaiting Pong since our last sent Ping, meaning peer sent nothing back
             // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
             if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length + 1)

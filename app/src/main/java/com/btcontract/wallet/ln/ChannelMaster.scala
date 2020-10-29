@@ -8,7 +8,8 @@ import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
-import rx.lang.scala.{Subscription, Observable => Obs}
+
+import rx.lang.scala.{Subscription, Observable}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
 import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
@@ -17,7 +18,7 @@ import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateM
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED, WAIT_FOR_ACCEPT, isOperational, isOperationalAndOpen}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
-import com.btcontract.wallet.ln.utils.ThrottledWork
+import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -116,7 +117,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
   val incomingTimeoutWorker: ThrottledWork[ByteVector, Any] = new ThrottledWork[ByteVector, Any] {
     def process(hash: ByteVector, res: Any): Unit = all.headOption.foreach(_ process CMD_INCOMING_TIMEOUT)
-    def work(hash: ByteVector): Obs[Null] = RxUtils.ioQueue.delay(60.seconds)
+    def work(hash: ByteVector): Observable[Null] = Rx.ioQueue.delay(60.seconds)
     def error(canNotHappen: Throwable): Unit = none
   }
 
@@ -576,7 +577,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     override def onTotalDisconnect: Unit = {
       // Once we're disconnected, wait for 6 hours and then put channels into SLEEPING state if there's no reconnect
       // sending CMD_CHAIN_TIP_LOST puts a channel into SLEEPING state where it does not react to new payments
-      val delay = RxUtils.initDelay(Obs from all, System.currentTimeMillis, 3600 * 6 * 1000L)
+      val delay = Rx.initDelay(Observable.from(all), System.currentTimeMillis, 3600 * 6 * 1000L)
       shutdownTimer = delay.subscribe(_ process CMD_CHAIN_TIP_LOST).toSome
     }
   }
