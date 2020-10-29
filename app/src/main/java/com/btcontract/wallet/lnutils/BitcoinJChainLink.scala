@@ -1,4 +1,4 @@
-package com.btcontract.wallet
+package com.btcontract.wallet.lnutils
 
 import org.bitcoinj.core.listeners.{PeerConnectedEventListener, PeerDisconnectedEventListener}
 import org.bitcoinj.core.{NetworkParameters, Peer, PeerGroup}
@@ -29,4 +29,3 @@ class BitcoinJChainLink(params: NetworkParameters) extends ChainLink {
     peerGroup.startAsync
   }
 }
-
