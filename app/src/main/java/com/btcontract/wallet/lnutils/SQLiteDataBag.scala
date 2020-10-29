@@ -1,6 +1,7 @@
 package com.btcontract.wallet.lnutils
 
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
+import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import com.btcontract.wallet.ln.{DataTable, StorageFormat}
 import scala.util.Try
 

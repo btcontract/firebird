@@ -2,11 +2,13 @@ package com.btcontract.wallet.lnutils
 
 import spray.json._
 import com.btcontract.wallet.ln._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
+import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import fr.acinq.eclair.wire.{UpdateAddHtlc, UpdateFulfillHtlc}
 import fr.acinq.eclair.{MilliSatoshi, invalidPubKey}
+
+import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import com.btcontract.wallet.helper.RichCursor
-import com.btcontract.wallet.FiatRates.Rates
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import android.content.Context

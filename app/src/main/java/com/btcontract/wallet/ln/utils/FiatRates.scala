@@ -1,9 +1,9 @@
-package com.btcontract.wallet
+package com.btcontract.wallet.ln.utils
 
-import com.btcontract.wallet.FiatRates._
 import com.btcontract.wallet.ln.crypto.Tools._
+import com.btcontract.wallet.ln.utils.FiatRates._
 import com.github.kevinsawicki.http.HttpRequest._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import rx.lang.scala.{Subscription, Observable => Obs}
 import com.btcontract.wallet.ln.RxUtils
 import fr.acinq.eclair.secureRandom

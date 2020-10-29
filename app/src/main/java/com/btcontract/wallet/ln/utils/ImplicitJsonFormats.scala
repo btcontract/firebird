@@ -1,17 +1,16 @@
-package com.btcontract.wallet.lnutils
+package com.btcontract.wallet.ln.utils
 
 import spray.json._
+import fr.acinq.eclair.wire._
 import com.btcontract.wallet.ln._
-import fr.acinq.eclair.wire.LightningMessageCodecs.{channelUpdateCodec, errorCodec, lightningMessageCodec, nodeAnnouncementCodec, updateAddHtlcCodec, updateFailHtlcCodec, updateFailMalformedHtlcCodec}
-import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelBranding, LastCrossSignedState, LightningMessage, NodeAnnouncement, UpdateAddHtlc, UpdateFailHtlc, UpdateFailMalformedHtlc}
-import com.btcontract.wallet.{Bitpay, BitpayItem, BlockchainInfoItem, CoinGecko, CoinGeckoItem, RatesInfo}
-import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec}
-import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
-import com.btcontract.wallet.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
-import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
-import fr.acinq.eclair.{MilliSatoshi, wire}
-import scodec.bits.{BitVector, ByteVector}
+import fr.acinq.eclair.wire.LightningMessageCodecs._
 
+import scodec.bits.{BitVector, ByteVector}
+import fr.acinq.eclair.{MilliSatoshi, wire}
+import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
+import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
+import com.btcontract.wallet.ln.utils.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
+import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec}
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.bitcoin.Crypto.PrivateKey
 import fr.acinq.bitcoin.ByteVector32
@@ -21,17 +20,19 @@ import scodec.Codec
 object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   def to[T : JsonFormat](raw: String): T = raw.parseJson.convertTo[T]
   val json2String: JsValue => String = (_: JsValue).convertTo[String]
-  private val TAG = "tag"
+  val TAG = "tag"
 
-  def taggedJsonFmt[T](base: JsonFormat[T], tag: String) = new JsonFormat[T] {
-    def write(unserialized: T) = writeExt(TAG -> JsString(tag), base write unserialized)
-    def read(serialized: JsValue) = base read serialized
+  def taggedJsonFmt[T](base: JsonFormat[T], tag: String): JsonFormat[T] = new JsonFormat[T] {
+    def write(unserialized: T): JsValue = writeExt(TAG -> JsString(tag), base write unserialized)
+    def read(serialized: JsValue): T = base read serialized
   }
 
-  def json2BitVec(json: JsValue): Option[BitVector] = BitVector fromHex json2String(json)
-  def sCodecJsonFmt[T](codec: Codec[T] /* Json <-> sCodec bridge */) = new JsonFormat[T] {
-    def read(serialized: JsValue) = codec.decode(json2BitVec(serialized).get).require.value
-    def write(unserialized: T) = codec.encode(unserialized).require.toHex.toJson
+  def json2BitVec(json: JsValue): Option[BitVector] =
+    BitVector fromHex json2String(json)
+
+  def sCodecJsonFmt[T](codec: Codec[T] /* Json <-> sCodec bridge */): JsonFormat[T] = new JsonFormat[T] {
+    def read(serialized: JsValue): T = codec.decode(json2BitVec(serialized).get).require.value
+    def write(unserialized: T): JsValue = codec.encode(unserialized).require.toHex.toJson
   }
 
   def writeExt[T](ext: (String, JsValue), base: JsValue) =
@@ -79,47 +80,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val coinGeckoFmt: JsonFormat[CoinGecko] = jsonFormat[CoinGeckoItemMap, CoinGecko](CoinGecko.apply, "rates")
   implicit val bitpayFmt: JsonFormat[Bitpay] = jsonFormat[BitpayItemList, Bitpay](Bitpay.apply, "data")
 
-  // LNURL and payment actions
-
-  implicit object PaymentActionFmt extends JsonFormat[PaymentAction] {
-    def write(internal: PaymentAction): JsValue = internal match {
-      case paymentAction: MessageAction => paymentAction.toJson
-      case paymentAction: UrlAction => paymentAction.toJson
-      case paymentAction: AESAction => paymentAction.toJson
-      case _ => throw new Exception
-    }
-
-    def read(raw: JsValue): PaymentAction = raw.asJsObject fields TAG match {
-      case JsString("message") => raw.convertTo[MessageAction]
-      case JsString("aes") => raw.convertTo[AESAction]
-      case JsString("url") => raw.convertTo[UrlAction]
-      case tag => throw new Exception(s"Unknown action=$tag")
-    }
-  }
-
-  implicit val aesActionFmt: JsonFormat[AESAction] = taggedJsonFmt(jsonFormat[Option[String], String, String, String, AESAction](AESAction.apply, "domain", "description", "ciphertext", "iv"), tag = "aes")
-  implicit val messageActionFmt: JsonFormat[MessageAction] = taggedJsonFmt(jsonFormat[Option[String], String, MessageAction](MessageAction.apply, "domain", "message"), tag = "message")
-  implicit val urlActionFmt: JsonFormat[UrlAction] = taggedJsonFmt(jsonFormat[Option[String], String, String, UrlAction](UrlAction.apply, "domain", "description", "url"), tag = "url")
-
-  implicit object LNUrlDataFmt extends JsonFormat[LNUrlData] {
-    def write(internal: LNUrlData): JsValue = throw new RuntimeException
-    def read(raw: JsValue): LNUrlData = raw.asJsObject fields TAG match {
-      case JsString("withdrawRequest") => raw.convertTo[WithdrawRequest]
-      case JsString("payRequest") => raw.convertTo[PayRequest]
-      case tag => throw new Exception(s"Unknown lnurl=$tag")
-    }
-  }
-
-  // Note: tag on these MUST start with lower case because it is defined that way on protocol level
-  implicit val withdrawRequestFmt: JsonFormat[WithdrawRequest] = taggedJsonFmt(jsonFormat[String, String, Long, String, Option[Long],
-    WithdrawRequest](WithdrawRequest.apply, "callback", "k1", "maxWithdrawable", "defaultDescription", "minWithdrawable"), tag = "withdrawRequest")
-
-  implicit val payRequestFmt: JsonFormat[PayRequest] = taggedJsonFmt(jsonFormat[String, Long, Long, String, Option[Int],
-    PayRequest](PayRequest.apply, "callback", "maxSendable", "minSendable", "metadata", "commentAllowed"), tag = "payRequest")
-
-  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Option[Boolean], Vector[String], String,
-    PayRequestFinal](PayRequestFinal.apply, "successAction", "disposable", "routes", "pr")
-
   // Wallet keys
 
   implicit val keyPathFmt: JsonFormat[KeyPath] = jsonFormat[Seq[Long], KeyPath](KeyPath.apply, "path")
@@ -145,26 +105,4 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")
-
-  // Payment summary cache
-
-  implicit val totalStatSummaryFmt: JsonFormat[TotalStatSummary] = jsonFormat[MilliSatoshi, MilliSatoshi, MilliSatoshi, Long, TotalStatSummary](TotalStatSummary.apply, "fees", "received", "sent", "count")
-  implicit val totalStatSummaryExtFmt: JsonFormat[TotalStatSummaryExt] = jsonFormat[Option[TotalStatSummary], Long, Long, TotalStatSummaryExt](TotalStatSummaryExt.apply, "summary", "from", "to")
-
-  // Addons
-
-  implicit object AddonFmt extends JsonFormat[Addon] {
-    def write(internal: Addon): JsValue = internal match {
-      case exampleAddon: ExampleAddon => exampleAddon.toJson
-      case _ => throw new Exception
-    }
-
-    def read(raw: JsValue): Addon = raw.asJsObject fields TAG match {
-      case JsString("ExampleAddon") => raw.convertTo[ExampleAddon]
-      case tag => throw new Exception(s"Unknown addon=$tag")
-    }
-  }
-
-  implicit val exampleAddonFmt: JsonFormat[ExampleAddon] = taggedJsonFmt(jsonFormat[Option[String], String, String, ExampleAddon](ExampleAddon.apply, "authToken", "supportEmail", "domain"), tag = "ExampleAddon")
-  implicit val usedAddonsFmt: JsonFormat[UsedAddons] = jsonFormat[List[Addon], UsedAddons](UsedAddons.apply, "addons")
 }

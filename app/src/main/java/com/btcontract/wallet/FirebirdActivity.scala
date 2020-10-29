@@ -14,10 +14,11 @@ import com.google.android.material.snackbar.{BaseTransientBottomBar, Snackbar}
 import com.cottacush.android.currencyedittext.CurrencyEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.btcontract.wallet.FirebirdActivity.StringOps
+import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import concurrent.ExecutionContext.Implicits.global
+import com.btcontract.wallet.ln.utils.Denomination
 import androidx.appcompat.app.AppCompatActivity
 import android.text.method.LinkMovementMethod
-import com.btcontract.wallet.FiatRates.Rates
 import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AlertDialog
 import scala.language.implicitConversions

@@ -1,9 +1,7 @@
-package com.btcontract.wallet
+package com.btcontract.wallet.ln.utils
 
 import java.text._
 import fr.acinq.eclair._
-import com.btcontract.wallet.Denomination._
-import language.implicitConversions
 
 
 object Denomination {
@@ -33,7 +31,8 @@ object SatDenomination extends Denomination {
   val factor = 1000L
   val sign = "sat"
 
-  fmt setDecimalFormatSymbols symbols
+  fmt setDecimalFormatSymbols Denomination.symbols
+
   def parsed(msat: MilliSatoshi): String = {
     val basicFormattedMsatSum = asString(msat)
     val dotIndex = basicFormattedMsatSum.indexOf(".")
@@ -48,7 +47,6 @@ object BtcDenomination extends Denomination {
   val factor = 100000000000L
   val sign = "btc"
 
-  fmt setDecimalFormatSymbols symbols
-  def parsed(msat: MilliSatoshi): String =
-    asString(msat) take 10
+  fmt setDecimalFormatSymbols Denomination.symbols
+  def parsed(msat: MilliSatoshi): String = asString(msat) take 10
 }

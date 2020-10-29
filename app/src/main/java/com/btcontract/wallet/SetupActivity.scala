@@ -4,7 +4,7 @@ import spray.json._
 import scala.concurrent.duration._
 import com.btcontract.wallet.R.string._
 import com.btcontract.wallet.ln.crypto.Tools._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.steps.{ChooseProviders, OpenWallet, SetupAccount}
 import com.btcontract.wallet.ln.{CommsTower, ConnectionListener, LNParams, NodeAnnouncementExt, RxUtils, SyncMaster}

@@ -3,14 +3,14 @@ package com.btcontract.wallet.lnutils
 import spray.json._
 import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
-import com.github.kevinsawicki.http.HttpRequest._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
+import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import com.btcontract.wallet.ln.{LNParams, PaymentAction, RxUtils}
 import android.graphics.{Bitmap, BitmapFactory}
 import fr.acinq.bitcoin.{Bech32, Crypto}
 
-import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
 import com.btcontract.wallet.lnutils.LNUrl.LNUrlAndData
+import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
 import com.github.kevinsawicki.http.HttpRequest
 import fr.acinq.eclair.payment.PaymentRequest
 import fr.acinq.eclair.wire.NodeAddress
@@ -64,7 +64,7 @@ case class LNUrl(request: String) {
   }
 
   def lnUrlAndDataObs: Observable[LNUrlAndData] = RxUtils.ioQueue map { _ =>
-    val level1DataResponse = get(uri.toString, false).header("Connection", "close")
+    val level1DataResponse = HttpRequest.get(uri.toString, false).header("Connection", "close")
     val lnUrlData = to[LNUrlData](LNUrl guardResponse level1DataResponse.connectTimeout(15000).body)
     require(lnUrlData.checkAgainstParent(this), "1st/2nd level callback domains mismatch")
     this -> lnUrlData
@@ -75,7 +75,7 @@ trait LNUrlData {
   def checkAgainstParent(lnUrl: LNUrl): Boolean = true
   def level2DataResponse(req: Uri.Builder): HttpRequest = {
     val finalReq = req.appendQueryParameter(randomBytes(4).toHex, new String)
-    get(finalReq.build.toString, false).header("Connection", "close")
+    HttpRequest.get(finalReq.build.toString, false).header("Connection", "close")
   }
 }
 

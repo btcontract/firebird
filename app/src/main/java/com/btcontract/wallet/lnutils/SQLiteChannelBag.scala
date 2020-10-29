@@ -1,7 +1,7 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
+import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.{ChannelBag, ChannelTable, HostedCommits}
 import fr.acinq.bitcoin.ByteVector32
 
