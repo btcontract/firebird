@@ -78,6 +78,12 @@
             android:theme="@style/AppThemeNoActionBar"/>
 
         <activity
+            android:name="RequestActivity"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppThemeNoActionBar"/>
+
+        <activity
             android:name="SetupActivity"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
