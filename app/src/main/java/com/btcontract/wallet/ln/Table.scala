@@ -1,12 +1,10 @@
-package com.btcontract.wallet.lnutils
+package com.btcontract.wallet.ln
 
-import android.database.sqlite.{SQLiteDatabase, SQLiteOpenHelper}
-import com.btcontract.wallet.ln.PaymentMaster.SUCCEEDED
-import com.btcontract.wallet.ln.crypto.Tools.runAnd
-import com.btcontract.wallet.helper.RichCursor
-import android.content.Context
-import android.net.Uri
 
+trait Table {
+  val (id, fts) = "_id" -> "fts4"
+  def createStatements: Seq[String]
+}
 
 object DataTable extends Table {
   val (table, label, content) = ("data", "label", "content")
@@ -15,13 +13,12 @@ object DataTable extends Table {
   val selectSql = s"SELECT * FROM $table WHERE $label = ?"
   val killSql = s"DELETE FROM $table WHERE $label = ?"
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] =
+    s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT,
       $label TEXT NOT NULL UNIQUE,
       $content TEXT NOT NULL
-    )"""
-  }
+    )""" :: Nil
 }
 
 object ChannelTable extends Table {
@@ -31,13 +28,12 @@ object ChannelTable extends Table {
   val selectAllSql = s"SELECT * FROM $table ORDER BY $id DESC"
   val killSql = s"DELETE FROM $table WHERE $identifier = ?"
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] =
+    s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT,
       $identifier TEXT NOT NULL UNIQUE,
       $data TEXT NOT NULL
-    )"""
-  }
+    )""" :: Nil
 }
 
 abstract class ChannelAnnouncementTable(val table: String) extends Table {
@@ -47,13 +43,12 @@ abstract class ChannelAnnouncementTable(val table: String) extends Table {
   val killAllSql = s"DELETE * FROM $table"
   val killNotPresentInChans: String
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] =
+    s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $features BLOB NOT NULL,
       $shortChannelId INTEGER NOT NULL UNIQUE, $nodeId1 BLOB NOT NULL,
       $nodeId2 BLOB NOT NULL
-    )"""
-  }
+    )""" :: Nil
 }
 
 object NormalChannelAnnouncementTable extends ChannelAnnouncementTable("normal_announcements") {
@@ -79,15 +74,17 @@ abstract class ChannelUpdateTable(val table: String, val useHeuristics: Boolean)
   val killSql = s"DELETE FROM $table WHERE $sid = ?"
   val killAllSql = s"DELETE * FROM $table"
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] = {
+    val createTable = s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $sid INTEGER NOT NULL, $timestamp INTEGER NOT NULL, $msgFlags INTEGER NOT NULL,
       $chanFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL,$minMsat INTEGER NOT NULL,$base INTEGER NOT NULL,
       $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL,
       $score INTEGER NOT NULL, $crc32 INTEGER NOT NULL
     )"""
 
-    db execSQL s"CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($sid, $position)"
+    // For each channel we have up to two unique updates indexed by nodeId position
+    val addIndex = s"CREATE UNIQUE INDEX IF NOT EXISTS idx1$table ON $table ($sid, $position)"
+    createTable :: addIndex :: Nil
   }
 }
 
@@ -101,15 +98,11 @@ abstract class ExcludedChannelTable(val table: String) extends Table {
   val killOldSql = s"DELETE FROM $table WHERE $until < ?"
   val killPresentInChans: String
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
-      $id INTEGER PRIMARY KEY AUTOINCREMENT,
-      $shortChannelId INTEGER NOT NULL UNIQUE,
-      $until INTEGER NOT NULL
-    )"""
-
-    // Excluded channels expire to give them a scond chance
-    db execSQL s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($until)"
+  def createStatements: Seq[String] = {
+    val createTable = s"CREATE TABLE IF NOT EXISTS $table($id INTEGER PRIMARY KEY AUTOINCREMENT, $shortChannelId INTEGER NOT NULL UNIQUE, $until INTEGER NOT NULL)"
+    // Excluded channels expire to give them second chance (e.g. channels with one update, channels without max sendable amount)
+    val addIndex = s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($until)"
+    createTable :: addIndex :: Nil
   }
 }
 
@@ -140,10 +133,10 @@ object PaymentTable extends Table {
   // Updating
   val updOkOutgoingSql = s"UPDATE $table SET $status = ?, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?"
   val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ? WHERE $hash = ?"
-  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> $SUCCEEDED"
+  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> ?"
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] = {
+    val createTable = s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $nodeId TEXT NOT NULL, $pr TEXT NOT NULL, $preimage TEXT NOT NULL,
       $status TEXT NOT NULL, $stamp INTEGER NOT NULL, $description TEXT NOT NULL, $action TEXT NOT NULL, $hash TEXT NOT NULL UNIQUE,
       $receivedMsat INTEGER NOT NULL, $sentMsat INTEGER NOT NULL, $feeMsat INTEGER NOT NULL, $balanceSnapMsat INTEGER NOT NULL,
@@ -151,9 +144,10 @@ object PaymentTable extends Table {
     )"""
 
     // Once incoming or outgoing payment is settled we can search it by various metadata
-    db execSQL s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $hash)"
-    db execSQL s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($nodeId, $status)"
-    db execSQL s"CREATE INDEX IF NOT EXISTS idx2$table ON $table ($stamp, $status)"
+    val addIndex1 = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $hash)"
+    val addIndex2 = s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($nodeId, $status)"
+    val addIndex3 = s"CREATE INDEX IF NOT EXISTS idx2$table ON $table ($stamp, $status)"
+    createTable :: addIndex1 :: addIndex2 :: addIndex3 :: Nil
   }
 }
 
@@ -167,57 +161,16 @@ object PayMarketTable extends Table {
   val updInfoSql = s"UPDATE $table SET $text = ?, $lastMsat = ?, $lastDate = ?, $hash = ?, $image = ? WHERE $lnurl = ?"
   val killSql = s"DELETE FROM $table WHERE $lnurl = ?"
 
-  def create(db: SQLiteDatabase): Unit = {
-    db execSQL s"""CREATE TABLE IF NOT EXISTS $table (
+  def createStatements: Seq[String] = {
+    val createTable = s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $lnurl STRING NOT NULL UNIQUE,
       $text STRING NOT NULL, $lastMsat INTEGER NOT NULL, $lastDate INTEGER NOT NULL,
       $hash STRING NOT NULL, $image STRING NOT NULL
     )"""
 
     // Payment links are searchable by their text descriptions (text metadata + domain name)
-    db execSQL s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $lnurl)"
-    db execSQL s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($lastDate)"
-  }
-}
-
-trait Table { val (id, fts) = "_id" -> "fts4" }
-class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(context, name, null, 1) {
-  def sqlPath(targetTable: String): Uri = Uri parse s"sqlite://com.btcontract.wallet/table/$targetTable"
-  def change(sql: String, params: Object*): Unit = base.execSQL(sql, params.toArray)
-  val base: SQLiteDatabase = getWritableDatabase
-
-  def select(sql: String, params: String*): RichCursor = {
-    val cursor = base.rawQuery(sql, params.toArray)
-    RichCursor(cursor)
-  }
-
-  def search(sqlSelectQuery: String, rawQuery: String): RichCursor = {
-    val purified = rawQuery.replaceAll("[^ a-zA-Z0-9]", "")
-    select(sqlSelectQuery, s"$purified*")
-  }
-
-  def txWrap(run: => Unit): Unit = try {
-    runAnd(base.beginTransaction)(run)
-    base.setTransactionSuccessful
-  } finally base.endTransaction
-
-  def onCreate(dbs: SQLiteDatabase): Unit = {
-    NormalChannelAnnouncementTable.create(dbs)
-    HostedChannelAnnouncementTable.create(dbs)
-
-    NormalExcludedChannelTable.create(dbs)
-    HostedExcludedChannelTable.create(dbs)
-
-    NormalChannelUpdateTable.create(dbs)
-    HostedChannelUpdateTable.create(dbs)
-
-    DataTable.create(dbs)
-    ChannelTable.create(dbs)
-    PaymentTable.create(dbs)
-    PayMarketTable.create(dbs)
-  }
-
-  def onUpgrade(dbs: SQLiteDatabase, v0: Int, v1: Int): Unit = {
-    // Do nothing for now
+    val addIndex1 = s"CREATE VIRTUAL TABLE IF NOT EXISTS $fts$table USING $fts($search, $lnurl)"
+    val addIndex2 = s"CREATE INDEX IF NOT EXISTS idx1$table ON $table ($lastDate)"
+    createTable :: addIndex1 :: addIndex2 :: Nil
   }
 }

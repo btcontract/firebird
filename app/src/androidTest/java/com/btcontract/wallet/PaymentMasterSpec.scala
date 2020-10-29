@@ -8,7 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln._
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.wire.UpdateAddTlv
-import com.btcontract.wallet.lnutils.{SQliteChannelBag, SQliteNetworkDataStore}
+import com.btcontract.wallet.lnutils.{SQLiteChannelBag, SQLiteNetworkDataStore}
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import fr.acinq.eclair.channel.CMD_SOCKET_OFFLINE
@@ -48,7 +48,7 @@ class PaymentMasterSpec {
     }
 
     val hcs = makeHostedCommits(nodeId = a, alias = "peer1")
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs.announce.na.nodeId.value.take(32)), hcs)
 
     val cl = new BitcoinJChainLink(WalletApp.params)
@@ -102,7 +102,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1").modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(UInt64(10)) // Payments will fail locally
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2").modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(UInt64(10)) // Payments will fail locally
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -139,7 +139,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -184,7 +184,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(hosted.db)
+    val channelBag = new SQLiteChannelBag(hosted.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -225,7 +225,7 @@ class PaymentMasterSpec {
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
-    val channelBag = new SQliteChannelBag(hosted.db)
+    val channelBag = new SQLiteChannelBag(hosted.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
     val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
@@ -259,7 +259,7 @@ class PaymentMasterSpec {
       def getExtraNodes: Set[NodeAnnouncement] = Set.empty
     }
 
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     val cl = new BitcoinJChainLink(WalletApp.params)
     val dummyPaymentInfoBag = new PaymentBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
     val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
@@ -295,7 +295,7 @@ class PaymentMasterSpec {
 
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2")
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 
@@ -350,7 +350,7 @@ class PaymentMasterSpec {
     val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
     val hcs2 = makeHostedCommits(nodeId = b, alias = "peer2", toLocal = 600000L.msat).modify(_.lastCrossSignedState.initHostedChannel.htlcMinimumMsat).setTo(10000.msat)
 
-    val channelBag = new SQliteChannelBag(normal.db)
+    val channelBag = new SQLiteChannelBag(normal.db)
     channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
     channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
 

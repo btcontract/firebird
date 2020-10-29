@@ -1,8 +1,8 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
+import com.btcontract.wallet.ln._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import com.btcontract.wallet.ln.{PaymentAction, PaymentInfo, PaymentBag, PaymentMaster, PaymentRequestExt}
 import fr.acinq.eclair.wire.{UpdateAddHtlc, UpdateFulfillHtlc}
 import fr.acinq.eclair.{MilliSatoshi, invalidPubKey}
 import com.btcontract.wallet.helper.RichCursor
@@ -11,6 +11,7 @@ import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.ByteVector32
 import android.content.Context
 import scala.util.Try
+
 
 trait PaymentUpdaterToSuccess {
   // These MUST be the only two methods capabe of updating payment state to SUCCEEDED
@@ -35,7 +36,7 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentUpdat
 
   def updOkIncoming(add: UpdateAddHtlc): Unit = db.change(PaymentTable.updOkIncomingSql, PaymentMaster.SUCCEEDED, add.amountMsat.toLong: java.lang.Long, System.currentTimeMillis: java.lang.Long, add.paymentHash.toHex)
 
-  def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentMaster.ABORTED, paymentHash.toHex)
+  def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentMaster.ABORTED, paymentHash.toHex, PaymentMaster.SUCCEEDED)
 
   def addOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: String, action: Option[PaymentAction], finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit =
     db.change(PaymentTable.newSql, nodeId.toString, prex.raw, ByteVector32.Zeroes.toHex, PaymentMaster.PENDING, System.currentTimeMillis: java.lang.Long, description, action.map(_.toJson.compactPrint).getOrElse(new String),

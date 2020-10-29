@@ -6,7 +6,7 @@ import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQliteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons, WebSocketBus}
+import com.btcontract.wallet.lnutils.{LNUrl, PaymentUpdaterToSuccess, SQLiteInterface, SQLiteDataBag, SQlitePaymentBag, TotalStatSummaryExt, UsedAddons, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
@@ -36,7 +36,7 @@ object WalletApp {
   var fiatCode: String = _
   var denom: Denomination = _
   var db: SQLiteInterface = _
-  var dataBag: SQliteDataBag = _
+  var dataBag: SQLiteDataBag = _
   var paymentBag: CachedSQlitePaymentBag = _
   var usedAddons: UsedAddons = _
   var chainLink: ChainLink = _
@@ -112,7 +112,7 @@ object WalletApp {
 
   def syncRmOutstanding(ann: NodeAnnouncement): Unit = synchronized {
     LNParams.format = LNParams.format.modify(_.outstandingProviders).using(_ - ann)
-    dataBag.put(SQliteDataBag.LABEL_FORMAT, LNParams.format.toJson.compactPrint)
+    dataBag.put(SQLiteDataBag.LABEL_FORMAT, LNParams.format.toJson.compactPrint)
   }
 }
 
@@ -183,7 +183,7 @@ class WalletApp extends Application {
     val bag: SQlitePaymentBag = new SQlitePaymentBag(WalletApp.db)
     WalletApp.paymentBag = new CachedSQlitePaymentBag(bag)
 
-    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+    WalletApp.dataBag = new SQLiteDataBag(WalletApp.db)
     // Set up used addons, but do nothing more here, initialize connection-enabled later
     WalletApp.usedAddons = WalletApp.dataBag.tryGetUsedAddons getOrElse UsedAddons(Nil)
 

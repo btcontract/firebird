@@ -2,11 +2,11 @@ package com.btcontract.wallet.lnutils
 
 import spray.json._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormats._
-import com.btcontract.wallet.ln.{ChannelBag, HostedCommits}
+import com.btcontract.wallet.ln.{ChannelBag, ChannelTable, HostedCommits}
 import fr.acinq.bitcoin.ByteVector32
 
 
-class SQliteChannelBag(db: SQLiteInterface) extends ChannelBag {
+class SQLiteChannelBag(db: SQLiteInterface) extends ChannelBag {
   def put(chanId: ByteVector32, data: HostedCommits): HostedCommits = {
     // Insert and then update because of INSERT IGNORE sqlite effects
     val dataJson = data.toJson.compactPrint

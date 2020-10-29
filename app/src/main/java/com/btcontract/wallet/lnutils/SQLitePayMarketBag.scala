@@ -1,11 +1,12 @@
 package com.btcontract.wallet.lnutils
 
 import com.btcontract.wallet.helper.RichCursor
+import com.btcontract.wallet.ln.PayMarketTable
 import fr.acinq.eclair.MilliSatoshi
 import android.content.Context
 
 
-class SQlitePayMarketBag(db: SQLiteInterface) {
+class SQLitePayMarketBag(db: SQLiteInterface) {
   def rm(lnUrl: LNUrl): Unit = db.change(PayMarketTable.killSql, lnUrl.request)
   def saveLink(lnUrl: LNUrl, payReq: PayRequest, msat: MilliSatoshi, hash: String): Unit = db txWrap {
     val thumbnailImageString64 = payReq.metaDataImageBase64s.headOption.getOrElse(default = new String)

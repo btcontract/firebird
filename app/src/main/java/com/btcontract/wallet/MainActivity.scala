@@ -1,5 +1,6 @@
 package com.btcontract.wallet
 
+import com.btcontract.wallet.ln._
 import scala.concurrent.duration._
 import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
@@ -11,7 +12,6 @@ import android.net.{ConnectivityManager, NetworkCapabilities}
 import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
 import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage, NodeAnnouncement}
-import com.btcontract.wallet.ln.{ChannelMaster, CommsTower, ConnectionListener, LNParams, PathFinder, RxUtils, StorageFormat}
 import org.ndeftools.util.activity.NfcReaderActivity
 import com.ornach.nobobutton.NoboButton
 import android.widget.TextView
@@ -22,9 +22,9 @@ import android.view.View
 
 object MainActivity {
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit = {
-    val normalNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
-    val hostedNetworkDataStore = new SQliteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
-    val channelBag = new SQliteChannelBag(WalletApp.db)
+    val normalNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
+    val hostedNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
+    val channelBag = new SQLiteChannelBag(WalletApp.db)
 
     val pf: PathFinder =
       new PathFinder(normalNetworkDataStore, hostedNetworkDataStore, LNParams.routerConf) {

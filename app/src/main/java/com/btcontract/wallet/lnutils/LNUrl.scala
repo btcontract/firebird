@@ -13,7 +13,6 @@ import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
 import com.btcontract.wallet.lnutils.LNUrl.LNUrlAndData
 import com.github.kevinsawicki.http.HttpRequest
 import fr.acinq.eclair.payment.PaymentRequest
-import com.btcontract.wallet.ln.crypto.Tools
 import fr.acinq.eclair.wire.NodeAddress
 import rx.lang.scala.Observable
 import scodec.bits.ByteVector

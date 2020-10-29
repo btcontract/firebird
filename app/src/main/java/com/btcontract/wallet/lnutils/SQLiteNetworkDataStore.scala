@@ -1,9 +1,9 @@
 package com.btcontract.wallet.lnutils
 
 import fr.acinq.eclair._
+import com.btcontract.wallet.ln._
 import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
-import com.btcontract.wallet.ln.{CompleteHostedRoutingData, LNParams, NetworkDataStore, PureRoutingData}
 import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
@@ -12,7 +12,7 @@ import fr.acinq.bitcoin.ByteVector64
 import scodec.bits.ByteVector
 
 
-class SQliteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdateTable, announceTable: ChannelAnnouncementTable, excludedTable: ExcludedChannelTable) extends NetworkDataStore {
+class SQLiteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdateTable, announceTable: ChannelAnnouncementTable, excludedTable: ExcludedChannelTable) extends NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit = db.change(announceTable.newSql, Array.emptyByteArray, ca.shortChannelId.toJavaLong, ca.nodeId1.value.toArray, ca.nodeId2.value.toArray)
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit = db.change(excludedTable.newSql, shortId.toJavaLong, System.currentTimeMillis + untilStamp: java.lang.Long)
   def listExcludedChannels: Set[Long] = db.select(excludedTable.selectSql, System.currentTimeMillis.toString).set(_ long excludedTable.shortChannelId)

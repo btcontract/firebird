@@ -5,7 +5,7 @@ import com.btcontract.wallet.GraphSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.LNParams
 import com.btcontract.wallet.ln.crypto.Tools
-import com.btcontract.wallet.lnutils.SQliteNetworkDataStore
+import com.btcontract.wallet.lnutils.SQLiteNetworkDataStore
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{Block, ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair._
@@ -80,7 +80,7 @@ object GraphSpec {
       chainTip = 40000)
   }
 
-  def fillBasicGraph(store: SQliteNetworkDataStore): Unit = {
+  def fillBasicGraph(store: SQLiteNetworkDataStore): Unit = {
     val channelAB: ChannelAnnouncement = makeChannel(1L, a, b)
     val channelAC: ChannelAnnouncement = makeChannel(2L, a, c)
     val channelBD: ChannelAnnouncement = makeChannel(3L, b, d)

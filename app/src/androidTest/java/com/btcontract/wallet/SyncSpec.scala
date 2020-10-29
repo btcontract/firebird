@@ -2,9 +2,10 @@ package com.btcontract.wallet
 
 import com.btcontract.wallet.SyncSpec._
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.btcontract.wallet.ln.{LNParams, MnemonicStorageFormat, PureRoutingData, SyncMaster}
+import com.btcontract.wallet.ln._
 import com.btcontract.wallet.lnutils._
 import fr.acinq.eclair._
+
 import concurrent.ExecutionContext.Implicits.global
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
 import fr.acinq.eclair.router.Router
@@ -12,17 +13,18 @@ import fr.acinq.eclair.router.Router.Data
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Assert._
+
 import scala.concurrent.Future
 import scala.util.Random
 
 
 object SyncSpec {
-  def getRandomStore: (SQliteNetworkDataStore, SQliteNetworkDataStore) = {
+  def getRandomStore: (SQLiteNetworkDataStore, SQLiteNetworkDataStore) = {
     def alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     def randomDbName: String = List.fill(12)(secureRandom nextInt alphabet.length).map(alphabet).mkString
     def db = new SQLiteInterface(WalletApp.app, randomDbName)
-    val normal = new SQliteNetworkDataStore(db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
-    val hosted = new SQliteNetworkDataStore(db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
+    val normal = new SQLiteNetworkDataStore(db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
+    val hosted = new SQLiteNetworkDataStore(db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
     (normal, hosted)
   }
 }
@@ -81,7 +83,7 @@ class SyncSpec {
   @Test
   def manySynchronizedRemovals(): Unit = {
     WalletApp.db = store.db
-    WalletApp.dataBag = new SQliteDataBag(WalletApp.db)
+    WalletApp.dataBag = new SQLiteDataBag(WalletApp.db)
     for (_ <- 0 to 50) synchronizedRemoval()
   }
 }
