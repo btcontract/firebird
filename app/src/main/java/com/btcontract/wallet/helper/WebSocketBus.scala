@@ -1,4 +1,4 @@
-package com.btcontract.wallet.lnutils
+package com.btcontract.wallet.helper
 
 import com.neovisionaries.ws.client._
 import scala.collection.JavaConverters._

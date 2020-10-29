@@ -13,10 +13,10 @@ import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, Updat
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt, utils}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
+import com.btcontract.wallet.helper.{AwaitService, WebSocketBus}
 import scala.util.{Success, Try}
 
 import com.btcontract.wallet.ln.utils.FiatRates.Rates
-import com.btcontract.wallet.helper.AwaitService
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import scala.util.matching.UnanchoredRegex
