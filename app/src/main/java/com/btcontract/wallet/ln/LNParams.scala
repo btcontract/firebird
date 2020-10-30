@@ -120,8 +120,9 @@ object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_REMOTE_SIG = ByteVector.fromValidHex("0003")
   final val ERR_HOSTED_TOO_MANY_STATE_UPDATES = ByteVector.fromValidHex("0005")
   final val ERR_HOSTED_TIMED_OUT_OUTGOING_HTLC = ByteVector.fromValidHex("0006")
-  final val ERR_HOSTED_IN_FLIGHT_HTLC_WHILE_RESTORING = ByteVector.fromValidHex("0007")
-  final val ERR_HOSTED_CHANNEL_DENIED = ByteVector.fromValidHex("0008")
+  final val ERR_HOSTED_IN_FLIGHT_HTLC_IN_RESTORE = ByteVector.fromValidHex("0007")
+  final val ERR_HOSTED_IN_FLIGHT_HTLC_IN_SYNC = ByteVector.fromValidHex("0008")
+  final val ERR_HOSTED_CHANNEL_DENIED = ByteVector.fromValidHex("0009")
 
   val ERR_NOT_ENOUGH_BALANCE = 1
   val ERR_TOO_MUCH_IN_FLIGHT = 2
