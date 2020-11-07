@@ -29,8 +29,8 @@ case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: M
                           localFulfilled: Set[ByteVector32] = Set.empty) {
 
   def findHtlcById(id: Long, isIncoming: Boolean): Option[Htlc] = htlcs.find(htlc => htlc.add.id == id && htlc.incoming == isIncoming)
-  lazy val outgoingAddsSum: MilliSatoshi = (0L.msat /: outgoingAdds) { case accumulator \ outAdd => accumulator + outAdd.amountMsat }
-  lazy val incomingAddsSum: MilliSatoshi = (0L.msat /: incomingAdds) { case accumulator \ inAdd => accumulator + inAdd.amountMsat }
+  lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case accumulator \ outAdd => accumulator + outAdd.amountMsat }
+  lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case accumulator \ inAdd => accumulator + inAdd.amountMsat }
   lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(false, add) => add }
   lazy val incomingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(true, add) => add }
 }
@@ -62,17 +62,17 @@ object CommitmentSpec {
   def reduce(local: Vector[LightningMessage], remote: Vector[LightningMessage], spec1: CommitmentSpec): CommitmentSpec = {
 
     val spec2 = spec1.copy(remoteFailed = Set.empty, remoteMalformed = Set.empty, localFulfilled = Set.empty)
-    val spec3 = (spec2 /: local) { case (spec, add: UpdateAddHtlc) => plusOutgoing(add, spec) case spec \ _ => spec }
-    val spec4 = (spec3 /: remote) { case (spec, add: UpdateAddHtlc) => plusIncoming(add, spec) case spec \ _ => spec }
+    val spec3 = local.foldLeft(spec2) { case (spec, add: UpdateAddHtlc) => plusOutgoing(add, spec) case spec \ _ => spec }
+    val spec4 = remote.foldLeft(spec3) { case (spec, add: UpdateAddHtlc) => plusIncoming(add, spec) case spec \ _ => spec }
 
-    val spec5 = (spec4 /: local) {
+    val spec5 = local.foldLeft(spec4) {
       case (spec, message: UpdateFulfillHtlc) => fulfill(spec, isIncoming = true, message)
       case (spec, message: UpdateFailMalformedHtlc) => failMalformed(spec, isIncoming = true, message)
       case (spec, message: UpdateFailHtlc) => fail(spec, isIncoming = true, message)
       case spec \ _ => spec
     }
 
-    (spec5 /: remote) {
+    remote.foldLeft(spec5) {
       case (spec, message: UpdateFulfillHtlc) => fulfill(spec, isIncoming = false, message)
       case (spec, message: UpdateFailMalformedHtlc) => failMalformed(spec, isIncoming = false, message)
       case (spec, message: UpdateFailHtlc) => fail(spec, isIncoming = false, message)
@@ -88,11 +88,14 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
                          localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error],
                          remoteError: Option[Error], startedAt: Long = System.currentTimeMillis) extends ChannelData {
 
-  lazy val Tuple4(nextLocalUpdates, nextRemoteUpdates, nextTotalLocal, nextTotalRemote) =
-    (Tuple4(Vector.empty[LightningMessage], Vector.empty[LightningMessage], lastCrossSignedState.localUpdates, lastCrossSignedState.remoteUpdates) /: futureUpdates) {
+  lazy val Tuple4(nextLocalUpdates, nextRemoteUpdates, nextTotalLocal, nextTotalRemote) = {
+    val base = (Vector.empty[LightningMessage], Vector.empty[LightningMessage], lastCrossSignedState.localUpdates, lastCrossSignedState.remoteUpdates)
+
+    futureUpdates.foldLeft(base) {
       case (localMessages, remoteMessages, totalLocalNumber, totalRemoteNumber) \ (msg \ true) => (localMessages :+ msg, remoteMessages, totalLocalNumber + 1, totalRemoteNumber)
       case (localMessages, remoteMessages, totalLocalNumber, totalRemoteNumber) \ (msg \ false) => (localMessages, remoteMessages :+ msg, totalLocalNumber, totalRemoteNumber + 1)
     }
+  }
 
   lazy val revealedPreimages: Seq[PreimageAndAdd] = for {
     UpdateFulfillHtlc(_, id, paymentPreimage) <- nextLocalUpdates

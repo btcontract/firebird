@@ -76,7 +76,9 @@ object CommsTower {
     val handler: TransportHandler =
       new TransportHandler(pkap.keyPair, ann.nodeId.value) {
         def handleEncryptedOutgoingData(data: ByteVector): Unit =
-          try sock.getOutputStream.write(data.toArray) catch handleError
+          try sock.getOutputStream.write(data.toArray) catch {
+            case _: Throwable => disconnect
+          }
 
         def handleDecryptedIncomingData(data: ByteVector): Unit = {
           // Prevent pinger from disconnecting or sending pings
@@ -102,12 +104,6 @@ object CommsTower {
             // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
             if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length + 1)
           }
-        }
-
-        def handleError: PartialFunction[Throwable, Unit] = { case error =>
-          // Whatever happens here it's safe to disconnect right away
-          log(error.getLocalizedMessage)
-          disconnect
         }
       }
 

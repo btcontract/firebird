@@ -12,9 +12,13 @@ import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, St
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.eclair.router.Announcements
 import java.util.concurrent.Executors
+
 import fr.acinq.bitcoin.ByteVector64
+
 import scala.concurrent.Future
 import scodec.bits.ByteVector
+
+import scala.util.Failure
 
 
 object HostedChannel {
@@ -36,7 +40,7 @@ case class CommitsAndMax(commits: Vector[ChanAndCommits], maxReceivable: MilliSa
 
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
-  def process(changes: Any *): Unit = Future(changes foreach doProcess) onFailure { case failure => events onException me -> failure }
+  def process(cs: Any *): Unit = Future(cs foreach doProcess) onComplete { case Failure(why) => events.onException(me -> why) case _ => }
   def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => ChanAndCommits(me, hc).toSome case _ => None }
 
   def currentBlockDay: Long

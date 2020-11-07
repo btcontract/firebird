@@ -415,7 +415,7 @@ public abstract class Step<T> {
      * This class holds information about whether the data is valid in a boolean. It also includes
      * an optional error message for when the data turns out to be invalid.
      */
-    protected static class IsDataValid {
+    public static class IsDataValid {
 
         private boolean isValid;
         private String errorMessage;
