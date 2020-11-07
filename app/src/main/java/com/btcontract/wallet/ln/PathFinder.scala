@@ -123,7 +123,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     case (cu: ChannelUpdate, OPERATIONAL) =>
       data.extraEdges get cu.shortChannelId foreach { edge =>
         val edge1 = edge.copy(updExt = edge.updExt withNewUpdate cu)
-        val data1 = resolveKnownDesc(edge1, None, isOld = false)
+        val data1 = resolveKnownDesc(edge1, storeOpt = None, isOld = false)
         become(data1, OPERATIONAL)
       }
 
@@ -172,12 +172,12 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
         data.copy(graph = data.graph removeEdge edge.desc)
 
       case None if isEnabled =>
-        // This is a legitimate private update, don't save in DB but update graph
+        // This is a legitimate private/unknown-public update, don't save in DB but update graph
         val extraEdges1 = data.extraEdges + (edge.updExt.update.shortChannelId -> edge)
         data.copy(graph = data.graph addEdge edge, extraEdges = extraEdges1)
 
       case None =>
-        // Disabled private update, remove from graph
+        // Disabled private/unknown-public update, remove from graph
         data.copy(graph = data.graph removeEdge edge.desc)
     }
   }

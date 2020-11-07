@@ -367,7 +367,7 @@ trait HostedChannelMessage extends ChannelMessage
 
 case class InvokeHostedChannel(chainHash: ByteVector32,
                                refundScriptPubKey: ByteVector,
-                               secret: ByteVector) extends HostedChannelMessage
+                               secret: ByteVector = ByteVector.empty) extends HostedChannelMessage
 
 case class InitHostedChannel(maxHtlcValueInFlightMsat: UInt64,
                              htlcMinimumMsat: MilliSatoshi,

@@ -41,7 +41,7 @@ object SyncMaster {
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
   val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
-  val phcCapacity = MilliSatoshi(10000000000000L) // 100 BTC
+  val phcCapacity = MilliSatoshi(100000000000000L) // 1000 BTC
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
   val minNormalChansForPHC = 10
   val maxPHCPerNode = 2

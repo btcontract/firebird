@@ -30,14 +30,9 @@ case class ChannelUpdateExt(update: ChannelUpdate, crc32: Long, score: Long, use
 }
 
 object Router {
-  case class RouterConf(searchMaxFeeBase: MilliSatoshi,
-                        searchMaxFeePct: Double,
-                        firstPassMaxRouteLength: Int,
-                        firstPassMaxCltv: CltvExpiryDelta,
-                        mppMinPartAmount: MilliSatoshi,
-                        maxChannelFailures: Int,
-                        maxStrangeNodeFailures: Int,
-                        maxRemoteAttempts: Int)
+  case class RouterConf(searchMaxFeeBase: MilliSatoshi, searchMaxFeePct: Double, firstPassMaxRouteLength: Int,
+                        firstPassMaxCltv: CltvExpiryDelta, mppMinPartAmount: MilliSatoshi, maxChannelFailures: Int,
+                        maxStrangeNodeFailures: Int, maxRemoteAttempts: Int)
 
   // @formatter:off
   case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)

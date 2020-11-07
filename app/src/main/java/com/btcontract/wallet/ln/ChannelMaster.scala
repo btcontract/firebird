@@ -50,7 +50,6 @@ object PaymentFailure {
   final val RUN_OUT_OF_RETRY_ATTEMPTS = 2
   final val PEER_COULD_NOT_PARSE_ONION = 3
   final val NOT_RETRYING_NO_DETAILS = 4
-  final val TOO_MANY_TIMES = 1000
 }
 
 sealed trait PaymentFailure
@@ -225,7 +224,15 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   case class PaymentMasterData(payments: Map[ByteVector32, PaymentSender],
                                chanFailedAtAmount: Map[ChannelDesc, MilliSatoshi] = Map.empty withDefaultValue Long.MaxValue.msat,
                                nodeFailedWithUnknownUpdateTimes: Map[PublicKey, Int] = Map.empty withDefaultValue 0,
-                               chanFailedTimes: Map[ChannelDesc, Int] = Map.empty withDefaultValue 0)
+                               chanFailedTimes: Map[ChannelDesc, Int] = Map.empty withDefaultValue 0) {
+
+    def withFailureTimesReduced: PaymentMasterData = {
+      val chanFailedTimes1 = chanFailedTimes.mapValues(_ / 2)
+      val nodeFailedWithUnknownUpdateTimes1 = nodeFailedWithUnknownUpdateTimes.mapValues(_ / 2)
+      // Cut in half recorded failure times to give failing nodes and channels a second chance and keep them susceptible to exclusion if they keep failing
+      copy(chanFailedTimes = chanFailedTimes1, nodeFailedWithUnknownUpdateTimes = nodeFailedWithUnknownUpdateTimes1, chanFailedAtAmount = Map.empty)
+    }
+  }
 
   object PaymentMaster extends StateMachine[PaymentMasterData] with CanBeRepliedTo with ChannelListener { self =>
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
@@ -233,10 +240,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     become(PaymentMasterData(Map.empty), EXPECTING_PAYMENTS)
 
     def doProcess(change: Any): Unit = (change, state) match {
-      // Rememeber traces of previous failure times to exclude those channels faster if they keep failing
       case (CMDClearFailHistory, _) if data.payments.values.forall(fsm => SUCCEEDED == fsm.state || ABORTED == fsm.state) =>
-        val data1 = data.copy(chanFailedTimes = data.chanFailedTimes.mapValues(_ / 2), chanFailedAtAmount = Map.empty)
-        become(data1, state)
+        become(data.withFailureTimesReduced, state)
 
       case (cmd: CMD_SEND_MPP, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
         // Make pathfinder aware of payee-provided routing hints
@@ -465,18 +470,19 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                     resolveRemoteFail(data1, wait)
                 }
               } else {
-                // Invalid sig is a severe violation, ban sender node
-                PaymentMaster doProcess NodeFailed(nodeId, TOO_MANY_TIMES)
+                // Invalid sig is a severe violation, ban sender node for 6 next payments
+                PaymentMaster doProcess NodeFailed(nodeId, pf.routerConf.maxStrangeNodeFailures * 32)
                 resolveRemoteFail(data1, wait)
               }
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, _: Node) =>
-              PaymentMaster doProcess NodeFailed(nodeId, increment = TOO_MANY_TIMES)
+              // Node may become fine on next payment, but ban it for current attempts
+              PaymentMaster doProcess NodeFailed(nodeId, pf.routerConf.maxStrangeNodeFailures)
               resolveRemoteFail(data.withRemoteFailure(info.route, pkt), wait)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, _) =>
-              // A non-specific failure, ignore channel; note that we are guaranteed to find a failed edge for returned nodeId
-              PaymentMaster doProcess ChannelFailed(info.route.getEdgeForNode(nodeId).get.toDescAndCapacity, increment = TOO_MANY_TIMES)
+              // Generic channel failure, ignore it for this and next payment, note that we are guaranteed to find a failed edge for returned nodeId
+              PaymentMaster doProcess ChannelFailed(info.route.getEdgeForNode(nodeId).get.toDescAndCapacity, pf.routerConf.maxChannelFailures * 2)
               resolveRemoteFail(data.withRemoteFailure(info.route, pkt), wait)
 
           } getOrElse {
@@ -488,8 +494,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
               val data1 = data.copy(failures = failure +: data.failures)
               self abortAndNotify data1.withoutPartId(partId)
             } else {
-              // We don't know which exact remote node is sending garbage, exclude a random one
-              PaymentMaster doProcess NodeFailed(shuffle(nodesInBetween).head, increment = TOO_MANY_TIMES)
+              // We don't know which exact remote node is sending garbage, exclude a random one for current attempts
+              PaymentMaster doProcess NodeFailed(shuffle(nodesInBetween).head, pf.routerConf.maxStrangeNodeFailures)
               resolveRemoteFail(data.copy(failures = failure +: data.failures), wait)
             }
           }
