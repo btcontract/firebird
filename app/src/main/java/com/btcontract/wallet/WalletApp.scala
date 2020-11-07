@@ -8,7 +8,8 @@ import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
-import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, FiatRates, RatesInfo, SatDenomination}
+
+import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, FiatRates, LNUrl, RatesInfo, SatDenomination}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement, UpdateAddHtlc, UpdateFulfillHtlc}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt, utils}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}

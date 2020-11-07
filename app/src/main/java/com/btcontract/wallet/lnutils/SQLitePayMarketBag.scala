@@ -1,5 +1,6 @@
 package com.btcontract.wallet.lnutils
 
+import com.btcontract.wallet.ln.utils.{LNUrl, PayLinkInfo, PayRequest}
 import com.btcontract.wallet.helper.RichCursor
 import com.btcontract.wallet.ln.PayMarketTable
 import fr.acinq.eclair.MilliSatoshi

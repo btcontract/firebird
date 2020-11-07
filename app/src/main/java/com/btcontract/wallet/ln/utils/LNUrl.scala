@@ -1,4 +1,4 @@
-package com.btcontract.wallet.lnutils
+package com.btcontract.wallet.ln.utils
 
 import spray.json._
 import fr.acinq.eclair._
@@ -6,18 +6,16 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import com.btcontract.wallet.ln.{LNParams, PaymentAction}
-import android.graphics.{Bitmap, BitmapFactory}
 import fr.acinq.bitcoin.{Bech32, Crypto}
 
-import com.btcontract.wallet.lnutils.LNUrl.LNUrlAndData
-import com.btcontract.wallet.lnutils.PayRequest.PayMetaData
+import com.btcontract.wallet.ln.utils.uri.Uri
 import com.github.kevinsawicki.http.HttpRequest
+import com.btcontract.wallet.ln.utils.LNUrl.LNUrlAndData
+import com.btcontract.wallet.ln.utils.PayRequest.PayMetaData
 import fr.acinq.eclair.payment.PaymentRequest
-import com.btcontract.wallet.ln.utils.Rx
 import fr.acinq.eclair.wire.NodeAddress
 import rx.lang.scala.Observable
 import scodec.bits.ByteVector
-import android.net.Uri
 import scala.util.Try
 
 
@@ -40,7 +38,7 @@ object LNUrl {
   }
 
   def checkHost(host: String): Uri = {
-    val uri = android.net.Uri.parse(host)
+    val uri = Uri.parse(host)
     val isOnion = host.startsWith("http://") && uri.getHost.endsWith(NodeAddress.onionSuffix)
     val isSSLPlain = host.startsWith("https://") && !uri.getHost.endsWith(NodeAddress.onionSuffix)
     require(isSSLPlain || isOnion, "URI is neither Plain-HTTPS nor Onion-HTTP request")
@@ -50,24 +48,22 @@ object LNUrl {
 
 case class LNUrl(request: String) {
   val uri: Uri = LNUrl.checkHost(request)
-  lazy val k1 = Try(uri getQueryParameter "k1")
+  lazy val k1: Try[String] = Try(uri getQueryParameter "k1")
   lazy val isAuth: Boolean = Try(uri getQueryParameter "tag" equals "login").getOrElse(false)
 
   lazy val withdrawAttempt = Try {
     require(uri getQueryParameter "tag" equals "withdrawRequest")
     val minWithdrawableOpt = Some(uri.getQueryParameter("minWithdrawable").toLong)
+    val maxWithdrawable = uri.getQueryParameter("maxWithdrawable").toLong
 
-    WithdrawRequest(minWithdrawable = minWithdrawableOpt,
-      maxWithdrawable = uri.getQueryParameter("maxWithdrawable").toLong,
-      defaultDescription = uri getQueryParameter "defaultDescription",
-      callback = uri getQueryParameter "callback",
-      k1 = uri getQueryParameter "k1")
+    WithdrawRequest(uri getQueryParameter "callback", uri getQueryParameter "k1",
+      maxWithdrawable, uri getQueryParameter "defaultDescription", minWithdrawableOpt)
   }
 
   def lnUrlAndDataObs: Observable[LNUrlAndData] = Rx.ioQueue map { _ =>
     val level1DataResponse = HttpRequest.get(uri.toString, false).header("Connection", "close")
     val lnUrlData = to[LNUrlData](LNUrl guardResponse level1DataResponse.connectTimeout(15000).body)
-    require(lnUrlData.checkAgainstParent(this), "1st/2nd level callback domains mismatch")
+    require(lnUrlData.checkAgainstParent(this), "1st/2nd level callback domain mismatch")
     this -> lnUrlData
   }
 }
@@ -95,7 +91,6 @@ object PayRequest {
 }
 
 case class PayLinkInfo(image64: String, lnurl: LNUrl, text: String, lastMsat: MilliSatoshi, hash: String, lastDate: Long) {
-  lazy val bitmap: Try[Bitmap] = for (bytes <- imageBytesTry) yield BitmapFactory.decodeByteArray(bytes, 0, bytes.length)
   def imageBytesTry: Try[Bytes] = Try(org.bouncycastle.util.encoders.Base64 decode image64)
   lazy val paymentHash: ByteVector = ByteVector.fromValidHex(hash)
 }

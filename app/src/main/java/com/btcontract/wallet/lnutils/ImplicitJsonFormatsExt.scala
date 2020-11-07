@@ -1,6 +1,7 @@
 package com.btcontract.wallet.lnutils
 
 import spray.json._
+import com.btcontract.wallet.ln.utils._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.PaymentAction
 import fr.acinq.eclair.MilliSatoshi

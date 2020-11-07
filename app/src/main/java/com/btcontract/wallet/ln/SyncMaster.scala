@@ -22,7 +22,7 @@ import scodec.bits.ByteVector
 object SyncMaster {
   val WAITING = "state-waiting"
   val SHUT_DOWN = "state-shut-down"
-  val SHORT_ID_SYNC = "state-short-ids"
+  val SHORT_ID_SYNC = "state-short-id-sync"
   val GOSSIP_SYNC = "state-gossip-sync"
   val PHC_SYNC = "phc-sync"
 
@@ -96,7 +96,7 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   }
 
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =
-    cu.htlcMaximumMsat.contains(phcCapacity) && // PHC declared capacity must always be exactly 100 btc
+    cu.htlcMaximumMsat.contains(phcCapacity) && // PHC declared capacity must always be exactly 1000 btc
       expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) && // Remote node does not send the same update twice
       announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu) // We have received a related announce, signature is valid
 }
