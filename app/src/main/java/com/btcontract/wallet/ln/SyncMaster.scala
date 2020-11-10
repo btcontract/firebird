@@ -346,11 +346,11 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
   become(SyncMasterPHCData(Set.empty, attemptsLeft = 12), PHC_SYNC)
   me process CMDAddSync
 
-  // These checks require router and graph
+  // These checks require graph
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
     val node1HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).count(_.desc.a != ann.nodeId2) >= minNormalChansForPHC
     val node2HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).count(_.desc.a != ann.nodeId1) >= minNormalChansForPHC
-    !routerData.channels.contains(ann.shortChannelId) && node1HasEnoughIncomingChans && node2HasEnoughIncomingChans
+    node1HasEnoughIncomingChans && node2HasEnoughIncomingChans
   }
 
   def onSyncComplete(pure: CompleteHostedRoutingData): Unit

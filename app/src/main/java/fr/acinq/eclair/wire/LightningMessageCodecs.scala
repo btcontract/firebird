@@ -381,19 +381,19 @@ object LightningMessageCodecs {
     .typecase(65527, HostedMessagesCodecs.stateOverrideCodec)
     .typecase(65525, HostedMessagesCodecs.hostedChannelBrandingCodec)
     .typecase(65523, HostedMessagesCodecs.refundPendingCodec)
-    .typecase(65521, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
-    .typecase(65519, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
+    .typecase(65521, HostedMessagesCodecs.announcementSignatureCodec)
+    .typecase(65519, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
+    .typecase(65517, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
     // PHC sync
-    .typecase(65517, channelAnnouncementCodec) // Gossip
-    .typecase(65515, channelAnnouncementCodec) // Sync
-    .typecase(65513, channelUpdateCodec) // Gossip
-    .typecase(65511, channelUpdateCodec) // Sync
+    .typecase(65515, channelAnnouncementCodec) // Gossip
+    .typecase(65513, channelAnnouncementCodec) // Sync
+    .typecase(65511, channelUpdateCodec) // Gossip
+    .typecase(65509, channelUpdateCodec) // Sync
     // HC-adjusted normal messages
-    .typecase(65509, updateAddHtlcCodec)
-    .typecase(65507, updateFulfillHtlcCodec)
-    .typecase(65505, updateFailHtlcCodec)
-    .typecase(65503, updateFailMalformedHtlcCodec)
-    .typecase(65501, announcementSignaturesCodec)
+    .typecase(65507, updateAddHtlcCodec)
+    .typecase(65505, updateFulfillHtlcCodec)
+    .typecase(65503, updateFailHtlcCodec)
+    .typecase(65501, updateFailMalformedHtlcCodec)
     .typecase(65499, errorCodec)
 }
 
@@ -449,8 +449,12 @@ object HostedMessagesCodecs {
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateOverride]
 
-  val refundPendingCodec: Codec[RefundPending] =
-    (uint32 withContext "startedAt").as[RefundPending]
+  val refundPendingCodec: Codec[RefundPending] = (uint32 withContext "startedAt").as[RefundPending]
+
+  val announcementSignatureCodec: Codec[AnnouncementSignature] = {
+    (bytes64 withContext "nodeSignature") ::
+      (bool withContext "wantsReply")
+  }.as[AnnouncementSignature]
 
   val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] = (bytes32 withContext "chainHash").as[QueryPublicHostedChannels]
 

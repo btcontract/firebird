@@ -12,12 +12,9 @@ import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException, St
 import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.eclair.router.Announcements
 import java.util.concurrent.Executors
-
 import fr.acinq.bitcoin.ByteVector64
-
 import scala.concurrent.Future
 import scodec.bits.ByteVector
-
 import scala.util.Failure
 
 
