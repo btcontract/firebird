@@ -356,7 +356,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
       data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amountWithFees }
       // Adding waiting amounts and then removing outgoing adds is necessary to always have an accurate view because access to channel data is concurrent
-      shuffle(chans).flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
+      chans.flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
       finals filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
     }
 
@@ -514,10 +514,11 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
     def canBeSplit(totalAmount: MilliSatoshi): Boolean = totalAmount / 2 > pf.routerConf.mppMinPartAmount
     private def assignToChans(sendable: mutable.Map[ChanAndCommits, MilliSatoshi], data1: PaymentSenderData, amt: MilliSatoshi): Unit = {
+      val directChansFirst = shuffle(sendable.toSeq).sortBy { case cnc \ _ => if (cnc.commits.announce.na.nodeId == data1.cmd.targetNodeId) 0 else 1 }
       // This is a terminal method in a sense that it either successfully assigns an amount to channels or turns a payment info failed state
       // this method always sets a new partId to assigned parts so old payment statuses in data must be cleared before calling it
 
-      sendable.foldLeft(Map.empty[ByteVector, PartStatus] -> amt) {
+      directChansFirst.foldLeft(Map.empty[ByteVector, PartStatus] -> amt) {
         case (collected @ (accumulator, leftover), cnc \ chanSendable) if leftover > 0L.msat =>
           // If leftover becomes less than theoretical sendable minimum then we must bump it upwards
           val minSendable = cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat
@@ -549,7 +550,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
         case _ =>
           // A non-zero leftover is present with no more channels left
-          // partId should already have been removed upstream at this point
+          // partId should already have been removed from data at this point
           self abortAndNotify data1.withLocalFailure(NOT_ENOUGH_CAPACITY)
       }
     }

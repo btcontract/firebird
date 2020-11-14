@@ -36,6 +36,52 @@ class PaymentMasterSpec {
   }
 
   @Test
+  def utilizeDirectChannels(): Unit = {
+    val (normal, hosted) = getRandomStore
+    val channelBag = new SQLiteChannelBag(normal.db)
+    fillBasicGraph(normal)
+    val channelCAAnn = makeChannel(5L, c, a)
+    val updateCAFromC = makeUpdate(ShortChannelId(5L), c, a, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 100000000L.msat)
+    val updateCAFromA = makeUpdate(ShortChannelId(5L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = 100000000L.msat)
+    normal.addChannelAnnouncement(channelCAAnn)
+    normal.addChannelUpdateByPosition(updateCAFromC)
+    normal.addChannelUpdateByPosition(updateCAFromA)
+    val pf = new PathFinder(normal, hosted, LNParams.routerConf) {
+      def getLastTotalResyncStamp: Long = System.currentTimeMillis
+      def getLastNormalResyncStamp: Long = System.currentTimeMillis
+      def updateLastTotalResyncStamp(stamp: Long): Unit = println("updateLastTotalResyncStamp")
+      def updateLastNormalResyncStamp(stamp: Long): Unit = println("updateLastNormalResyncStamp")
+      def getExtraNodes: Set[NodeAnnouncement] = Set.empty
+    }
+
+    // Create 2 direct HC channels to different nodes
+    val hcs1 = makeHostedCommits(nodeId = a, alias = "peer1")
+    channelBag.put(ByteVector32(hcs1.announce.na.nodeId.value.take(32)), hcs1)
+
+    val hcs2 = makeHostedCommits(nodeId = c, alias = "peer2")
+    channelBag.put(ByteVector32(hcs2.announce.na.nodeId.value.take(32)), hcs2)
+
+    val cl = new BitcoinJChainLink(WalletApp.params)
+    val dummyPaymentInfoBag = new PaymentBag { def getPaymentInfo(paymentHash: ByteVector32): Option[PaymentInfo] = None }
+
+    for (_ <- 0 to 10) {
+      val master = new ChannelMaster(dummyPaymentInfoBag, channelBag, pf, cl) { val socketToChannelBridge: ConnectionListener = null }
+      val cmd = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 190000000L.msat, targetNodeId = a, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set.empty)
+      master.all.foreach(chan => chan.BECOME(chan.data, HostedChannel.OPEN))
+      pf process PathFinder.CMDLoadGraph
+      synchronized(wait(200L))
+      master.PaymentMaster process cmd
+      synchronized(wait(200L))
+
+      val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList.map(_.asInstanceOf[WaitForRouteOrInFlight])
+      assert(w1.flight.get.route.hops.size == 1) // us -> a
+      assert(w1.flight.get.route.fee == 0L.msat)
+      assert(w2.flight.get.route.hops.size == 2) // us -> a
+      assert(w2.flight.get.route.fee == 911L.msat)
+    }
+  }
+
+  @Test
   def splitAfterNoRouteFound(): Unit = {
     val (normal, hosted) = getRandomStore
     fillBasicGraph(normal)

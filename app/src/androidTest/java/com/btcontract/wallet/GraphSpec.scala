@@ -125,6 +125,18 @@ class GraphSpec {
   val r: RouteRequest = makeRouteRequest(fromNode = a, fromLocalEdge = null)
 
   @Test
+  def preferDirectPath(): Unit = {
+    val g = DirectedGraph(List(
+      makeEdge(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(ShortChannelId(2L), a, c, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
+      makeEdge(ShortChannelId(3L), c, b, 2.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat)
+    ))
+
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(target = b))
+    assert(route.hops.size == 1 && route.hops.head.desc.a == a && route.hops.head.desc.b == b)
+  }
+
+  @Test
   def calculateRoute(): Unit = {
     val g = DirectedGraph(List(
       makeEdge(ShortChannelId(1L), a, b, 1.msat, 10, cltvDelta = CltvExpiryDelta(1), maxHtlc = 500000.msat),
