@@ -41,7 +41,7 @@ object SyncMaster {
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
   val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
-  val phcCapacity = MilliSatoshi(100000000000000L) // 1000 BTC
+  val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
   val minNormalChansForPHC = 10
   val maxPHCPerNode = 2
@@ -96,7 +96,7 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   }
 
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =
-    cu.htlcMaximumMsat.contains(phcCapacity) && // PHC declared capacity must always be exactly 1000 btc
+    cu.htlcMaximumMsat.exists(_ >= minPHCCapacity) && // PHC declared capacity must be above some substantial value
       expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) && // Remote node does not send the same update twice
       announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu) // We have received a related announce, signature is valid
 }
@@ -348,8 +348,8 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
 
   // These checks require graph
   def isAcceptable(ann: ChannelAnnouncement): Boolean = {
-    val node1HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).count(_.desc.a != ann.nodeId2) >= minNormalChansForPHC
-    val node2HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).count(_.desc.a != ann.nodeId1) >= minNormalChansForPHC
+    val node1HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId1, Nil).size >= minNormalChansForPHC
+    val node2HasEnoughIncomingChans = routerData.graph.vertices.getOrElse(ann.nodeId2, Nil).size >= minNormalChansForPHC
     node1HasEnoughIncomingChans && node2HasEnoughIncomingChans
   }
 
