@@ -76,7 +76,7 @@ class PaymentMasterSpec {
       val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList.map(_.asInstanceOf[WaitForRouteOrInFlight])
       assert(w1.flight.get.route.hops.size == 1) // us -> a
       assert(w1.flight.get.route.fee == 0L.msat)
-      assert(w2.flight.get.route.hops.size == 2) // us -> a
+      assert(w2.flight.get.route.hops.size == 2) // us -> c -> a
       assert(w2.flight.get.route.fee == 911L.msat)
     }
   }
