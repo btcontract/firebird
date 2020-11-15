@@ -151,6 +151,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       case Some(senderFSM) \ _ if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS
       case Some(senderFSM) \ _ if PENDING == senderFSM.state || INIT == senderFSM.state => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
       case _ if inChannelOutgoingHtlcs.exists(_.paymentHash == paymentHash) => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+      case _ if PaymentMaster.totalSendable < amount => PaymentInfo.NOT_SENDABLE_LOW_BALANCE
       case _ => PaymentInfo.SENDABLE
     }
   }
