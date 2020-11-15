@@ -314,6 +314,14 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       case _ =>
     }
 
+    /**
+      * When in-flight outgoing HTLC gets trapped in a SUSPENDED channel: nothing happens (this is OK).
+      * Can trapped in-flight HTLC be removed from FSM and retried? No because `stateUpdated` can not be called in SUSPENDED channel (this is desired).
+      * Can FSM continue retrying other shards with a trapped shard present? Yes, because trapped one is not removed from FSM, its amount won't be re-sent again.
+      * Can a payment with a trapped shard be fulfilled with or without FSM present? Yes because host has to provide a preimage even in SUSPENDED state and has an incentive to do so.
+      * Can a payment with a trapped shard ever be failed? No, until SUSPENDED channel is overridden a shard will stay in it so payment will be either fulfilled or stay pending indefinitely.
+      */
+
     // Executed in channelContext
     override def stateUpdated(hc: HostedCommits): Unit = {
       hc.localSpec.remoteMalformed.foreach(process)
