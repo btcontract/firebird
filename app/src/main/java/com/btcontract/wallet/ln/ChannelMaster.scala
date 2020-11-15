@@ -128,7 +128,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     doProcess(cd)
   }
 
-  def pendingOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
+  def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(socketToChannelBridge), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
@@ -142,14 +142,17 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   }
 
   def checkIfSendable(paymentHash: ByteVector32, amount: MilliSatoshi): Int = {
-    val presentInSender: Option[PaymentSender] = PaymentMaster.data.payments.get(paymentHash)
-    val presentInDb = payBag.getPaymentInfo(paymentHash).exists(info => info.isIncoming || info.status == SUCCEEDED)
-    val pendingInChannel = pendingOutgoingHtlcs.exists(_.paymentHash == paymentHash)
+    val presentInSenderFSM = PaymentMaster.data.payments.get(paymentHash)
+    val presentInDb = payBag.getPaymentInfo(paymentHash)
 
-    if (PaymentMaster.totalSendable < amount) PaymentInfo.NOT_SENDABLE_LOW_BALANCE
-    else if (presentInSender.exists(fsm => SUCCEEDED == fsm.state) || presentInDb) PaymentInfo.NOT_SENDABLE_SUCCESS
-    else if (presentInSender.exists(fsm => PENDING == fsm.state || INIT == fsm.state) || pendingInChannel) PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-    else PaymentInfo.SENDABLE
+    Tuple2(presentInSenderFSM, presentInDb) match {
+      case _ \ Some(info) if info.isIncoming => PaymentInfo.NOT_SENDABLE_INCOMING
+      case _ \ Some(info) if SUCCEEDED == info.status => PaymentInfo.NOT_SENDABLE_SUCCESS
+      case Some(senderFSM) \ _ if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS
+      case Some(senderFSM) \ _ if PENDING == senderFSM.state || INIT == senderFSM.state => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+      case _ if inChannelOutgoingHtlcs.exists(_.paymentHash == paymentHash) => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
+      case _ => PaymentInfo.SENDABLE
+    }
   }
 
   // RESOLVING INCOMING MESSAGES
@@ -357,7 +360,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amountWithFees }
       // Adding waiting amounts and then removing outgoing adds is necessary to always have an accurate view because access to channel data is concurrent
       chans.flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
-      finals filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
+      finals.filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
     }
 
     def feeFreeBalance(cnc: ChanAndCommits): MilliSatoshi = {
@@ -563,7 +566,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       }
 
     private def abortAndNotify(data1: PaymentSenderData): Unit = {
-      val notInChannel = pendingOutgoingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
+      val notInChannel = inChannelOutgoingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
       if (notInChannel && data1.inFlights.isEmpty) events.outgoingFailed(data1)
       become(data1, ABORTED)
     }

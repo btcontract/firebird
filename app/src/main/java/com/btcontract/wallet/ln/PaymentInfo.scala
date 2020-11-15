@@ -12,7 +12,8 @@ object PaymentInfo {
   final val SENDABLE = 0
   final val NOT_SENDABLE_LOW_BALANCE = 1
   final val NOT_SENDABLE_IN_FLIGHT = 2
-  final val NOT_SENDABLE_SUCCESS = 3
+  final val NOT_SENDABLE_INCOMING = 3
+  final val NOT_SENDABLE_SUCCESS = 4
 }
 
 case class PaymentInfo(payeeNodeIdString: String, rawPr: String, preimageString: String, status: String, stamp: Long,
