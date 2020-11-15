@@ -442,9 +442,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
       case (fail: FailAndAdd, PENDING) =>
         data.parts.values collectFirst { case wait @ WaitForRouteOrInFlight(partId, _, _, Some(info), _, _) if partId == fail.partId =>
-          Sphinx.FailurePacket.decrypt(packet = fail.theirFail.reason, info.cmd.packetAndSecrets.sharedSecrets) map {
-            case finalPkt: Sphinx.DecryptedFailurePacket if finalPkt.originNode == data.cmd.targetNodeId =>
-              self abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, finalPkt)
+          Sphinx.FailurePacket.decrypt(fail.theirFail.reason, info.cmd.packetAndSecrets.sharedSecrets) map {
+            case pkt if pkt.originNode == data.cmd.targetNodeId || PaymentTimeout == pkt.failureMessage =>
+              self abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, pkt)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, failure: Update) =>
               // Pathfinder channels must be fully loaded from db at this point since we have already used them to construct a route
@@ -559,8 +559,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       }
     }
 
+    // Turn "in-flight" into "waiting for route" and expect for subsequent `CMDAskForRoute`
     private def resolveRemoteFail(data1: PaymentSenderData, wait: WaitForRouteOrInFlight): Unit =
-      PaymentMaster.currentSendable collectFirst { case cnc \ sendable if sendable >= wait.amount => cnc.chan } match {
+      shuffle(PaymentMaster.currentSendable.toSeq) collectFirst { case cnc \ chanSendable if chanSendable >= wait.amount => cnc.chan } match {
         case Some(chan) if wait.remoteAttempts < pf.routerConf.maxRemoteAttempts => become(data.copy(parts = data.parts + wait.oneMoreRemoteAttempt(chan).tuple), PENDING)
         case _ if canBeSplit(wait.amount) => become(data.withoutPartId(wait.partId), PENDING) doProcess SplitIntoHalves(wait.amount)
         case _ => self abortAndNotify data.withoutPartId(wait.partId).withLocalFailure(RUN_OUT_OF_RETRY_ATTEMPTS)
