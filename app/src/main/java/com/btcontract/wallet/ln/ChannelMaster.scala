@@ -182,8 +182,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
     // This method should always be executed in channel context
     // Using doProcess makes sure no external message gets intertwined in resolution
-    for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
     for (cmd <- badRightAway) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
+    for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
     for (chan <- all) chan doProcess CMD_PROCEED
   }
 

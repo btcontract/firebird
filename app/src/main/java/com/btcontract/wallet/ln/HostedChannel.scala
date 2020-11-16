@@ -143,8 +143,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
       // fails/fulfills when SUSPENDED are ignored because they may fulfill afterwards
       case (hc: HostedCommits, fulfill: UpdateFulfillHtlc, SLEEPING | OPEN | SUSPENDED) =>
         val isPresent = hc.nextLocalSpec.outgoingAdds.exists(add => add.id == fulfill.id && add.paymentHash == fulfill.paymentHash)
-        // Technically peer may send a preimage any time, even if new LCSS has not been reached yet so we only have HTLC in outgoing: always resolve
-        if (isPresent) BECOME(hc.addProposal(fulfill.asRemote), state) else throw new LightningException("Peer fulfilled an HTLC which does not exist")
+        // Technically peer may send a preimage any time, even if new LCSS has not been reached yet: always resolve anyway
+        if (isPresent) BECOME(hc.addProposal(fulfill.asRemote), state)
         events.fulfillReceived(fulfill)
 
 
@@ -194,13 +194,13 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       // Normal channel fetches on-chain when CLOSED, hosted sends a preimage and signals on UI when SUSPENDED
       case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
-        val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, paymentPreimage = preimage)
+        val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, preimage)
         STORESENDBECOME(hc.addProposal(updateFulfill.asLocal), state, updateFulfill)
 
 
       // This will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
       case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
-        val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, failureCode = code)
+        val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, code)
         STORESENDBECOME(hc.addProposal(updateFailMalformed.asLocal), state, updateFailMalformed)
 
 

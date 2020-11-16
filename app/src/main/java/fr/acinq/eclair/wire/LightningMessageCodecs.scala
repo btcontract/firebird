@@ -416,7 +416,8 @@ object HostedMessagesCodecs {
 
   val hostedChannelBrandingCodec: Codec[HostedChannelBranding] = {
     (rgb withContext "rgbColor") ::
-      (varsizebinarydata withContext "pngIcon")
+      (varsizebinarydata withContext "pngIcon") ::
+      (variableSizeBytes(uint16, utf8) withContext "contactInfo")
   }.as[HostedChannelBranding]
 
   val lastCrossSignedStateCodec: Codec[LastCrossSignedState] = {
