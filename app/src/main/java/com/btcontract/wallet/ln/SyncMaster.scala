@@ -41,6 +41,7 @@ object SyncMaster {
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
   val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
+  val maxPHCCapacity: MilliSatoshi = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
   val minNormalChansForPHC = 10
@@ -96,8 +97,8 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
   }
 
   def isUpdateAcceptable(cu: ChannelUpdate): Boolean =
-    cu.htlcMaximumMsat.exists(_ >= minPHCCapacity) && // PHC declared capacity must be above some substantial value
-      expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) && // Remote node does not send the same update twice
+    cu.htlcMaximumMsat.exists(cap => cap >= minPHCCapacity && cap <= maxPHCCapacity) && // Capacity within bounds
+      expectedPositions.getOrElse(cu.shortChannelId, Set.empty).contains(cu.position) && // Remote node must not send the same update twice
       announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu) // We have received a related announce, signature is valid
 }
 
