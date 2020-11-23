@@ -142,7 +142,7 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
   lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
 
   lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)
-  lazy val nodeSpecificHostedChanId: ByteVector32 = hostedChanId(nodeSpecificPubKey.value, na.nodeId.value)
+  lazy val nodeSpecificHostedChanId: ByteVector32 = hostedChanId(pubkey1 = nodeSpecificPubKey.value, pubkey2 = na.nodeId.value)
 }
 
 case class LightningMessageExt(msg: LightningMessage) {

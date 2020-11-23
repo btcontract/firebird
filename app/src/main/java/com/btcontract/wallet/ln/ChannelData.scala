@@ -126,7 +126,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   def getError: Option[Error] = localError.orElse(remoteError)
   def addProposal(futureUpdateMessage: LNDirectionalMessage): HostedCommits = copy(futureUpdates = futureUpdates :+ futureUpdateMessage)
   def newLocalBalance(so: StateOverride): MilliSatoshi = lastCrossSignedState.initHostedChannel.channelCapacityMsat - so.localBalanceMsat
-  def hostedState = HostedState(announce.nodeSpecificHostedChanId, nextLocalUpdates, nextRemoteUpdates, lastCrossSignedState)
+  def hostedState = HostedState(announce.nodeSpecificPubKey, announce.na.nodeId, nextLocalUpdates, nextRemoteUpdates, lastCrossSignedState)
 
   def sendAdd(cmd: CMD_ADD_HTLC): (HostedCommits, UpdateAddHtlc) = {
     // All local UpdateAddHtlc MUST have an internalId for MPP to work correctly!
