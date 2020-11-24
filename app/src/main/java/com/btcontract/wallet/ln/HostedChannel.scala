@@ -322,12 +322,12 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
     val inHtlcs = for (updateAddHtlc <- localLCSS.incomingHtlcs) yield Htlc(incoming = true, updateAddHtlc)
     val outHtlcs = for (updateAddHtlc <- localLCSS.outgoingHtlcs) yield Htlc(incoming = false, updateAddHtlc)
     val localSpec = CommitmentSpec(feeratePerKw = 0L, localLCSS.localBalanceMsat, localLCSS.remoteBalanceMsat, htlcs = (inHtlcs ++ outHtlcs).toSet)
-    HostedCommits(ext, localLCSS, futureUpdates = Vector.empty, localSpec, updateOpt = None, brandingOpt = None, localError = None, remoteError = None, System.currentTimeMillis)
+    HostedCommits(ext, localLCSS, futureUpdates = Vector.empty, localSpec, updateOpt = None, brandingOpt = None, localError = None, remoteError = None)
   }
 
   // CMDProceed is on ChannelManager
-  def localSuspend(hc: HostedCommits, errCode: ByteVector): Unit = {
-    val localError = Error(hc.announce.nodeSpecificHostedChanId, errCode)
+  def localSuspend(hc: HostedCommits, errCode: String): Unit = {
+    val localError = Error(hc.announce.nodeSpecificHostedChanId, ByteVector fromValidHex errCode)
     STORESENDBECOME(hc.copy(localError = localError.toSome), SUSPENDED, localError)
   }
 }

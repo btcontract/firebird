@@ -53,13 +53,7 @@ case class Init(features: Features, tlvs: TlvStream[InitTlv] = TlvStream.empty) 
   val networks: Seq[ByteVector32] = tlvs.get[InitTlv.Networks].map(_.chainHashes).getOrElse(Nil)
 }
 
-case class Error(channelId: ByteVector32, data: ByteVector) extends SetupMessage with HasChannelId {
-  def toAscii: String = if (fr.acinq.eclair.isAsciiPrintable(data)) new String(data.toArray, StandardCharsets.US_ASCII) else "n/a"
-}
-
-object Error {
-  def apply(channelId: ByteVector32, msg: String): Error = Error(channelId, ByteVector.view(msg.getBytes(Charsets.US_ASCII)))
-}
+case class Error(channelId: ByteVector32, data: ByteVector) extends SetupMessage with HasChannelId
 
 case class Ping(pongLength: Int, data: ByteVector) extends SetupMessage
 
