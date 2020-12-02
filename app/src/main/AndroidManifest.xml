@@ -84,6 +84,12 @@
             android:theme="@style/AppThemeNoActionBar"/>
 
         <activity
+            android:launchMode="singleTask"
+            android:name="ChanDetailsActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppThemeNoActionBar"/>
+
+        <activity
             android:name="SetupActivity"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
