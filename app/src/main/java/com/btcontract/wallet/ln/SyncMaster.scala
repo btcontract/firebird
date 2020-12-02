@@ -48,21 +48,17 @@ object SyncMaster {
   val maxPHCPerNode = 2
 
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
-  val maxNodesToSyncFrom = 1
-  val acceptThreshold = 0
-  val chunksToWait = 3
+  val maxNodesToSyncFrom = 3 // How many disjoint peers to use for majority sync
+  val acceptThreshold = 1 // ShortIds and updates are accepted if confirmed by more than this peers
+  val chunksToWait = 3 // Wait for at least this much sync iterations from any peer before recording results
 }
 
 sealed trait SyncWorkerData
 
 case class SyncWorkerShortIdsData(ranges: List[ReplyChannelRange] = Nil, from: Int) extends SyncWorkerData {
+  // This class contains a list of shortId ranges collected from a single remote peer, we need to make sure all of them are sound, that is, TLV data is of same size as main data
+  def isHolistic: Boolean = ranges.forall(rng => rng.shortChannelIds.array.size == rng.timestamps.timestamps.size && rng.timestamps.timestamps.size == rng.checksums.checksums.size)
   lazy val allShortIds: Seq[ShortChannelId] = ranges.flatMap(_.shortChannelIds.array)
-
-  def isHolistic: Boolean = ranges forall { range =>
-    val sameStampToChecksums = range.timestamps.timestamps.size == range.checksums.checksums.size
-    val sameDataToTlv = range.shortChannelIds.array.size == range.timestamps.timestamps.size
-    sameStampToChecksums && sameDataToTlv
-  }
 }
 
 case class SyncWorkerGossipData(syncMaster: SyncMaster,
@@ -111,14 +107,9 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   val pkap = PublicKeyAndPair(ann.nodeId, keyPair)
 
-  var j = 0
-
   val listener: ConnectionListener = new ConnectionListener {
     override def onOperational(worker: CommsTower.Worker): Unit = me process worker
-    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = {
-      if (msg.isInstanceOf[ChannelAnnouncement]) j += 1
-      me process msg
-    }
+    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = me process msg
 
     override def onDisconnect(worker: CommsTower.Worker): Unit = {
       // Remove this listener and remove an object itself from master
@@ -127,8 +118,6 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
       master process me
     }
   }
-
-  var i = 0
 
   become(null, WAITING)
   // Connect and start listening immediately
@@ -157,29 +146,21 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
 
     case (CMDGetGossip, data1: SyncWorkerGossipData, GOSSIP_SYNC) if data1.queries.isEmpty =>
       // We have no more queries left, inform master that we are finished and shut down
-      println(s"${ann.alias} gossip is complete")
       master process CMDGossipComplete(me)
       me process CMDShutdown
 
     case (CMDGetGossip, data1: SyncWorkerGossipData, GOSSIP_SYNC) =>
-      println(s"-- ${ann.alias} remaining gossip=${data1.queries.size}, asking for sids=${data1.queries.head.shortChannelIds.array.toSet.size}")
       // We still have queries left, send another one to peer and expect incoming gossip
       CommsTower.workers.get(pkap).foreach(_.handler process data1.queries.head)
 
     case (update: ChannelUpdate, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenAndTooSmallOrNoInfo(update) => become(d1.copy(excluded = d1.excluded + update.core), GOSSIP_SYNC)
     case (update: ChannelUpdate, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenAndNotExcluded(update.shortChannelId) => become(d1.copy(updates = d1.updates + update.lite), GOSSIP_SYNC)
-    case (ann: ChannelAnnouncement, d1: SyncWorkerGossipData, GOSSIP_SYNC) =>
-      if (d1.syncMaster.provenShortIds.contains(ann.shortChannelId)) become(d1.copy(announces = d1.announces + ann.lite), GOSSIP_SYNC)
-      i += 1
+    case (ann: ChannelAnnouncement, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenShortIds.contains(ann.shortChannelId) => become(d1.copy(announces = d1.announces + ann.lite), GOSSIP_SYNC)
 
     case (_: ReplyShortChannelIdsEnd, data1: SyncWorkerGossipData, GOSSIP_SYNC) =>
       // We have completed current chunk, inform master and either continue or complete
       become(SyncWorkerGossipData(data1.syncMaster, data1.queries.tail), GOSSIP_SYNC)
       master process CMDChunkComplete(me, data1)
-      println(s"Got announces1: $i")
-      println(s"Got announces2: $j")
-      i = 0
-      j = 0
       me process CMDGetGossip
 
     // PHC_SYNC
@@ -263,10 +244,9 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
         provenShortIds = accum.collect { case shortId \ confs if confs > acceptThreshold => shortId }.toSet
         val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.map(reply2Query).toList
-        println(s"Total sids: ${queries.flatMap(_.shortChannelIds.array).toSet.size}")
 
         // Transfer every worker into gossip syncing state
-        become(SyncMasterGossipData(currentSyncs, chunksToWait), GOSSIP_SYNC)
+        become(SyncMasterGossipData(currentSyncs, chunksLeft = chunksToWait), GOSSIP_SYNC)
         for (currentSync <- currentSyncs) currentSync process SyncWorkerGossipData(me, queries)
         for (currentSync <- currentSyncs) currentSync process CMDGetGossip
       }
@@ -296,9 +276,8 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         val nextData = data1.copy(chunksLeft = data1.chunksLeft - 1)
         become(nextData, GOSSIP_SYNC)
       } else {
-        // Batch is ready, send out and start a new one
-        val nextData = data1.copy(chunksLeft = chunksToWait)
-        become(nextData, GOSSIP_SYNC)
+        // Batch is ready, send it out and start a new one
+        become(data1.copy(chunksLeft = chunksToWait), GOSSIP_SYNC)
         sendPureNormalNetworkData
       }
 
