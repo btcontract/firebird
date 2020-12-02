@@ -9,7 +9,6 @@ import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Protocol, Satoshi, Script}
-import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
@@ -21,8 +20,9 @@ import java.nio.ByteOrder
 
 
 object LNParams {
-  val blocksPerDay: Int = 144
-  val cltvExpiry: Int = blocksPerDay * 2 - 3
+  val blocksPerDay: Int = 144 // On average we can expect this many blocks per day
+  val cltvRejectThreshold = 144 // Reject incoming payment if CLTV expiry is closer than this to currentChainTip when HTLC arrives
+  val incomingPaymentCltvExpiry: Int = 144 + 72 // Ask payer to set final CLTV expiry to payer's currentChainTip + this many blocks
   val chainHash: ByteVector32 = Block.LivenetGenesisBlock.hash
   val minHostedOnChainRefund = Satoshi(1000000L)
   val minHostedLiabilityBlockdays = 365
@@ -119,11 +119,11 @@ object ChanErrorCodes {
   final val ERR_HOSTED_WRONG_LOCAL_SIG = "0002"
   final val ERR_HOSTED_WRONG_REMOTE_SIG = "0003"
   final val ERR_HOSTED_CLOSED_BY_REMOTE_PEER = "0004"
-  final val ERR_HOSTED_TIMED_OUT_OUTGOING_HTLC = "0006"
-  final val ERR_HOSTED_IN_FLIGHT_HTLC_IN_RESTORE = "0007"
-  final val ERR_HOSTED_HTLC_EXTERNAL_FULFILL = "0008"
-  final val ERR_HOSTED_STATE_DISCONNECTED = "0009"
-  final val ERR_HOSTED_CHANNEL_DENIED = "0010"
+  final val ERR_HOSTED_TIMED_OUT_OUTGOING_HTLC = "0005"
+  final val ERR_HOSTED_HTLC_EXTERNAL_FULFILL = "0006"
+  final val ERR_HOSTED_CHANNEL_DENIED = "0007"
+  final val ERR_HOSTED_MANUAL_SUSPEND = "0008"
+  final val ERR_MISSING_CHANNEL = "0009"
 
   val ERR_NOT_ENOUGH_BALANCE = 1
   val ERR_TOO_MUCH_IN_FLIGHT = 2
@@ -144,11 +144,6 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
 
   lazy val nodeSpecificPkap: PublicKeyAndPair = PublicKeyAndPair(keyPair = KeyPair(nodeSpecificPubKey.value, nodeSpecificPrivKey.value), them = na.nodeId)
   lazy val nodeSpecificHostedChanId: ByteVector32 = hostedChanId(pubkey1 = nodeSpecificPubKey.value, pubkey2 = na.nodeId.value)
-}
-
-case class LightningMessageExt(msg: LightningMessage) {
-  def asRemote: LNDirectionalMessage = msg -> false
-  def asLocal: LNDirectionalMessage = msg -> true
 }
 
 class PaymentRequestExt(val pr: PaymentRequest, val raw: String) {

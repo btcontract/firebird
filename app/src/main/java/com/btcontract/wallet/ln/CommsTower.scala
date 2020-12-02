@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import rx.lang.scala.{Subscription, Observable}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
-import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, log, none}
+import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, none}
 import fr.acinq.eclair.wire.LightningMessageCodecs.lightningMessageCodec
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -86,7 +86,8 @@ object CommsTower {
 
           lightningMessageCodec.decode(data.bits).require.value match {
             case message: Init => handleTheirInit(listeners apply pkap, message)
-            case message: Ping if message.pongLength > 0 => handler process Pong(ByteVector fromValidHex "00" * message.pongLength)
+            case message: Ping => if (message.pongLength > 0) handler process Pong(ByteVector fromValidHex "00" * message.pongLength)
+            case message: HostedChannelBranding => for (lst <- listeners apply pkap) lst.onBrandingMessage(me, message)
             case message: HostedChannelMessage => for (lst <- listeners apply pkap) lst.onHostedMessage(me, message)
             case message: SwapOut => for (lst <- listeners apply pkap) lst.onSwapOutMessage(me, message)
             case message: SwapIn => for (lst <- listeners apply pkap) lst.onSwapInMessage(me, message)
@@ -129,6 +130,7 @@ object CommsTower {
 
 class ConnectionListener {
   def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = none
+  def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit = none
   def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = none
   def onSwapOutMessage(worker: CommsTower.Worker, msg: SwapOut): Unit = none
   def onSwapInMessage(worker: CommsTower.Worker, msg: SwapIn): Unit = none

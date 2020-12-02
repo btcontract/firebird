@@ -122,4 +122,18 @@
     <string name="rating_dialog_never">Never</string>
 
     <!-- /rating dialog -->
+
+    <!-- HC errors -->
+
+    <string name="err_hosted_wrong_blockday">Incorrect blockday</string>
+    <string name="err_hosted_wrong_local_sig">Incorrect local signature</string>
+    <string name="err_hosted_wrong_remote_sig">Incorrect remote signature</string>
+    <string name="err_hosted_closed_by_remote_peer">Closed by remote peer</string>
+    <string name="err_hosted_timed_out_outgoing_htlc">Timed out outgoing payment</string>
+    <string name="err_hosted_htlc_external_fulfill">External payment fulfill</string>
+    <string name="err_hosted_manual_suspend">Channel manually suspended</string>
+    <string name="err_hosted_missing_channel">Channel missing</string>
+    <string name="err_hosted_channel_denied">Channel denied</string>
+
+    <!-- /HC errors -->
 </resources>

@@ -11,7 +11,6 @@ import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
 import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
 import com.btcontract.wallet.ln.utils.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
 import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec}
-import com.btcontract.wallet.ln.CommitmentSpec.LNDirectionalMessage
 import fr.acinq.bitcoin.Crypto.PrivateKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.Codec
@@ -22,21 +21,18 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   val json2String: JsValue => String = (_: JsValue).convertTo[String]
   val TAG = "tag"
 
+  def json2BitVec(json: JsValue): Option[BitVector] = BitVector fromHex json2String(json)
+  def writeExt[T](ext: (String, JsValue), base: JsValue) = JsObject(base.asJsObject.fields + ext)
+
   def taggedJsonFmt[T](base: JsonFormat[T], tag: String): JsonFormat[T] = new JsonFormat[T] {
     def write(unserialized: T): JsValue = writeExt(TAG -> JsString(tag), base write unserialized)
     def read(serialized: JsValue): T = base read serialized
   }
 
-  def json2BitVec(json: JsValue): Option[BitVector] =
-    BitVector fromHex json2String(json)
-
   def sCodecJsonFmt[T](codec: Codec[T] /* Json <-> sCodec bridge */): JsonFormat[T] = new JsonFormat[T] {
     def read(serialized: JsValue): T = codec.decode(json2BitVec(serialized).get).require.value
     def write(unserialized: T): JsValue = codec.encode(unserialized).require.toHex.toJson
   }
-
-  def writeExt[T](ext: (String, JsValue), base: JsValue) =
-    JsObject(base.asJsObject.fields + ext)
 
   // Channel
 
@@ -66,10 +62,8 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     jsonFormat[NodeAnnouncement, NodeAnnouncementExt](NodeAnnouncementExt.apply, "na")
 
   implicit val hostedCommitsFmt: JsonFormat[HostedCommits] =
-    jsonFormat[NodeAnnouncementExt, LastCrossSignedState, Vector[LNDirectionalMessage],
-      CommitmentSpec, Option[ChannelUpdate], Option[HostedChannelBranding], Option[wire.Error], Option[wire.Error], Long,
-      HostedCommits](HostedCommits.apply, "announce", "lastCrossSignedState", "futureUpdates", "localSpec", "updateOpt",
-      "brandingOpt", "localError", "remoteError", "startedAt")
+    jsonFormat[NodeAnnouncementExt, LastCrossSignedState, Vector[LightningMessage], Vector[LightningMessage], CommitmentSpec, Option[ChannelUpdate], Option[wire.Error], Option[wire.Error], Long,
+      HostedCommits](HostedCommits.apply, "announce", "lastCrossSignedState", "nextLocalUpdates", "nextRemoteUpdates", "localSpec", "updateOpt", "localError", "remoteError", "startedAt")
 
   // Fiat feerates
 

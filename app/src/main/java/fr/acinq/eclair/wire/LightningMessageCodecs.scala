@@ -339,7 +339,6 @@ object LightningMessageCodecs {
 
   val lightningMessageCodec: DiscriminatorCodec[LightningMessage, Int] = discriminated[LightningMessage].by(uint16)
     .typecase(16, initCodec)
-    .typecase(17, errorCodec)
     .typecase(18, pingCodec)
     .typecase(19, pongCodec)
     .typecase(32, openChannelCodec)
@@ -384,12 +383,12 @@ object LightningMessageCodecs {
     .typecase(65521, HostedMessagesCodecs.announcementSignatureCodec)
     .typecase(65519, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
     .typecase(65517, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
-    // PHC sync
+    // PHC sync (duplicate codecs, fine because we will only receive these)
     .typecase(65515, channelAnnouncementCodec) // Gossip
     .typecase(65513, channelAnnouncementCodec) // Sync
     .typecase(65511, channelUpdateCodec) // Gossip
     .typecase(65509, channelUpdateCodec) // Sync
-    // HC-adjusted normal messages
+    // HC-adjusted normal messages (codecs MUST NOT be duplicated because we send and receive these)
     .typecase(65507, updateAddHtlcCodec)
     .typecase(65505, updateFulfillHtlcCodec)
     .typecase(65503, updateFailHtlcCodec)
@@ -438,8 +437,7 @@ object HostedMessagesCodecs {
     (uint32 withContext "blockDay") ::
       (uint32 withContext "localUpdates") ::
       (uint32 withContext "remoteUpdates") ::
-      (bytes64 withContext "localSigOfRemoteLCSS") ::
-      (bool withContext "isTerminal")
+      (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateUpdate]
 
   val stateOverrideCodec: Codec[StateOverride] = {

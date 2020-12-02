@@ -9,7 +9,6 @@ import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncem
 import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
-import com.btcontract.wallet.ln.LightningMessageExt
 import fr.acinq.eclair.router.Router.ChannelDesc
 import fr.acinq.eclair.router.RouteCalculation
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
@@ -31,7 +30,6 @@ object Tools {
   }
 
   implicit def bytes2VecView(underlyingBytes: Bytes): ByteVector = ByteVector.view(underlyingBytes)
-  implicit def lightningMessage2Ext(msg: LightningMessage): LightningMessageExt = LightningMessageExt(msg)
 
   def toMapBy[K, V](items: Iterable[V], mapper: V => K): Map[K, V] = items.map(item => mapper(item) -> item).toMap
   def mapKeys[K, V, K1](m: mutable.Map[K, V], fun: K => K1, defVal: V): mutable.Map[K1, V] = m map { case key \ value => fun(key) -> value } withDefaultValue defVal
