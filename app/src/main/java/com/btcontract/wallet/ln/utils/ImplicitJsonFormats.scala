@@ -21,19 +21,18 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   val json2String: JsValue => String = (_: JsValue).convertTo[String]
   val TAG = "tag"
 
+  def json2BitVec(json: JsValue): Option[BitVector] = BitVector fromHex json2String(json)
+  def writeExt[T](ext: (String, JsValue), base: JsValue) = JsObject(base.asJsObject.fields + ext)
+
   def taggedJsonFmt[T](base: JsonFormat[T], tag: String): JsonFormat[T] = new JsonFormat[T] {
     def write(unserialized: T): JsValue = writeExt(TAG -> JsString(tag), base write unserialized)
     def read(serialized: JsValue): T = base read serialized
   }
 
-  def json2BitVec(json: JsValue): Option[BitVector] = BitVector fromHex json2String(json)
-
   def sCodecJsonFmt[T](codec: Codec[T] /* Json <-> sCodec bridge */): JsonFormat[T] = new JsonFormat[T] {
     def read(serialized: JsValue): T = codec.decode(json2BitVec(serialized).get).require.value
     def write(unserialized: T): JsValue = codec.encode(unserialized).require.toHex.toJson
   }
-
-  def writeExt[T](ext: (String, JsValue), base: JsValue) = JsObject(base.asJsObject.fields + ext)
 
   // Channel
 

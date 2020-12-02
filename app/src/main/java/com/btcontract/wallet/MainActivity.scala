@@ -11,7 +11,7 @@ import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import android.net.{ConnectivityManager, NetworkCapabilities}
 import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
-import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage, NodeAnnouncement}
+import fr.acinq.eclair.wire.{HostedChannelBranding, HostedChannelMessage, LightningMessage, NodeAnnouncement}
 import org.ndeftools.util.activity.NfcReaderActivity
 import com.btcontract.wallet.ln.utils.Rx
 import com.ornach.nobobutton.NoboButton
@@ -42,6 +42,7 @@ object MainActivity {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
           override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
+          override def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit = WalletApp.dataBag.putBranding(worker.ann.nodeId, msg)
           override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
 
           override def onDisconnect(worker: CommsTower.Worker): Unit = {

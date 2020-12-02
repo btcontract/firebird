@@ -167,7 +167,7 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
 
     case (worker: CommsTower.Worker, _: SyncWorkerPHCData, PHC_SYNC) => worker.handler process QueryPublicHostedChannels(LNParams.chainHash)
     case (update: ChannelUpdate, d1: SyncWorkerPHCData, PHC_SYNC) if d1.isUpdateAcceptable(update) => become(d1 withNewUpdate update.lite, PHC_SYNC)
-    case (ann: ChannelAnnouncement, d1: SyncWorkerPHCData, PHC_SYNC) if d1.isAcceptable(ann) && d1.phcMaster.isAcceptable(ann) => become(d1 withNewAnnounce ann.lite, PHC_SYNC)
+    case (ann: ChannelAnnouncement, d1: SyncWorkerPHCData, PHC_SYNC) if d1.isAcceptable(ann) && d1.phcMaster.isAcceptable(ann) => become(d1.withNewAnnounce(ann.lite), PHC_SYNC)
 
     case (_: ReplyPublicHostedChannelsEnd, completeSyncData: SyncWorkerPHCData, PHC_SYNC) =>
       // Peer has informed us that there is no more PHC gossip left, inform master and shut down
@@ -188,7 +188,7 @@ trait SyncMasterData extends {
 
 trait GetNewSyncMachine extends CanBeRepliedTo { me =>
   def getNewSync(data1: SyncMasterData, allNodes: Set[NodeAnnouncement] = Set.empty): SyncWorker = {
-    val goodAnnounces: Set[NodeAnnouncement] = allNodes -- data1.activeSyncs.map(activeSync => activeSync.ann)
+    val goodAnnounces = allNodes -- data1.activeSyncs.map(activeSync => activeSync.ann)
     SyncWorker(me, randomKeyPair, shuffle(goodAnnounces.toList).head)
   }
 }
