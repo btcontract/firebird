@@ -31,8 +31,8 @@ class PaymentMasterSpec {
     val init_hosted_channel = InitHostedChannel(UInt64(toLocal.underlying + 100000000L), 10.msat, 20, 200000000L.msat, 5000, 1000000.sat, 0.msat)
     val lcss: LastCrossSignedState = LastCrossSignedState(refundScriptPubKey = randomBytes(119), init_hosted_channel, blockDay = 100, localBalanceMsat = toLocal, remoteBalanceMsat = 100000000L.msat,
       localUpdates = 201, remoteUpdates = 101, incomingHtlcs = Nil, outgoingHtlcs = Nil, remoteSigOfLocal = ByteVector64.Zeroes, localSigOfRemote = ByteVector64.Zeroes)
-    HostedCommits(NodeAnnouncementExt(announce), lastCrossSignedState = lcss, futureUpdates = Vector.empty, localSpec = spec, updateOpt = None, brandingOpt = None, localError = None,
-      remoteError = None, startedAt = System.currentTimeMillis)
+    HostedCommits(NodeAnnouncementExt(announce), lastCrossSignedState = lcss, nextLocalUpdates = Vector.empty, nextRemoteUpdates = Vector.empty, localSpec = spec,
+      updateOpt = None, localError = None, remoteError = None, startedAt = System.currentTimeMillis)
   }
 
   @Test

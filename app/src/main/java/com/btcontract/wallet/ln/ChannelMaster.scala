@@ -174,8 +174,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       case payments \ Some(info) if payments.exists(_.payload.totalAmount < info.amountOrZero) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       case payments \ Some(info) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       case payments \ Some(info) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (payToFulfill <- payments) yield CMD_FULFILL_HTLC(info.preimage, payToFulfill.add)
-      // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN or post-restart incoming leftovers, silently fullfil these
+      // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN or post-restart incoming leftovers, fullfil all of them
       case payments \ Some(info) if info.isIncoming && info.status == SUCCEEDED => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+      // This can happen either when incoming payments time out or when we restart and have partial unfulfilled incoming leftovers, fail all of them
       case payments \ _ if incomingTimeoutWorker.hasFinishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
       case _ => Vector.empty
     }
@@ -215,6 +216,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
     // An incoming payment arrives so we prolong waiting for the rest of shards
     case (_, _, add: UpdateAddHtlc) => incomingTimeoutWorker replaceWork add.paymentHash
+    // `incomingTimeoutWorker.hasFinishedOrNeverStarted` becomes true, fail pending incoming
     case (_, _, CMD_INCOMING_TIMEOUT) => processIncoming
   }
 
@@ -466,8 +468,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                   case Some(edge) if edge.updExt.update.shortChannelId != failure.update.shortChannelId =>
                     // This is fine: remote node has used a different channel than the one we have initially requested
                     // But remote node may send such errors infinitely so increment this specific type of failure
+                    // This most likely means an originally requested channel has also been tried and failed
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
-                    PaymentMaster doProcess NodeFailed(failedNodeId = nodeId, increment = 1)
+                    PaymentMaster doProcess NodeFailed(nodeId, increment = 1)
                     resolveRemoteFail(data1, wait)
 
                   case Some(edge) if edge.updExt.update.core == failure.update.core =>
@@ -477,8 +480,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                     resolveRemoteFail(data1, wait)
 
                   case _ =>
-                    // New update is enabled: refreshed in graph, not penalized here
-                    // New update is disabled: removed from graph, not penalized here
+                    // Something like new feerates or CLTV, can be retried after updating graph
+                    // If fresh update is enabled: already refreshed in graph, not penalized here
+                    // If fresh update is disabled: already removed from graph, not penalized here
                     resolveRemoteFail(data1, wait)
                 }
               } else {

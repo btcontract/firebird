@@ -438,8 +438,7 @@ object HostedMessagesCodecs {
     (uint32 withContext "blockDay") ::
       (uint32 withContext "localUpdates") ::
       (uint32 withContext "remoteUpdates") ::
-      (bytes64 withContext "localSigOfRemoteLCSS") ::
-      (bool withContext "isTerminal")
+      (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateUpdate]
 
   val stateOverrideCodec: Codec[StateOverride] = {

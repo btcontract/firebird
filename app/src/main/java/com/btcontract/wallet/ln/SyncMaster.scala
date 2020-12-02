@@ -40,12 +40,16 @@ object SyncMaster {
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
-  val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
-  val maxPHCCapacity: MilliSatoshi = MilliSatoshi(1000000000000000L) // 10 000 BTC
+  val syncNodes: Set[NodeAnnouncement] = Set(acinq) // Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
+
+  val maxPHCCapacity = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
-  val minCapacity = MilliSatoshi(500000000L) // 500k sat
   val minNormalChansForPHC = 10
   val maxPHCPerNode = 2
+
+  val minCapacity = MilliSatoshi(500000000L) // 500k sat
+  val maxNodesToSyncFrom = 1
+  val acceptThreshold = 0
   val chunksToWait = 3
 }
 
@@ -107,9 +111,14 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   val pkap = PublicKeyAndPair(ann.nodeId, keyPair)
 
+  var j = 0
+
   val listener: ConnectionListener = new ConnectionListener {
     override def onOperational(worker: CommsTower.Worker): Unit = me process worker
-    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = me process msg
+    override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = {
+      if (msg.isInstanceOf[ChannelAnnouncement]) j += 1
+      me process msg
+    }
 
     override def onDisconnect(worker: CommsTower.Worker): Unit = {
       // Remove this listener and remove an object itself from master
@@ -118,6 +127,8 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
       master process me
     }
   }
+
+  var i = 0
 
   become(null, WAITING)
   // Connect and start listening immediately
@@ -146,21 +157,29 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
 
     case (CMDGetGossip, data1: SyncWorkerGossipData, GOSSIP_SYNC) if data1.queries.isEmpty =>
       // We have no more queries left, inform master that we are finished and shut down
+      println(s"${ann.alias} gossip is complete")
       master process CMDGossipComplete(me)
       me process CMDShutdown
 
     case (CMDGetGossip, data1: SyncWorkerGossipData, GOSSIP_SYNC) =>
+      println(s"-- ${ann.alias} remaining gossip=${data1.queries.size}, asking for sids=${data1.queries.head.shortChannelIds.array.toSet.size}")
       // We still have queries left, send another one to peer and expect incoming gossip
       CommsTower.workers.get(pkap).foreach(_.handler process data1.queries.head)
 
     case (update: ChannelUpdate, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenAndTooSmallOrNoInfo(update) => become(d1.copy(excluded = d1.excluded + update.core), GOSSIP_SYNC)
     case (update: ChannelUpdate, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenAndNotExcluded(update.shortChannelId) => become(d1.copy(updates = d1.updates + update.lite), GOSSIP_SYNC)
-    case (ann: ChannelAnnouncement, d1: SyncWorkerGossipData, GOSSIP_SYNC) if d1.syncMaster.provenShortIds.contains(ann.shortChannelId) => become(d1.copy(announces = d1.announces + ann.lite), GOSSIP_SYNC)
+    case (ann: ChannelAnnouncement, d1: SyncWorkerGossipData, GOSSIP_SYNC) =>
+      if (d1.syncMaster.provenShortIds.contains(ann.shortChannelId)) become(d1.copy(announces = d1.announces + ann.lite), GOSSIP_SYNC)
+      i += 1
 
     case (_: ReplyShortChannelIdsEnd, data1: SyncWorkerGossipData, GOSSIP_SYNC) =>
       // We have completed current chunk, inform master and either continue or complete
       become(SyncWorkerGossipData(data1.syncMaster, data1.queries.tail), GOSSIP_SYNC)
       master process CMDChunkComplete(me, data1)
+      println(s"Got announces1: $i")
+      println(s"Got announces2: $j")
+      i = 0
+      j = 0
       me process CMDGetGossip
 
     // PHC_SYNC
@@ -183,9 +202,7 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
 }
 
 trait SyncMasterData extends {
-  lazy val threshold: Int = maxSyncs / 2
   def activeSyncs: Set[SyncWorker]
-  def maxSyncs: Int
 }
 
 trait GetNewSyncMachine extends CanBeRepliedTo { me =>
@@ -196,8 +213,8 @@ trait GetNewSyncMachine extends CanBeRepliedTo { me =>
 }
 
 case class PureRoutingData(announces: Set[ChannelAnnouncement], updates: Set[ChannelUpdate], excluded: Set[UpdateCore] = Set.empty)
-case class SyncMasterShortIdData(activeSyncs: Set[SyncWorker], collectedRanges: Map[PublicKey, SyncWorkerShortIdsData], maxSyncs: Int) extends SyncMasterData
-case class SyncMasterGossipData(activeSyncs: Set[SyncWorker], chunksLeft: Int, maxSyncs: Int) extends SyncMasterData
+case class SyncMasterShortIdData(activeSyncs: Set[SyncWorker], collectedRanges: Map[PublicKey, SyncWorkerShortIdsData] = Map.empty) extends SyncMasterData
+case class SyncMasterGossipData(activeSyncs: Set[SyncWorker], chunksLeft: Int) extends SyncMasterData
 
 case class UpdateConifrmState(liteUpdOpt: Option[ChannelUpdate], confirmedBy: ConifrmedBySet) {
   def add(cu: ChannelUpdate, from: PublicKey): UpdateConifrmState = copy(liteUpdOpt = Some(cu), confirmedBy = confirmedBy + from)
@@ -217,45 +234,46 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
 
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
-  become(SyncMasterShortIdData(Set.empty, Map.empty, maxSyncs = 3), SHORT_ID_SYNC)
-  for (_ <- 0 until data.maxSyncs) me process CMDAddSync
+  become(SyncMasterShortIdData(Set.empty, Map.empty), SHORT_ID_SYNC)
+  for (_ <- 0 until maxNodesToSyncFrom) me process CMDAddSync
 
   def doProcess(change: Any): Unit = (change, data, state) match {
-    case (CMDAddSync, data1: SyncMasterShortIdData, SHORT_ID_SYNC) if data1.activeSyncs.size < data1.maxSyncs =>
+    case (CMDAddSync, data1: SyncMasterShortIdData, SHORT_ID_SYNC) if data1.activeSyncs.size < maxNodesToSyncFrom =>
       // Turns out we don't have enough workers, create one with unused remote nodeId and track its progress
       val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes)
 
-      // Worker is connecting, tell it get shortIds once connection is there
+      // Worker is connecting, tell it to get shortIds once connection is there
       become(data1.copy(activeSyncs = data1.activeSyncs + newSyncWorker), SHORT_ID_SYNC)
-      newSyncWorker process SyncWorkerShortIdsData(ranges = Nil, from = 550000)
+      newSyncWorker process SyncWorkerShortIdsData(ranges = Nil, from = 0)
 
-    case (sync: SyncWorker, SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
-      val data1 = SyncMasterShortIdData(activeSyncs - sync, ranges - sync.pkap.them, maxSyncs)
+    case (sync: SyncWorker, SyncMasterShortIdData(activeSyncs, ranges), SHORT_ID_SYNC) =>
       // Sync has disconnected, stop tracking it and try to connect to another one with delay
+      val data1 = SyncMasterShortIdData(activeSyncs - sync, ranges - sync.pkap.them)
       Rx.ioQueue.delay(3.seconds).foreach(_ => me process CMDAddSync)
       become(data1, SHORT_ID_SYNC)
 
-    case (CMDShortIdsComplete(sync, ranges1), SyncMasterShortIdData(activeSyncs, ranges, maxSyncs), SHORT_ID_SYNC) =>
-      val data1 = SyncMasterShortIdData(activeSyncs, ranges + (sync.pkap.them -> ranges1), maxSyncs)
+    case (CMDShortIdsComplete(sync, ranges1), SyncMasterShortIdData(currentSyncs, ranges), SHORT_ID_SYNC) =>
+      val data1 = SyncMasterShortIdData(collectedRanges = ranges + (sync.pkap.them -> ranges1), activeSyncs = currentSyncs)
       become(data1, SHORT_ID_SYNC)
 
-      if (data1.collectedRanges.size == maxSyncs) {
-        // We have collected enough channel ranges for gossip
+      if (data1.collectedRanges.size == maxNodesToSyncFrom) {
+        // We have collected enough channel ranges to start gossip
         val goodRanges = data1.collectedRanges.values.filter(_.isHolistic)
         val accum = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
         goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
-        provenShortIds = accum.collect { case shortId \ confs if confs > data.threshold => shortId }.toSet
+        provenShortIds = accum.collect { case shortId \ confs if confs > acceptThreshold => shortId }.toSet
         val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.map(reply2Query).toList
+        println(s"Total sids: ${queries.flatMap(_.shortChannelIds.array).toSet.size}")
 
         // Transfer every worker into gossip syncing state
-        become(SyncMasterGossipData(activeSyncs, chunksToWait, maxSyncs), GOSSIP_SYNC)
-        for (currentSync <- activeSyncs) currentSync process SyncWorkerGossipData(me, queries)
-        for (currentSync <- activeSyncs) currentSync process CMDGetGossip
+        become(SyncMasterGossipData(currentSyncs, chunksToWait), GOSSIP_SYNC)
+        for (currentSync <- currentSyncs) currentSync process SyncWorkerGossipData(me, queries)
+        for (currentSync <- currentSyncs) currentSync process CMDGetGossip
       }
 
     // GOSSIP_SYNC
 
-    case (workerData: SyncWorkerGossipData, data1: SyncMasterGossipData, GOSSIP_SYNC) if data1.activeSyncs.size < data1.maxSyncs =>
+    case (workerData: SyncWorkerGossipData, data1: SyncMasterGossipData, GOSSIP_SYNC) if data1.activeSyncs.size < maxNodesToSyncFrom =>
       // Turns out one of the workers has disconnected while getting gossip, create one with unused remote nodeId and track its progress
       val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes)
 
@@ -281,7 +299,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         // Batch is ready, send out and start a new one
         val nextData = data1.copy(chunksLeft = chunksToWait)
         become(nextData, GOSSIP_SYNC)
-        sendPureData(nextData)
+        sendPureNormalNetworkData
       }
 
     case (CMDGossipComplete(sync), data1: SyncMasterGossipData, GOSSIP_SYNC) =>
@@ -291,16 +309,16 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         become(nextData, GOSSIP_SYNC)
       } else {
         become(null, SHUT_DOWN)
-        sendPureData(nextData)
+        sendPureNormalNetworkData
         onTotalSyncComplete
       }
 
     case _ =>
   }
 
-  def sendPureData(data1: SyncMasterGossipData): Unit = {
-    val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > data1.threshold => announce }.toSet
-    val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > data1.threshold => update }.toSet
+  def sendPureNormalNetworkData: Unit = {
+    val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > acceptThreshold => announce }.toSet
+    val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > acceptThreshold => update }.toSet
     me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates)
     for (announce <- goodAnnounces) confirmedChanAnnounces -= announce
     for (update <- goodUpdates) confirmedChanUpdates -= update.core

@@ -4,12 +4,14 @@ import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.ChanErrorCodes._
-import com.btcontract.wallet.ln.CommitmentSpec.{LNDirectionalMessage, PreimageAndAdd}
+
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
 import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import fr.acinq.eclair.channel.CMD_ADD_HTLC
-import scodec.bits.{BitVector, ByteVector}
+
+import com.btcontract.wallet.ln.CommitmentSpec.PreimageAndAdd
+import scodec.bits.ByteVector
 
 
 case class Htlc(incoming: Boolean, add: UpdateAddHtlc) {
@@ -28,15 +30,14 @@ case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: M
                           remoteFailed: Set[FailAndAdd] = Set.empty, remoteMalformed: Set[MalformAndAdd] = Set.empty,
                           localFulfilled: Set[ByteVector32] = Set.empty) {
 
-  def findHtlcById(id: Long, isIncoming: Boolean): Option[Htlc] = htlcs.find(htlc => htlc.add.id == id && htlc.incoming == isIncoming)
-  lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case accumulator \ outAdd => accumulator + outAdd.amountMsat }
-  lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case accumulator \ inAdd => accumulator + inAdd.amountMsat }
-  lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(false, add) => add }
   lazy val incomingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(true, add) => add }
+  lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(false, add) => add }
+  lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case accumulator \ inAdd => accumulator + inAdd.amountMsat }
+  lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case accumulator \ outAdd => accumulator + outAdd.amountMsat }
+  def findHtlcById(id: Long, isIncoming: Boolean): Option[Htlc] = htlcs.find(htlc => htlc.add.id == id && htlc.incoming == isIncoming)
 }
 
 object CommitmentSpec {
-  type LNDirectionalMessage = (LightningMessage, Boolean)
   type PreimageAndAdd = (ByteVector32, UpdateAddHtlc)
 
   def fulfill(cs: CommitmentSpec, isIncoming: Boolean, m: UpdateFulfillHtlc): CommitmentSpec = cs.findHtlcById(m.id, isIncoming) match {
@@ -84,28 +85,23 @@ object CommitmentSpec {
 sealed trait ChannelData { val announce: NodeAnnouncementExt }
 case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: HostedCommits) extends ChannelData
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
-case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState, futureUpdates: Vector[LNDirectionalMessage],
-                         localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], brandingOpt: Option[HostedChannelBranding], localError: Option[Error],
-                         remoteError: Option[Error], startedAt: Long = System.currentTimeMillis) extends ChannelData {
 
-  lazy val Tuple4(nextLocalUpdates, nextRemoteUpdates, nextTotalLocal, nextTotalRemote) = {
-    val base = (Vector.empty[LightningMessage], Vector.empty[LightningMessage], lastCrossSignedState.localUpdates, lastCrossSignedState.remoteUpdates)
+case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState,
+                         nextLocalUpdates: Vector[LightningMessage], nextRemoteUpdates: Vector[LightningMessage],
+                         localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], localError: Option[Error], remoteError: Option[Error],
+                         startedAt: Long = System.currentTimeMillis) extends ChannelData {
 
-    futureUpdates.foldLeft(base) {
-      case (localMessages, remoteMessages, totalLocalNumber, totalRemoteNumber) \ (msg \ true) => (localMessages :+ msg, remoteMessages, totalLocalNumber + 1, totalRemoteNumber)
-      case (localMessages, remoteMessages, totalLocalNumber, totalRemoteNumber) \ (msg \ false) => (localMessages, remoteMessages :+ msg, totalLocalNumber, totalRemoteNumber + 1)
-    }
-  }
+  val nextTotalLocal: Long = lastCrossSignedState.localUpdates + nextLocalUpdates.size
+  val nextTotalRemote: Long = lastCrossSignedState.remoteUpdates + nextRemoteUpdates.size
+  lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
+  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
+  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
+  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
 
   lazy val revealedPreimages: Seq[PreimageAndAdd] = for {
     UpdateFulfillHtlc(_, id, paymentPreimage) <- nextLocalUpdates
     Htlc(true, add) <- localSpec.findHtlcById(id, isIncoming = true)
   } yield paymentPreimage -> add
-
-  lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
-  lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
-  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
-  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
 
   def nextLocalUnsignedLCSS(blockDay: Long): LastCrossSignedState = {
     val incomingHtlcs \ outgoingHtlcs = nextLocalSpec.htlcs.toList.partition(_.incoming)
@@ -115,25 +111,16 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
       localSigOfRemote = ByteVector64.Zeroes, remoteSigOfLocal = ByteVector64.Zeroes)
   }
 
-  def findState(remoteLCSS: LastCrossSignedState): Seq[HostedCommits] = for {
-    // Find a hypothetic future state which matches their current update numbers
-
-    previousIndex <- futureUpdates.indices drop 1
-    previousHC = copy(futureUpdates = futureUpdates take previousIndex)
-    if previousHC.nextLocalUnsignedLCSS(remoteLCSS.blockDay).isEven(remoteLCSS)
-  } yield previousHC
-
   def getError: Option[Error] = localError.orElse(remoteError)
-  def addProposal(futureUpdateMessage: LNDirectionalMessage): HostedCommits = copy(futureUpdates = futureUpdates :+ futureUpdateMessage)
-  def newLocalBalance(so: StateOverride): MilliSatoshi = lastCrossSignedState.initHostedChannel.channelCapacityMsat - so.localBalanceMsat
+  def addLocalProposal(update: LightningMessage): HostedCommits = copy(nextLocalUpdates = nextLocalUpdates :+ update)
+  def addRemoteProposal(update: LightningMessage): HostedCommits = copy(nextRemoteUpdates = nextRemoteUpdates :+ update)
   def hostedState = HostedState(announce.nodeSpecificPubKey, announce.na.nodeId, nextLocalUpdates, nextRemoteUpdates, lastCrossSignedState)
 
   def sendAdd(cmd: CMD_ADD_HTLC): (HostedCommits, UpdateAddHtlc) = {
-    // All local UpdateAddHtlc MUST have an internalId for MPP to work correctly!
     val internalId: TlvStream[Tlv] = TlvStream(UpdateAddTlv.InternalId(cmd.internalId) :: Nil)
     // Let's add this change and see if the new state violates any of constraints including those imposed by them on us
     val add = UpdateAddHtlc(announce.nodeSpecificHostedChanId, nextTotalLocal + 1, cmd.firstAmount, cmd.paymentHash, cmd.cltvExpiry, cmd.packetAndSecrets.packet, internalId)
-    val commits1: HostedCommits = addProposal(add.asLocal)
+    val commits1: HostedCommits = addLocalProposal(add)
 
     if (commits1.nextLocalSpec.toLocal < 0L.msat) throw CMDAddImpossible(cmd, ERR_NOT_ENOUGH_BALANCE)
     if (cmd.payload.amount < lastCrossSignedState.initHostedChannel.htlcMinimumMsat) throw CMDAddImpossible(cmd, ERR_AMOUNT_TOO_SMALL)
@@ -143,7 +130,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   }
 
   def receiveAdd(add: UpdateAddHtlc): ChannelData = {
-    val commits1: HostedCommits = addProposal(add.asRemote)
+    val commits1: HostedCommits = addRemoteProposal(add)
     if (add.id != nextTotalRemote + 1) throw new LightningException
     if (commits1.nextLocalSpec.toRemote < 0L.msat) throw new LightningException
     if (UInt64(commits1.nextLocalSpec.incomingAddsSum.toLong) > lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat) throw new LightningException
