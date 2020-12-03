@@ -4,8 +4,8 @@ import fr.acinq.eclair._
 import fr.acinq.bitcoin._
 import scala.util.{Success, Try}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.eclair.wire.{Color, NodeAddress, NodeAnnouncement}
 import fr.acinq.eclair.{CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId}
-import fr.acinq.eclair.wire.{Color, LightningMessage, NodeAddress, NodeAnnouncement}
 import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
