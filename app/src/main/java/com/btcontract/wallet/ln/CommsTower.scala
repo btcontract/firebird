@@ -34,8 +34,12 @@ object CommsTower {
     listeners(pkap) ++= listeners1
 
     workers.get(pkap) match {
-      case Some(worker) => for (init <- worker.theirInit) worker.handleTheirInit(listeners1, init) // Maybe inform
-      case None => workers(pkap) = new Worker(pkap, ann, new Bytes(1024), new Socket) // Create and connect right away
+      case Some(presentWorker) =>
+        // A connected worker is already present, inform listener if it's established
+        presentWorker.theirInit.foreach(presentWorker handleTheirInit listeners1)
+      case None =>
+        // No worker is present, add a new one and try to connect right away
+        workers(pkap) = new Worker(pkap, ann, new Bytes(1024), new Socket)
     }
   }
 
@@ -55,7 +59,7 @@ object CommsTower {
     var pinging: Subscription = _
 
     def disconnect: Unit = try sock.close catch none
-    def handleTheirInit(listeners1: Set[ConnectionListener], theirInitMsg: Init): Unit = {
+    def handleTheirInit(listeners1: Set[ConnectionListener] = Set.empty)(theirInitMsg: Init): Unit = {
       // Use a separate variable for listeners here because a set of listeners provided to this method may be different
       // Account for a case where they disconnect while we are deciding on their features (do nothing in this case)
       val areSupported = Features.areSupported(theirInitMsg.features)
@@ -69,7 +73,8 @@ object CommsTower {
     }
 
     def sendPingAwaitPong(length: Int): Unit = {
-      handler process Ping(data = randomBytes(length), pongLength = length)
+      val pingPayload: ByteVector = randomBytes(length)
+      handler process Ping(length, pingPayload)
       pingState = AWAITING_PONG
     }
 
@@ -85,7 +90,7 @@ object CommsTower {
           pingState = PROCESSING_DATA
 
           lightningMessageCodec.decode(data.bits).require.value match {
-            case message: Init => handleTheirInit(listeners apply pkap, message)
+            case message: Init => handleTheirInit(listeners apply pkap)(message)
             case message: Ping => if (message.pongLength > 0) handler process Pong(ByteVector fromValidHex "00" * message.pongLength)
             case message: HostedChannelBranding => for (lst <- listeners apply pkap) lst.onBrandingMessage(me, message)
             case message: HostedChannelMessage => for (lst <- listeners apply pkap) lst.onHostedMessage(me, message)
@@ -100,10 +105,10 @@ object CommsTower {
 
         def handleEnterOperationalState: Unit = {
           handler process LNParams.makeLocalInitMessage
-          pinging = Observable.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { length =>
+          pinging = Observable.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { len =>
             // We disconnect if we are still awaiting Pong since our last sent Ping, meaning peer sent nothing back
             // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
-            if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(length + 1)
+            if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(len + 1)
           }
         }
       }

@@ -40,7 +40,7 @@ object SyncMaster {
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
-  val syncNodes: Set[NodeAnnouncement] = Set(acinq) // Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
+  val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
 
   val maxPHCCapacity = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
@@ -50,7 +50,8 @@ object SyncMaster {
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
   val maxNodesToSyncFrom = 3 // How many disjoint peers to use for majority sync
   val acceptThreshold = 1 // ShortIds and updates are accepted if confirmed by more than this peers
-  val chunksToWait = 3 // Wait for at least this much sync iterations from any peer before recording results
+  val messagesToAsk = 100 // Ask for this many messages from peer before they say this chunk is done
+  val chunksToWait = 3 // Wait for at least this much chunk iterations from any peer before recording results
 }
 
 sealed trait SyncWorkerData
@@ -243,7 +244,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         val accum = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
         goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
         provenShortIds = accum.collect { case shortId \ confs if confs > acceptThreshold => shortId }.toSet
-        val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.map(reply2Query).toList
+        val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.flatMap(reply2Query).toList
 
         // Transfer every worker into gossip syncing state
         become(SyncMasterGossipData(currentSyncs, chunksLeft = chunksToWait), GOSSIP_SYNC)
@@ -304,7 +305,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
     newExcludedChanUpdates = Set.empty
   }
 
-  def reply2Query(reply: ReplyChannelRange): QueryShortChannelIds = {
+  def reply2Query(reply: ReplyChannelRange): Iterator[QueryShortChannelIds] = {
     val stack = (reply.shortChannelIds.array, reply.timestamps.timestamps, reply.checksums.checksums)
 
     val shortIdFlagSeq = for {
@@ -312,10 +313,12 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
       finalFlag = computeFlag(shortId, theirTimestamps, theirChecksums) if finalFlag != 0
     } yield (shortId, finalFlag)
 
-    val shortIds \ flags = shortIdFlagSeq.toList.unzip
-    val shortChannelIds = EncodedShortChannelIds(reply.shortChannelIds.encoding, shortIds)
-    val tlv = QueryShortChannelIdsTlv.EncodedQueryFlags(reply.shortChannelIds.encoding, flags)
-    QueryShortChannelIds(LNParams.chainHash, shortChannelIds, TlvStream apply tlv)
+    for {
+      requestChunk <- shortIdFlagSeq.toList.grouped(messagesToAsk)
+      Tuple2(chunkShortIds, chunkRequestFlags) = requestChunk.unzip
+      shortChannelIds = EncodedShortChannelIds(reply.shortChannelIds.encoding, chunkShortIds)
+      tlv = QueryShortChannelIdsTlv.EncodedQueryFlags(reply.shortChannelIds.encoding, chunkRequestFlags)
+    } yield QueryShortChannelIds(LNParams.chainHash, shortChannelIds, TlvStream apply tlv)
   }
 
   private def computeFlag(shortlId: ShortChannelId,
