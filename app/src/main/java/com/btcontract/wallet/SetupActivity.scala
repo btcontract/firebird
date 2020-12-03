@@ -120,8 +120,8 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
         me process CMDTimeoutAccountCheck
 
       case (worker: CommsTower.Worker, OPERATIONAL) =>
-        // We get delayed worker and use its data to reconnect to peer
-        CommsTower.listen(Set(accountCheckListener), worker.pkap, worker.ann)
+        // We get delayed worker and use its remote peer data to reconnect again
+        CommsTower.listen(Set(accountCheckListener), worker.pkap, worker.ann, LNParams.extInit)
 
       case PeerResponse(_: InitHostedChannel, worker) \ OPERATIONAL =>
         val results1 = data.results.updated(worker.ann, false.toSome)
@@ -163,9 +163,9 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
         become(data, FINALIZED)
 
       case CMDCheck \ null =>
-        val hosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](LNParams.format.outstandingProviders.map(NodeAnnouncementExt), _.na)
-        become(CheckData(hosts, results = hosts.mapValues(_ => None), reconnectAttemptsLeft = hosts.size * 4), OPERATIONAL)
-        for (ex <- hosts.values) CommsTower.listen(Set(accountCheckListener), ex.nodeSpecificPkap, ex.na)
+        val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](LNParams.format.outstandingProviders.map(NodeAnnouncementExt), _.na)
+        become(CheckData(remainingHosts, results = remainingHosts.mapValues(_ => None), reconnectAttemptsLeft = remainingHosts.size * 4), OPERATIONAL)
+        for (ex <- remainingHosts.values) CommsTower.listen(Set(accountCheckListener), ex.nodeSpecificPkap, ex.na, LNParams.extInit)
         Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
     }
   }

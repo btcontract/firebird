@@ -28,12 +28,6 @@ object LNParams {
   val minHostedLiabilityBlockdays = 365
   val minPayment = MilliSatoshi(5000L)
 
-  private[this] val localFeatures = Set(
-    ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Optional),
-    ActivatedFeature(ChannelRangeQueries, FeatureSupport.Optional),
-    ActivatedFeature(VariableLengthOnion, FeatureSupport.Optional)
-  )
-
   var routerConf =
     RouterConf(searchMaxFeeBase = MilliSatoshi(25000L),
       searchMaxFeePct = 0.01, firstPassMaxCltv = CltvExpiryDelta(1008),
@@ -43,9 +37,36 @@ object LNParams {
   var format: StorageFormat = _
   var channelMaster: ChannelMaster = _
 
-  def makeLocalInitMessage: Init = {
-    val networks = InitTlv.Networks(chainHash :: Nil)
-    Init(Features(localFeatures), TlvStream apply networks)
+  lazy val (syncInit, phcSyncInit, extInit) = {
+    val networks: InitTlv = InitTlv.Networks(chainHash :: Nil)
+    val tlvStream: TlvStream[InitTlv] = TlvStream(networks)
+
+    // Mimic phoenix
+    val syncFeatures: Set[ActivatedFeature] = Set (
+      ActivatedFeature(OptionDataLossProtect, FeatureSupport.Mandatory),
+      ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Optional),
+      ActivatedFeature(VariableLengthOnion, FeatureSupport.Optional),
+      ActivatedFeature(PaymentSecret, FeatureSupport.Optional),
+      ActivatedFeature(Wumbo, FeatureSupport.Optional)
+    )
+
+    val phcSyncFeatures: Set[ActivatedFeature] = Set (
+      ActivatedFeature(HostedChannels, FeatureSupport.Mandatory)
+    )
+
+    val extendedFeatures: Set[ActivatedFeature] = Set (
+      ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Mandatory),
+      ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Optional),
+      ActivatedFeature(ChannelRangeQueries, FeatureSupport.Mandatory),
+      ActivatedFeature(VariableLengthOnion, FeatureSupport.Mandatory),
+      ActivatedFeature(HostedChannels, FeatureSupport.Mandatory),
+      ActivatedFeature(ChainSwap, FeatureSupport.Mandatory)
+    )
+
+    val sync = Init(Features(syncFeatures), tlvStream)
+    val phcSync = Init(Features(phcSyncFeatures), tlvStream)
+    val ext = Init(Features(extendedFeatures), tlvStream)
+    (sync, phcSync, ext)
   }
 }
 

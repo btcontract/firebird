@@ -40,7 +40,7 @@ object SyncMaster {
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
-  val syncNodes: Set[NodeAnnouncement] = Set(lightning, cheese, acinq) // Nodes with extended queries support used as seeds for normal sync
+  val syncNodes: Set[NodeAnnouncement] = Set(lightning, acinq) // Nodes with extended queries support used as seeds for normal sync
 
   val maxPHCCapacity = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
@@ -48,10 +48,10 @@ object SyncMaster {
   val maxPHCPerNode = 2
 
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
-  val maxNodesToSyncFrom = 3 // How many disjoint peers to use for majority sync
+  val maxNodesToSyncFrom = 2 // How many disjoint peers to use for majority sync
   val acceptThreshold = 1 // ShortIds and updates are accepted if confirmed by more than this peers
   val messagesToAsk = 100 // Ask for this many messages from peer before they say this chunk is done
-  val chunksToWait = 3 // Wait for at least this much chunk iterations from any peer before recording results
+  val chunksToWait = 10 // Wait for at least this much chunk iterations from any peer before recording results
 }
 
 sealed trait SyncWorkerData
@@ -103,7 +103,7 @@ case class SyncWorkerPHCData(phcMaster: PHCSyncMaster,
       announces.get(cu.shortChannelId).map(_ getNodeIdSameSideAs cu).exists(Announcements checkSig cu) // We have received a related announce, signature is valid
 }
 
-case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnouncement) extends StateMachine[SyncWorkerData] { me =>
+case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnouncement, ourInit: Init) extends StateMachine[SyncWorkerData] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
   def process(changeMessage: Any): Unit = scala.concurrent.Future(me doProcess changeMessage)
   val pkap = PublicKeyAndPair(ann.nodeId, keyPair)
@@ -122,7 +122,7 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
 
   become(null, WAITING)
   // Connect and start listening immediately
-  CommsTower.listen(Set(listener), pkap, ann)
+  CommsTower.listen(Set(listener), pkap, ann, ourInit)
 
   def doProcess(change: Any): Unit = (change, data, state) match {
     case (data1: SyncWorkerPHCData, null, WAITING) => become(data1, PHC_SYNC)
@@ -188,9 +188,9 @@ trait SyncMasterData extends {
 }
 
 trait GetNewSyncMachine extends CanBeRepliedTo { me =>
-  def getNewSync(data1: SyncMasterData, allNodes: Set[NodeAnnouncement] = Set.empty): SyncWorker = {
-    val goodAnnounces = allNodes -- data1.activeSyncs.map(activeSync => activeSync.ann)
-    SyncWorker(me, randomKeyPair, shuffle(goodAnnounces.toList).head)
+  def getNewSync(data1: SyncMasterData, allNodes: Set[NodeAnnouncement], ourInit: Init): SyncWorker = {
+    val goodAnnounces: Set[NodeAnnouncement] = allNodes -- data1.activeSyncs.map(_.ann)
+    SyncWorker(me, randomKeyPair, shuffle(goodAnnounces.toList).head, ourInit)
   }
 }
 
@@ -222,7 +222,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
   def doProcess(change: Any): Unit = (change, data, state) match {
     case (CMDAddSync, data1: SyncMasterShortIdData, SHORT_ID_SYNC) if data1.activeSyncs.size < maxNodesToSyncFrom =>
       // Turns out we don't have enough workers, create one with unused remote nodeId and track its progress
-      val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes)
+      val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes, LNParams.syncInit)
 
       // Worker is connecting, tell it to get shortIds once connection is there
       become(data1.copy(activeSyncs = data1.activeSyncs + newSyncWorker), SHORT_ID_SYNC)
@@ -256,7 +256,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
 
     case (workerData: SyncWorkerGossipData, data1: SyncMasterGossipData, GOSSIP_SYNC) if data1.activeSyncs.size < maxNodesToSyncFrom =>
       // Turns out one of the workers has disconnected while getting gossip, create one with unused remote nodeId and track its progress
-      val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes)
+      val newSyncWorker = getNewSync(data1, syncNodes ++ extraNodes, LNParams.syncInit)
 
       // Worker is connecting, tell it to get the rest of gossip once connection is there
       become(data1.copy(activeSyncs = data1.activeSyncs + newSyncWorker), GOSSIP_SYNC)
@@ -358,7 +358,7 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
 
   def doProcess(change: Any): Unit = (change, state) match {
     case CMDAddSync \ PHC_SYNC if data.activeSyncs.size < data.maxSyncs =>
-      val newSyncWorker: SyncWorker = getNewSync(data, hostedSyncNodes ++ extraNodes)
+      val newSyncWorker = getNewSync(data, hostedSyncNodes ++ extraNodes, LNParams.phcSyncInit)
       become(data.copy(activeSyncs = data.activeSyncs + newSyncWorker), PHC_SYNC)
       newSyncWorker process SyncWorkerPHCData(me)
 

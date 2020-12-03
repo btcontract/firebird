@@ -343,7 +343,6 @@ object PaymentRequest {
     lazy val allowMultiPart: Boolean = features.hasFeature(Features.BasicMultiPartPayment)
     lazy val allowPaymentSecret: Boolean = features.hasFeature(Features.PaymentSecret)
     lazy val requirePaymentSecret: Boolean = features.hasFeature(Features.PaymentSecret, Some(FeatureSupport.Mandatory))
-    lazy val allowTrampoline: Boolean = features.hasFeature(Features.TrampolinePayment)
 
     def toByteVector: ByteVector = features.toByteVector
 

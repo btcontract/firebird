@@ -84,7 +84,7 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
 
         // listen and connect right away
         val pkap = freshChannel.data.announce.nodeSpecificPkap
-        CommsTower.listen(Set(makeChanListener), pkap, ann)
+        CommsTower.listen(Set(makeChanListener), pkap, ann, LNParams.extInit)
         freshChannel.listeners += makeChanListener
 
       case hasChannelAnn =>

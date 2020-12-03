@@ -17,7 +17,6 @@
 package fr.acinq.eclair
 
 import fr.acinq.eclair.FeatureSupport.{Mandatory, Optional}
-import fr.acinq.eclair.Features.{BasicMultiPartPayment, PaymentSecret}
 import scodec.bits.{BitVector, ByteVector}
 
 /**
@@ -32,7 +31,7 @@ object FeatureSupport {
   case object Optional extends FeatureSupport { override def toString: String = "optional" }
 }
 
-sealed trait Feature {
+trait Feature {
 
   def rfcName: String
   def mandatory: Int
@@ -43,7 +42,7 @@ sealed trait Feature {
     case FeatureSupport.Optional => optional
   }
 
-  override def toString = rfcName
+  override def toString: String = rfcName
 
 }
 // @formatter:on
@@ -143,12 +142,14 @@ object Features {
     val mandatory = 18
   }
 
-  // TODO: @t-bast: update feature bits once spec-ed (currently reserved here: https://github.com/lightningnetwork/lightning-rfc/issues/605)
-  // We're not advertising these bits yet in our announcements, clients have to assume support.
-  // This is why we haven't added them yet to `areSupported`.
-  case object TrampolinePayment extends Feature {
-    val rfcName = "trampoline_payment"
-    val mandatory = 50
+  case object ChainSwap extends Feature {
+    val rfcName = "chain_swap"
+    val mandatory = 32770
+  }
+
+  case object HostedChannels extends Feature {
+    val rfcName = "hosted_channels"
+    val mandatory = 32772
   }
 
   val knownFeatures: Set[Feature] = Set(
@@ -160,8 +161,9 @@ object Features {
     PaymentSecret,
     BasicMultiPartPayment,
     Wumbo,
-    TrampolinePayment,
-    StaticRemoteKey
+    StaticRemoteKey,
+    ChainSwap,
+    HostedChannels
   )
 
   private val supportedMandatoryFeatures: Set[Feature] = Set(
@@ -171,17 +173,16 @@ object Features {
     ChannelRangeQueriesExtended,
     PaymentSecret,
     BasicMultiPartPayment,
-    Wumbo
+    Wumbo,
+    ChainSwap,
+    HostedChannels
   )
 
   // Features may depend on other features, as specified in Bolt 9.
   private val featuresDependency = Map(
     ChannelRangeQueriesExtended -> (ChannelRangeQueries :: Nil),
-    // This dependency requirement was added to the spec after the Phoenix release, which means Phoenix users have "invalid"
-    // invoices in their payment history. We choose to treat such invoices as valid; this is a harmless spec violation.
-    // PaymentSecret -> (VariableLengthOnion :: Nil),
-    BasicMultiPartPayment -> (PaymentSecret :: Nil),
-    TrampolinePayment -> (PaymentSecret :: Nil)
+    PaymentSecret -> (VariableLengthOnion :: Nil),
+    BasicMultiPartPayment -> (PaymentSecret :: Nil)
   )
 
   case class FeatureException(message: String) extends IllegalArgumentException(message)

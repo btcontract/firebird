@@ -131,7 +131,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
-  def initConnect: Unit = for (channel <- all) CommsTower.listen(Set(socketToChannelBridge), channel.data.announce.nodeSpecificPkap, channel.data.announce.na)
+  def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(socketToChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.extInit)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)

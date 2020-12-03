@@ -246,7 +246,6 @@ class PaymentRequestSpec {
       assert(pr.features.bitmask === bin"1000000000000000000000000000000000000000000000000000000000000000000000000000000000001000001000000000")
       assert(!pr.features.allowMultiPart)
       assert(!pr.features.requirePaymentSecret)
-      assert(!pr.features.allowTrampoline)
       assert(pr.features.supported)
       assert(PaymentRequest.write(pr.sign(priv)) == ref.toLowerCase)
     }
@@ -267,7 +266,6 @@ class PaymentRequestSpec {
     assert(pr.features.bitmask === bin"000011000000000000000000000000000000000000000000000000000000000000000000000000000000000001000001000000000")
     assert(!pr.features.allowMultiPart)
     assert(!pr.features.requirePaymentSecret)
-    assert(!pr.features.allowTrampoline)
     assert(!pr.features.supported)
     assert(PaymentRequest.write(pr.sign(priv)) == ref)
   }

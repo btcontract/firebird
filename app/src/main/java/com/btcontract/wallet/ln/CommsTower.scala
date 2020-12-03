@@ -28,7 +28,7 @@ object CommsTower {
   final val AWAITING_MESSAGES = 2
   final val AWAITING_PONG = 3
 
-  def listen(listeners1: Set[ConnectionListener], pkap: PublicKeyAndPair, ann: NodeAnnouncement): Unit = synchronized {
+  def listen(listeners1: Set[ConnectionListener], pkap: PublicKeyAndPair, ann: NodeAnnouncement, ourInit: Init): Unit = synchronized {
     // Update and either insert a new worker or fire onOperational on new listeners iff worker currently exists and is online
     // First add listeners, then try to add worker because we may already have a connected worker, but no listeners
     listeners(pkap) ++= listeners1
@@ -39,7 +39,7 @@ object CommsTower {
         presentWorker.theirInit.foreach(presentWorker handleTheirInit listeners1)
       case None =>
         // No worker is present, add a new one and try to connect right away
-        workers(pkap) = new Worker(pkap, ann, new Bytes(1024), new Socket)
+        workers(pkap) = new Worker(pkap, ann, ourInit, new Bytes(1024), new Socket)
     }
   }
 
@@ -51,7 +51,7 @@ object CommsTower {
     workers.get(pkap).foreach(_.disconnect)
   }
 
-  class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, buffer: Bytes, sock: Socket) { me =>
+  class Worker(val pkap: PublicKeyAndPair, val ann: NodeAnnouncement, ourInit: Init, buffer: Bytes, sock: Socket) { me =>
     implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
 
     var pingState: Int = AWAITING_MESSAGES
@@ -104,12 +104,14 @@ object CommsTower {
         }
 
         def handleEnterOperationalState: Unit = {
-          handler process LNParams.makeLocalInitMessage
           pinging = Observable.interval(15.seconds).map(_ => secureRandom nextInt 10) subscribe { len =>
             // We disconnect if we are still awaiting Pong since our last sent Ping, meaning peer sent nothing back
             // otherise we send a Ping and enter awaiting Pong unless we are currently processing an incoming message
             if (AWAITING_PONG == pingState) disconnect else if (AWAITING_MESSAGES == pingState) sendPingAwaitPong(len + 1)
           }
+
+          // Send our node parameters
+          handler process ourInit
         }
       }
 
