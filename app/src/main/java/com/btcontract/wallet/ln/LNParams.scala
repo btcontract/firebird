@@ -21,7 +21,7 @@ import java.nio.ByteOrder
 
 object LNParams {
   val blocksPerDay: Int = 144 // On average we can expect this many blocks per day
-  val cltvRejectThreshold = 144 // Reject incoming payment if CLTV expiry is closer than this to currentChainTip when HTLC arrives
+  val cltvRejectThreshold: Int = 144 // Reject incoming payment if CLTV expiry is closer than this to currentChainTip when HTLC arrives
   val incomingPaymentCltvExpiry: Int = 144 + 72 // Ask payer to set final CLTV expiry to payer's currentChainTip + this many blocks
   val chainHash: ByteVector32 = Block.LivenetGenesisBlock.hash
   val minHostedOnChainRefund = Satoshi(1000000L)
@@ -56,11 +56,11 @@ object LNParams {
 
     val extendedFeatures: Set[ActivatedFeature] = Set (
       ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Mandatory),
-      ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Optional),
+      ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Mandatory),
       ActivatedFeature(ChannelRangeQueries, FeatureSupport.Mandatory),
       ActivatedFeature(VariableLengthOnion, FeatureSupport.Mandatory),
       ActivatedFeature(HostedChannels, FeatureSupport.Mandatory),
-      ActivatedFeature(ChainSwap, FeatureSupport.Mandatory)
+      ActivatedFeature(ChainSwap, FeatureSupport.Optional)
     )
 
     val sync = Init(Features(syncFeatures), tlvStream)

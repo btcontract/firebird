@@ -16,14 +16,13 @@
 
 package fr.acinq
 
-import java.security.SecureRandom
-import scodec.bits._
-import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin._
-import scodec.Attempt
+import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import scodec.bits.{BitVector, ByteVector}
-
 import scala.util.{Failure, Success, Try}
+import java.security.SecureRandom
+import scodec.Attempt
+
 
 package object eclair {
 
@@ -115,13 +114,6 @@ package object eclair {
   def isPay2PubkeyHash(address: String): Boolean = address.startsWith("1") || address.startsWith("m") || address.startsWith("n")
 
   /**
-   * Tests whether the binary data is composed solely of printable ASCII characters (see BOLT 1)
-   *
-   * @param data to check
-   */
-  def isAsciiPrintable(data: ByteVector): Boolean = data.toArray.forall(ch => ch >= 32 && ch < 127)
-
-  /**
    * @param baseFee         fixed fee
    * @param proportionalFee proportional fee (millionths)
    * @param paymentAmount   payment amount in millisatoshi
@@ -154,13 +146,8 @@ package object eclair {
     }
   }
 
-  implicit class LongToBtcAmount(l: Long) {
-    // @formatter:off
-    def msat: MilliSatoshi = MilliSatoshi(l)
-    def sat: Satoshi = Satoshi(l)
-    def mbtc: MilliBtc = MilliBtc(l)
-    def btc: Btc = Btc(l)
-    // @formatter:on
+  implicit class MilliSatoshiLong(private val n: Long) extends AnyVal {
+    def msat = MilliSatoshi(n)
   }
 
   // We implement Numeric to take advantage of operations such as sum, sort or min/max on iterables.
@@ -186,10 +173,4 @@ package object eclair {
     def -(other: MilliSatoshi): MilliSatoshi = amount.toMilliSatoshi - other
     // @formatter:on
   }
-
-  /**
-   * Apparently .getClass.getSimpleName can crash java 8 with a "Malformed class name" error
-   */
-  def getSimpleClassName(o: Any): String = o.getClass.getName.split("\\$").last
-
 }

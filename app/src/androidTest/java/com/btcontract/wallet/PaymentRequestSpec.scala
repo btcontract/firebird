@@ -7,7 +7,7 @@ import scodec.bits._
 import scodec.codecs._
 import scala.language.postfixOps
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, Protocol}
+import fr.acinq.bitcoin.{Block, BtcDouble, ByteVector32, Crypto, MilliBtcDouble, Protocol, SatoshiLong}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.Features.VariableLengthOnion
 import fr.acinq.eclair.payment.PaymentRequest
@@ -33,8 +33,8 @@ class PaymentRequestSpec {
     assert('u' == Amount.unit((100 sat).toMilliSatoshi))
     assert('n' == Amount.unit((101 sat).toMilliSatoshi))
     assert('u' == Amount.unit((1155400 sat).toMilliSatoshi))
-    assert('m' == Amount.unit((1 mbtc).toMilliSatoshi))
-    assert('m' == Amount.unit((10 mbtc).toMilliSatoshi))
+    assert('m' == Amount.unit((1 millibtc).toMilliSatoshi))
+    assert('m' == Amount.unit((10 millibtc).toMilliSatoshi))
     assert('m' == Amount.unit((1 btc).toMilliSatoshi))
   }
 

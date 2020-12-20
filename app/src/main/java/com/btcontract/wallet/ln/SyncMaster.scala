@@ -41,7 +41,7 @@ object SyncMaster {
   val acinq: NodeAnnouncement = mkNodeAnnouncement(PublicKey(ByteVector fromValidHex "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f"), NodeAddress.unresolved(9735, host = 34, 239, 230, 56), "ACINQ")
   val hostedChanNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Trusted nodes which are shown as default ones when user chooses providers
   val hostedSyncNodes: Set[NodeAnnouncement] = Set(blw, lightning, acinq) // Semi-trusted PHC-enabled nodes which can be used as seeds for PHC sync
-  val syncNodes: Set[NodeAnnouncement] = Set(lightning, acinq) // Nodes with extended queries support used as seeds for normal sync
+  val syncNodes: Set[NodeAnnouncement] = Set(lightning, acinq, conductor) // Nodes with extended queries support used as seeds for normal sync
 
   val maxPHCCapacity = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
@@ -49,10 +49,10 @@ object SyncMaster {
   val maxPHCPerNode = 2
 
   val minCapacity = MilliSatoshi(500000000L) // 500k sat
-  val maxNodesToSyncFrom = 2 // How many disjoint peers to use for majority sync
+  val maxNodesToSyncFrom = 3 // How many disjoint peers to use for majority sync
   val acceptThreshold = 1 // ShortIds and updates are accepted if confirmed by more than this peers
-  val messagesToAsk = 100 // Ask for this many messages from peer before they say this chunk is done
-  val chunksToWait = 10 // Wait for at least this much chunk iterations from any peer before recording results
+  val messagesToAsk = 1000 // Ask for this many messages from peer before they say this chunk is done
+  val chunksToWait = 4 // Wait for at least this much chunk iterations from any peer before recording results
 }
 
 sealed trait SyncWorkerData

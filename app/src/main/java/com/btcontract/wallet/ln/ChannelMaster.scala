@@ -135,7 +135,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
-    // Example: (5, 50, 60, 100) -> (50, 60, 100), receivalble = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
+    // Example: (5, 50, 60, 100) -> (50, 60, 100), receivable = 50*3 = 150 (the idea is for smallest remaining channel to be able to handle an evenly split amount)
     val withoutSmall = canReceive.dropWhile(_.commits.nextLocalSpec.toRemote * canReceive.size < canReceive.last.commits.nextLocalSpec.toRemote).takeRight(4)
     val candidates = for (cs <- withoutSmall.indices map withoutSmall.drop) yield CommitsAndMax(cs, cs.head.commits.nextLocalSpec.toRemote * cs.size)
     maxByOption[CommitsAndMax, MilliSatoshi](candidates, _.maxReceivable)
@@ -371,6 +371,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
       data.payments.values.flatMap(_.data.parts.values) collect { case wait: WaitForRouteOrInFlight => waits(wait.chan) += wait.amountWithFees }
       // Adding waiting amounts and then removing outgoing adds is necessary to always have an accurate view because access to channel data is concurrent
+      // Example 1: chan toLocal=100, 10 in-flight AND IS present in channel already, resulting sendable = 90 (toLocal with in-flight) - 10 (wait) + 10 (in-flight) = 90
+      // Example 2: chan toLocal=100, 10 in-flight AND IS NOT preset in channel yet, resulting sendable = 100 (toLocal) - 10 (wait) + 0 (no in-flight in chan) = 90
       chans.flatMap(_.chanAndCommitsOpt).foreach(cnc => finals(cnc) = feeFreeBalance(cnc) - waits(cnc.chan) + cnc.commits.nextLocalSpec.outgoingAddsSum)
       finals.filter { case cnc \ sendable => sendable >= cnc.commits.lastCrossSignedState.initHostedChannel.htlcMinimumMsat }
     }

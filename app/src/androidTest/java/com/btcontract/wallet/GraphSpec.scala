@@ -18,7 +18,7 @@ import org.junit.Test
 import scodec.bits.ByteVector
 
 object GraphSpec {
-  val DEFAULT_CAPACITY: Satoshi = 100000.sat
+  val DEFAULT_CAPACITY: Satoshi = Satoshi(100000)
   val PlaceHolderSig = ByteVector64(ByteVector.fill(64)(0xaa))
   def randomPubKey = PublicKey(Tools.randomKeyPair.pub)
 

@@ -448,14 +448,14 @@ case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satosh
                           stamp: Long = System.currentTimeMillis.milliseconds.toSeconds)
 
 case class SwapInState(balance: MilliSatoshi, maxWithdrawable: MilliSatoshi, activeFeeReserve: MilliSatoshi,
-                       inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn
+                       inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn // Arrives automatically
 
 
 sealed trait SwapOut extends LightningMessage
 
 case class BlockTargetAndFee(blockTarget: Int, fee: Satoshi)
 
-case class SwapOutFeerates(feerates: List[BlockTargetAndFee] = Nil) extends SwapOut
+case class SwapOutFeerates(feerates: List[BlockTargetAndFee] = Nil) extends SwapOut // Arrives automatically
 
 case class SwapOutRequest(amount: Satoshi, btcAddress: String, blockTarget: Int) extends SwapOut
 

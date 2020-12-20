@@ -70,7 +70,7 @@ object Router {
 
     lazy val fee: MilliSatoshi = weight.costs.head - weight.costs.last
 
-    // We don't care bout first route and amount since they belong to local channels
+    // We don't care about first route and amount since they belong to local channels
     lazy val amountPerDescAndCap: Seq[(MilliSatoshi, GraphStructure.DescAndCapacity)] = weight.costs.tail.zip(hops.tail.map(_.toDescAndCapacity))
 
     /** This method retrieves the edge that we used when we built the route. */

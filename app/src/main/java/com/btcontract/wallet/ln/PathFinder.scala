@@ -61,7 +61,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       val normalShortIdToPubChan = normalStore.getRoutingData
       val hostedShortIdToPubChan = hostedStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
-      become(Data(channels = normalShortIdToPubChan, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
+      become(Data(normalShortIdToPubChan, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
     case CMDResync \ OPERATIONAL if System.currentTimeMillis - getLastNormalResyncStamp > RESYNC_PERIOD =>
@@ -83,8 +83,8 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       // Then reconstruct graph with new PHC data
       val hostedShortIdToPubChan = hostedStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(data.channels ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
-      become(Data(channels = data.channels, hostedChannels = hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       // And finally update a total sync checkpoint, a sync is considered fully done, there will be no new attempts for a while
+      become(Data(data.channels, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       updateLastTotalResyncStamp(System.currentTimeMillis)
 
     case (pure: PureRoutingData, OPERATIONAL) =>
@@ -98,7 +98,8 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       val ghostIds = normalShortIdToPubChan.keySet.diff(sync.provenShortIds)
       val normalShortIdToPubChan1 = normalShortIdToPubChan -- ghostIds -- oneSideShortIds
       val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan1 ++ data.hostedChannels).addEdges(data.extraEdges.values)
-      become(Data(channels = normalShortIdToPubChan1, hostedChannels = data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
+
+      become(Data(normalShortIdToPubChan1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
       new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }
       // Perform database cleaning in a different thread since it's relatively slow and we are operational now
       Rx.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), log)
@@ -141,7 +142,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(newUpdate)
     val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= newUpdate.timestamp)
     val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate newUpdate) getOrElse ChannelUpdateExt(newUpdate, Sync.getChecksum(newUpdate), score = 1L, useHeuristics = false)
-    resolveKnownDesc(edge = GraphEdge(desc = Router.getDesc(newUpdate, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
+    resolveKnownDesc(GraphEdge(Router.getDesc(newUpdate, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
   }
 
   // Resolves channel updates which we obtain from node errors while trying to route payments
