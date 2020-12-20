@@ -36,7 +36,7 @@ object MainActivity {
       }
 
     val channelMaster: ChannelMaster =
-      new ChannelMaster(WalletApp.paymentBag.bag, channelBag, pf, WalletApp.chainLink) {
+      new ChannelMaster(WalletApp.paymentBag, channelBag, pf, WalletApp.chainLink) {
         override val socketToChannelBridge: ConnectionListener = new ConnectionListener {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)

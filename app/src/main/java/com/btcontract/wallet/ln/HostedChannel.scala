@@ -167,8 +167,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         SEND(nextHC.stateUpdate)
 
 
-      case (hc: HostedCommits, remoteSU: StateUpdate, OPEN)
-        if hc.lastCrossSignedState.remoteSigOfLocal != remoteSU.localSigOfRemoteLCSS =>
+      case (hc: HostedCommits, remoteSU: StateUpdate, OPEN) if hc.lastCrossSignedState.remoteSigOfLocal != remoteSU.localSigOfRemoteLCSS =>
         val lcss1 = hc.nextLocalUnsignedLCSS(remoteSU.blockDay).copy(remoteSigOfLocal = remoteSU.localSigOfRemoteLCSS).withLocalSigOfRemote(data.announce.nodeSpecificPrivKey)
         val hc1 = hc.copy(lastCrossSignedState = lcss1, localSpec = hc.nextLocalSpec, nextLocalUpdates = Vector.empty, nextRemoteUpdates = Vector.empty)
         val isRemoteSigOk = lcss1.verifyRemoteSig(hc.announce.na.nodeId)
@@ -189,7 +188,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         STORESENDBECOME(hc.addLocalProposal(updateFulfill), state, updateFulfill)
 
 
-      // This will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
+      // These will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
       case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, code)
         STORESENDBECOME(hc.addLocalProposal(updateFailMalformed), state, updateFailMalformed)

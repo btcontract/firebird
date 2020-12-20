@@ -40,7 +40,7 @@ object WalletApp {
   var denom: Denomination = _
   var db: SQLiteInterface = _
   var dataBag: SQLiteDataBag = _
-  var paymentBag: CachedSQlitePaymentBag = _
+  var paymentBag: SQlitePaymentBag = _
   var usedAddons: UsedAddons = _
   var chainLink: ChainLink = _
   var value: Any = new String
@@ -55,7 +55,6 @@ object WalletApp {
   final val FIAT_RATES_DATA = "fiatRatesData"
   final val LAST_NORMAL_GOSSIP_SYNC = "lastNormalGossipSync"
   final val LAST_TOTAL_GOSSIP_SYNC = "lastHostedGossipSync"
-  final val PAYMENT_SUMMARY_CACHE = "paymentSummaryCache"
 
   private[this] val prefixes = PaymentRequest.prefixes.values mkString "|"
   private[this] val lnUrl = s"(?im).*?(lnurl)([0-9]{1,}[a-z0-9]+){1}".r.unanchored
@@ -182,11 +181,8 @@ class WalletApp extends Application {
     // Start looking for chain height asap
     WalletApp.chainLink.start
 
-    // Set up cached payment bag to get payment summary faster
-    val bag: SQlitePaymentBag = new SQlitePaymentBag(WalletApp.db)
-    WalletApp.paymentBag = new CachedSQlitePaymentBag(bag)
-
     WalletApp.dataBag = new SQLiteDataBag(WalletApp.db)
+    WalletApp.paymentBag = new SQlitePaymentBag(WalletApp.db)
     // Set up used addons, but do nothing more here, initialize connection-enabled later
     WalletApp.usedAddons = WalletApp.dataBag.tryGetUsedAddons getOrElse UsedAddons(Nil)
 
@@ -206,49 +202,4 @@ class WalletApp extends Application {
   def plur1OrZero(opts: Array[String], num: Long): String = if (num > 0) plur(opts, num).format(num) else opts(0)
   def clipboardManager: ClipboardManager = getSystemService(Context.CLIPBOARD_SERVICE).asInstanceOf[ClipboardManager]
   def getBufferUnsafe: String = clipboardManager.getPrimaryClip.getItemAt(0).getText.toString
-}
-
-class CachedSQlitePaymentBag(val bag: SQlitePaymentBag) extends PaymentUpdaterToSuccess {
-  private def get: String = WalletApp.app.prefs.getString(WalletApp.PAYMENT_SUMMARY_CACHE, new String)
-  private def put(raw: String): Unit = WalletApp.app.prefs.edit.putString(WalletApp.PAYMENT_SUMMARY_CACHE, raw).commit
-  def getCurrent: TotalStatSummaryExt = current getOrElse restoreAndUpdateCurrent
-  private var current: Option[TotalStatSummaryExt] = None
-
-  private def restoreAndUpdateCurrent: TotalStatSummaryExt = {
-    val (restoredExt, updateCache) = Try(get) map to[TotalStatSummaryExt] match {
-      case Success(summaryWithCache) if summaryWithCache.summary.isDefined => summaryWithCache -> false
-      case Success(noCache) => TotalStatSummaryExt(bag.betweenSummary(noCache.from, noCache.to).toOption, noCache.from, noCache.to) -> true
-      case _ => TotalStatSummaryExt(bag.betweenSummary(from = 0L, to = Long.MaxValue).toOption, from = 0L, to = Long.MaxValue) -> true
-    }
-
-    if (updateCache) put(restoredExt.toJson.compactPrint)
-    // Called after invalidation or on app restart
-    current = Some(restoredExt)
-    restoredExt
-  }
-
-  def invlidateContent: Unit = {
-    // Remove stale content snapshot, but retain from/to boundaries
-    current.map(_.copy(summary = None).toJson.compactPrint).foreach(put)
-    // Next call to `getCurrent` will trigger restoring from db
-    current = None
-  }
-
-  def invlidateBoundaries(from: Long, until: Long): Unit = {
-    put(TotalStatSummaryExt(None, from, until).toJson.compactPrint)
-    // Next call to `getCurrent` will trigger restoring from db
-    current = None
-  }
-
-  def updOkOutgoing(upd: UpdateFulfillHtlc, sent: MilliSatoshi, fee: MilliSatoshi): Unit = {
-    // Summary counts SUCCEEDED records, need to invalidate
-    bag.updOkOutgoing(upd, sent, fee)
-    invlidateContent
-  }
-
-  def updOkIncoming(add: UpdateAddHtlc): Unit = {
-    // Summary counts SUCCEEDED records, need to invalidate
-    bag.updOkIncoming(add)
-    invlidateContent
-  }
 }
