@@ -280,120 +280,56 @@ object LightningMessageCodecs {
       ("timestampRange" | uint32)
     ).as[GossipTimestampFilter]
 
-  // SWAP IN-OUT plugin
-
-  val swapInResponseCodec: Codec[SwapInResponse] =
-    ("btcAddress" | variableSizeBytes(uint16, utf8)).as[SwapInResponse]
-
-  val swapInWithdrawRequestCodec: Codec[SwapInWithdrawRequest] =
-    ("paymentRequest" | variableSizeBytes(uint16, utf8)).as[SwapInWithdrawRequest]
-
-  val swapInWithdrawDeniedCodec: Codec[SwapInWithdrawDenied] = (
-    ("paymentRequest" | variableSizeBytes(uint16, utf8)) ::
-      ("reason" | variableSizeBytes(uint16, utf8))
-    ).as[SwapInWithdrawDenied]
-
-  val pendingDepositCodec: Codec[PendingDeposit] = (
-    ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("txid" | bytes32) ::
-      ("amount" | satoshi) ::
-      ("stamp" | uint32)
-    ).as[PendingDeposit]
-
-  val swapInStateCodec: Codec[SwapInState] = (
-    ("balance" | millisatoshi) ::
-      ("maxWithdrawable" | millisatoshi) ::
-      ("activeFeeReserve" | millisatoshi) ::
-      ("inFlightAmount" | millisatoshi) ::
-      ("pendingChainDeposits" | listOfN(uint16, pendingDepositCodec))
-    ).as[SwapInState]
-
   //
 
-  val blockTargetAndFeeCodec: Codec[BlockTargetAndFee] = (
-    ("blockTarget" | uint16) ::
-      ("fee" | satoshi)
-    ).as[BlockTargetAndFee]
-
-  val swapOutFeeratesCodec: Codec[SwapOutFeerates] =
-    ("feerates" | listOfN(uint16, blockTargetAndFeeCodec)).as[SwapOutFeerates]
-
-  val swapOutRequestCodec: Codec[SwapOutRequest] = (
-    ("amount" | satoshi) ::
-      ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("blockTarget" | uint16)
-    ).as[SwapOutRequest]
-
-  val swapOutResponseCodec: Codec[SwapOutResponse] = (
-    ("amount" | satoshi) ::
-      ("fee" | satoshi) ::
-      ("paymentRequest" | variableSizeBytes(uint16, utf8))
-    ).as[SwapOutResponse]
-
-  val swapOutDeniedCodec: Codec[SwapOutDenied] = (
-    ("btcAddress" | variableSizeBytes(uint16, utf8)) ::
-      ("reason" | variableSizeBytes(uint16, utf8))
-    ).as[SwapOutDenied]
-
-  //
-
-  val lightningMessageCodec: DiscriminatorCodec[LightningMessage, Int] = discriminated[LightningMessage].by(uint16)
-    .typecase(16, initCodec)
-    .typecase(18, pingCodec)
-    .typecase(19, pongCodec)
-    .typecase(32, openChannelCodec)
-    .typecase(33, acceptChannelCodec)
-    .typecase(34, fundingCreatedCodec)
-    .typecase(35, fundingSignedCodec)
-    .typecase(36, fundingLockedCodec)
-    .typecase(38, shutdownCodec)
-    .typecase(39, closingSignedCodec)
-    .typecase(132, commitSigCodec)
-    .typecase(133, revokeAndAckCodec)
-    .typecase(134, updateFeeCodec)
-    .typecase(136, channelReestablishCodec)
-    .typecase(256, channelAnnouncementCodec)
-    .typecase(257, nodeAnnouncementCodec)
-    .typecase(258, channelUpdateCodec)
-    .typecase(259, announcementSignaturesCodec)
-    .typecase(261, queryShortChannelIdsCodec)
-    .typecase(262, replyShortChanelIdsEndCodec)
-    .typecase(263, queryChannelRangeCodec)
-    .typecase(264, replyChannelRangeCodec)
-    .typecase(265, gossipTimestampFilterCodec)
-    // SWAP IN
-    .typecase(55021, provide(SwapInRequest))
-    .typecase(55023, swapInResponseCodec)
-    .typecase(55025, swapInWithdrawRequestCodec)
-    .typecase(55027, swapInWithdrawDeniedCodec)
-    .typecase(55029, swapInStateCodec)
-    // SWAP OUT
-    .typecase(55031, swapOutFeeratesCodec)
-    .typecase(55033, swapOutRequestCodec)
-    .typecase(55035, swapOutResponseCodec)
-    .typecase(55037, swapOutDeniedCodec)
-    // HC
-    .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
-    .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
-    .typecase(65531, HostedMessagesCodecs.lastCrossSignedStateCodec)
-    .typecase(65529, HostedMessagesCodecs.stateUpdateCodec)
-    .typecase(65527, HostedMessagesCodecs.stateOverrideCodec)
-    .typecase(65525, HostedMessagesCodecs.hostedChannelBrandingCodec)
-    .typecase(65523, HostedMessagesCodecs.refundPendingCodec)
-    .typecase(65521, HostedMessagesCodecs.announcementSignatureCodec)
-    .typecase(65519, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
-    .typecase(65517, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
-    // PHC sync (duplicate codecs, fine because we will only receive these)
-    .typecase(65515, channelAnnouncementCodec) // Gossip
-    .typecase(65513, channelAnnouncementCodec) // Sync
-    .typecase(65511, channelUpdateCodec) // Gossip
-    .typecase(65509, channelUpdateCodec) // Sync
-    // HC-adjusted normal messages (codecs MUST NOT be duplicated because we send and receive these)
-    .typecase(65507, updateAddHtlcCodec)
-    .typecase(65505, updateFulfillHtlcCodec)
-    .typecase(65503, updateFailHtlcCodec)
-    .typecase(65501, updateFailMalformedHtlcCodec)
-    .typecase(65499, errorCodec)
+  val lightningMessageCodec: DiscriminatorCodec[LightningMessage, Int] =
+    discriminated[LightningMessage].by(uint16)
+      .typecase(16, initCodec)
+      .typecase(18, pingCodec)
+      .typecase(19, pongCodec)
+      .typecase(32, openChannelCodec)
+      .typecase(33, acceptChannelCodec)
+      .typecase(34, fundingCreatedCodec)
+      .typecase(35, fundingSignedCodec)
+      .typecase(36, fundingLockedCodec)
+      .typecase(38, shutdownCodec)
+      .typecase(39, closingSignedCodec)
+      .typecase(132, commitSigCodec)
+      .typecase(133, revokeAndAckCodec)
+      .typecase(134, updateFeeCodec)
+      .typecase(136, channelReestablishCodec)
+      .typecase(256, channelAnnouncementCodec)
+      .typecase(257, nodeAnnouncementCodec)
+      .typecase(258, channelUpdateCodec)
+      .typecase(259, announcementSignaturesCodec)
+      .typecase(261, queryShortChannelIdsCodec)
+      .typecase(262, replyShortChanelIdsEndCodec)
+      .typecase(263, queryChannelRangeCodec)
+      .typecase(264, replyChannelRangeCodec)
+      .typecase(265, gossipTimestampFilterCodec)
+      // HC
+      .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
+      .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
+      .typecase(65531, HostedMessagesCodecs.lastCrossSignedStateCodec)
+      .typecase(65529, HostedMessagesCodecs.stateUpdateCodec)
+      .typecase(65527, HostedMessagesCodecs.stateOverrideCodec)
+      .typecase(65525, HostedMessagesCodecs.hostedChannelBrandingCodec)
+      .typecase(65523, HostedMessagesCodecs.refundPendingCodec)
+      .typecase(65521, HostedMessagesCodecs.announcementSignatureCodec)
+      .typecase(65519, HostedMessagesCodecs.resizeChannelCodec)
+      .typecase(65517, HostedMessagesCodecs.queryPublicHostedChannelsCodec)
+      .typecase(65515, HostedMessagesCodecs.replyPublicHostedChannelsEndCodec)
+      // PHC sync (duplicate codecs, fine because we will only receive these)
+      .typecase(65513, channelAnnouncementCodec) // Gossip
+      .typecase(65511, channelAnnouncementCodec) // Sync
+      .typecase(65509, channelUpdateCodec) // Gossip
+      .typecase(65507, channelUpdateCodec) // Sync
+      // HC-adjusted normal messages (codecs MUST NOT be duplicated because we send and receive these)
+      .typecase(65505, updateAddHtlcCodec)
+      .typecase(65503, updateFulfillHtlcCodec)
+      .typecase(65501, updateFailHtlcCodec)
+      .typecase(65499, updateFailMalformedHtlcCodec)
+      .typecase(65497, errorCodec)
 }
 
 object HostedMessagesCodecs {
@@ -448,14 +384,22 @@ object HostedMessagesCodecs {
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateOverride]
 
-  val refundPendingCodec: Codec[RefundPending] = (uint32 withContext "startedAt").as[RefundPending]
+  val refundPendingCodec: Codec[RefundPending] =
+    (uint32 withContext "startedAt").as[RefundPending]
 
   val announcementSignatureCodec: Codec[AnnouncementSignature] = {
     (bytes64 withContext "nodeSignature") ::
       (bool withContext "wantsReply")
   }.as[AnnouncementSignature]
 
-  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] = (bytes32 withContext "chainHash").as[QueryPublicHostedChannels]
+  val resizeChannelCodec: Codec[ResizeChannel] = {
+    (millisatoshi withContext "newCapacity") ::
+      (bytes64 withContext "clientSig")
+  }.as[ResizeChannel]
 
-  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] = (bytes32 withContext "chainHash").as[ReplyPublicHostedChannelsEnd]
+  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] =
+    (bytes32 withContext "chainHash").as[QueryPublicHostedChannels]
+
+  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] =
+    (bytes32 withContext "chainHash").as[ReplyPublicHostedChannelsEnd]
 }

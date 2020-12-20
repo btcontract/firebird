@@ -16,7 +16,6 @@
 
 package fr.acinq.eclair.wire
 
-import scala.concurrent.duration._
 import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
 import java.nio.ByteOrder
 import com.btcontract.wallet.ln.LNParams
@@ -426,39 +425,16 @@ case class RefundPending(startedAt: Long) extends HostedChannelMessage
 
 case class AnnouncementSignature(nodeSignature: ByteVector64, wantsReply: Boolean) extends HostedChannelMessage
 
+case class ResizeChannel(newCapacity: MilliSatoshi, clientSig: ByteVector64 = ByteVector64.Zeroes) extends HostedChannelMessage {
+  def sign(priv: PrivateKey): ResizeChannel = ResizeChannel(clientSig = Crypto.sign(Crypto.sha256(sigMaterial), priv), newCapacity = newCapacity)
+  def verifyClientSig(pubKey: PublicKey): Boolean = Crypto.verifySignature(data = Crypto.sha256(sigMaterial), clientSig, pubKey)
+  def isRemoteResized(remote: LastCrossSignedState): Boolean = remote.initHostedChannel.channelCapacityMsat == newCapacity
+  lazy val sigMaterial: ByteVector = Protocol.writeUInt64(newCapacity.toLong, ByteOrder.LITTLE_ENDIAN)
+  lazy val newCapacityU64: UInt64 = UInt64(newCapacity.toLong)
+}
+
 // PHC
 
 case class QueryPublicHostedChannels(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
 
 case class ReplyPublicHostedChannelsEnd(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
-
-// SWAP IN-OUT plugin
-
-sealed trait SwapIn extends LightningMessage
-
-case object SwapInRequest extends SwapIn
-
-case class SwapInResponse(btcAddress: String) extends SwapIn
-
-case class SwapInWithdrawRequest(paymentRequest: String) extends SwapIn
-
-case class SwapInWithdrawDenied(paymentRequest: String, reason: String) extends SwapIn
-
-case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi,
-                          stamp: Long = System.currentTimeMillis.milliseconds.toSeconds)
-
-case class SwapInState(balance: MilliSatoshi, maxWithdrawable: MilliSatoshi, activeFeeReserve: MilliSatoshi,
-                       inFlightAmount: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn // Arrives automatically
-
-
-sealed trait SwapOut extends LightningMessage
-
-case class BlockTargetAndFee(blockTarget: Int, fee: Satoshi)
-
-case class SwapOutFeerates(feerates: List[BlockTargetAndFee] = Nil) extends SwapOut // Arrives automatically
-
-case class SwapOutRequest(amount: Satoshi, btcAddress: String, blockTarget: Int) extends SwapOut
-
-case class SwapOutResponse(amount: Satoshi, fee: Satoshi, paymentRequest: String) extends SwapOut
-
-case class SwapOutDenied(btcAddress: String, reason: String) extends SwapOut
