@@ -54,9 +54,13 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
         val freshChannel = LNParams.channelMaster.mkHostedChannel(initListeners = Set.empty, waitData)
 
         val makeChanListener = new ConnectionListener with ChannelListener {
-          override def onOperational(worker: CommsTower.Worker): Unit = freshChannel process CMD_CHAIN_TIP_KNOWN :: CMD_SOCKET_ONLINE :: Nil
-          override def onHostedMessage(worker: CommsTower.Worker, message: HostedChannelMessage): Unit = freshChannel process message
+          override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = freshChannel process msg
           override def onDisconnect(worker: CommsTower.Worker): Unit = CommsTower.forget(worker.pkap)
+
+          override def onOperational(worker: CommsTower.Worker): Unit = {
+            freshChannel process CMD_CHAIN_TIP_KNOWN
+            freshChannel process CMD_SOCKET_ONLINE
+          }
 
           override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = msg match {
             case update: ChannelUpdate => freshChannel process update

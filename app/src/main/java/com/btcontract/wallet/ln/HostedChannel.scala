@@ -33,7 +33,7 @@ case class CommitsAndMax(commits: Vector[ChanAndCommits], maxReceivable: MilliSa
 
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
-  def process(cs: Any *): Unit = Future(cs foreach doProcess) onComplete { case Failure(why) => events.onException(me -> why) case _ => }
+  def process(change: Any): Unit = Future(me doProcess change) onComplete { case Failure(why) => events.onException(me -> why) case _ => }
   def chanAndCommitsOpt: Option[ChanAndCommits] = data match { case hc: HostedCommits => ChanAndCommits(me, hc).toSome case _ => None }
 
   def currentBlockDay: Long
@@ -158,9 +158,10 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, cmd: CMD_ADD_HTLC, currentState) =>
         if (OPEN != currentState) throw CMDAddImpossible(cmd, ERR_NOT_OPEN)
-        val hostedCommits1 \ updateAddHtlc = hc sendAdd cmd
+        val hostedCommits1 \ updateAddHtlcMsg = hc sendAdd cmd
         BECOME(hostedCommits1, state)
-        SEND(updateAddHtlc)
+        SEND(updateAddHtlcMsg)
+        doProcess(CMD_SIGN)
 
 
       case (hc: HostedCommits, CMD_SIGN, OPEN) if hc.nextLocalUpdates.nonEmpty || hc.resizeProposal.isDefined =>
@@ -261,7 +262,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         // Can happen if we have sent a resize earlier, but then lost channel data and restored from their
         val isLocalSigOk = resize.verifyClientSig(data.announce.nodeSpecificPubKey)
         if (isLocalSigOk) me STORE hc.copy(resizeProposal = resize.toSome)
-        else localSuspend(hc, ChanErrorCodes.ERR_HOSTED_INVALID_RESIZE)
+        else localSuspend(hc, ERR_HOSTED_INVALID_RESIZE)
 
 
       case (hc: HostedCommits, remoteError: Error, WAIT_FOR_ACCEPT | OPEN | SLEEPING) if hc.remoteError.isEmpty =>
@@ -328,8 +329,9 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         case None => localSuspend(hc, ERR_HOSTED_WRONG_REMOTE_SIG)
       }
     } else {
-      // State was updated, resolved HTLC may be present
+      // Send an unconditional reply state update
       STORESENDBECOME(hc1, OPEN, lcss1.stateUpdate)
+      // Another update once we have anything to resolve
       events.stateUpdated(hc1)
     }
   }
