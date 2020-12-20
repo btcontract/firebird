@@ -65,10 +65,10 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
           }
 
           override def onBecome: PartialFunction[Transition, Unit] = {
-            case Tuple4(channel, _, WAIT_FOR_ACCEPT, OPEN | SUSPENDED) =>
+            case (_, _, newChannelData, WAIT_FOR_ACCEPT, OPEN | SUSPENDED) =>
               // Hosted channel is now established and stored, may contain error
               freshChannel.listeners = LNParams.channelMaster.operationalListeners
-              CommsTower.listeners(channel.data.announce.nodeSpecificPkap) -= this
+              CommsTower.listeners(newChannelData.announce.nodeSpecificPkap) -= this
               LNParams.channelMaster.all = LNParams.channelMaster.all :+ freshChannel
               // Add standard listener for this new channel
               LNParams.channelMaster.initConnect

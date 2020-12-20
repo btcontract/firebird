@@ -28,4 +28,4 @@ case object CMD_CHAIN_TIP_KNOWN extends Command
 case object CMD_CHAIN_TIP_LOST extends Command
 case object CMD_SOCKET_OFFLINE extends Command
 case object CMD_SOCKET_ONLINE extends Command
-case object CMD_PROCEED extends Command
+case object CMD_SIGN extends Command

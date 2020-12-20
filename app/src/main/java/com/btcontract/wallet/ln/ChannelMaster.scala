@@ -9,15 +9,15 @@ import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentFailure._
 
 import rx.lang.scala.{Subscription, Observable}
+import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
 import com.btcontract.wallet.ln.ChannelListener.{Incoming, Malfunction, Transition}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, FailurePacket, PaymentPacket}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, CanBeRepliedTo, StateMachine, Tools}
-import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED, WAIT_FOR_ACCEPT, isOperational, isOperationalAndOpen}
+import com.btcontract.wallet.ln.HostedChannel.{OPEN, SLEEPING, SUSPENDED, isOperational, isOperationalAndOpen}
 import fr.acinq.eclair.router.Router.{ChannelDesc, NoRouteAvailable, Route, RouteFound, RouteParams, RouteRequest, RouteResponse}
 import fr.acinq.eclair.wire.OnionCodecs.MissingRequiredTlv
-import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import fr.acinq.eclair.payment.OutgoingPacket
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -185,7 +185,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     // Using doProcess makes sure no external message gets intertwined in resolution
     for (cmd <- badRightAway) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
     for (cmd <- results.flatten) findById(all, cmd.add.channelId).foreach(_ doProcess cmd)
-    for (chan <- all) chan doProcess CMD_PROCEED
+    for (chan <- all) chan doProcess CMD_SIGN
   }
 
   private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
@@ -221,8 +221,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   }
 
   override def onBecome: PartialFunction[Transition, Unit] = {
-    // Offline channel does not react to our commands so we resend them on reconnect
-    case (_, _, WAIT_FOR_ACCEPT | SLEEPING, OPEN | SUSPENDED) => processIncoming
+    // Offline chan does not react to commands so resend on reconnect
+    case (_, _, _, SLEEPING, OPEN | SUSPENDED) => processIncoming
   }
 
   // SENDING OUTGOING PAYMENTS
@@ -332,7 +332,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
     override def fulfillReceived(fulfill: UpdateFulfillHtlc): Unit = self process fulfill
     override def onException: PartialFunction[Malfunction, Unit] = { case (_, error: CMDAddImpossible) => self process error }
-    override def onBecome: PartialFunction[Transition, Unit] = { case (_, _, SLEEPING | SUSPENDED, OPEN) => self process CMDChanGotOnline }
+    override def onBecome: PartialFunction[Transition, Unit] = { case (_, _, _, SLEEPING | SUSPENDED, OPEN) => self process CMDChanGotOnline }
 
     private def relayOrCreateSender(paymentHash: ByteVector32, msg: Any): Unit = data.payments.get(paymentHash) match {
       case None => withSender(new PaymentSender, paymentHash, msg) // Can happen after restart with leftoverts in channels
@@ -432,7 +432,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
           val finalPayload = Onion.createMultiPartPayload(wait.amount, data.cmd.totalAmount, data.cmd.targetExpiry, data.cmd.paymentSecret)
           val inFlightInfo = InFlightInfo(OutgoingPacket.buildCommand(wait.partId, data.cmd.paymentHash, found.route.hops, finalPayload), found.route)
           become(data.copy(parts = data.parts + wait.copy(flight = inFlightInfo.toSome).tuple), PENDING)
-          wait.chan.process(inFlightInfo.cmd, CMD_PROCEED)
+          wait.chan.process(inFlightInfo.cmd, CMD_SIGN)
         }
 
       case (CMDAddImpossible(cmd, code), PENDING) =>
