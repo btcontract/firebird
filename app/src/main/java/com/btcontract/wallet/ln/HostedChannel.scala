@@ -158,7 +158,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, cmd: CMD_ADD_HTLC, currentState) =>
         if (OPEN != currentState) throw CMDAddImpossible(cmd, ERR_NOT_OPEN)
-        val hostedCommits1 \ updateAddHtlcMsg = hc sendAdd cmd
+        val (hostedCommits1, updateAddHtlcMsg) = hc.sendAdd(cmd)
         BECOME(hostedCommits1, state)
         SEND(updateAddHtlcMsg)
         doProcess(CMD_SIGN)
@@ -175,18 +175,19 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         attemptStateUpdate(remoteSU, hc)
 
 
-      // Normal channel fetches on-chain when CLOSED, hosted sends a preimage and signals on UI when SUSPENDED
+      // In SUSPENDED state we still send a preimage to get it resolved, then notify user on UI because normal resolution is impossible
       case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, preimage)
         STORESENDBECOME(hc.addLocalProposal(updateFulfill), state, updateFulfill)
 
 
-      // These will make pending incoming HTLC in a SUSPENDED channel invisible to `pendingIncoming` method which is desired
+      // In SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `pendingIncoming` method
       case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, code)
         STORESENDBECOME(hc.addLocalProposal(updateFailMalformed), state, updateFailMalformed)
 
 
+      // In SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `pendingIncoming` method
       case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
         val updateFail = UpdateFailHtlc(hc.announce.nodeSpecificHostedChanId, add.id, reason)
         STORESENDBECOME(hc.addLocalProposal(updateFail), state, updateFail)

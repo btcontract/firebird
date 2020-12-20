@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import rx.lang.scala.{Subscription, Observable}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
-import com.btcontract.wallet.ln.crypto.Tools.{Bytes, \, none}
+import com.btcontract.wallet.ln.crypto.Tools.{Bytes, none}
 import fr.acinq.eclair.wire.LightningMessageCodecs.lightningMessageCodec
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -66,9 +66,9 @@ object CommsTower {
       theirInit = Some(theirInitMsg)
 
       (areSupported, thread.isCompleted) match {
-        case true \ false => for (lst <- listeners1) lst.onOperational(me) // They have not disconnected yet
-        case false \ false => disconnect // Their features are not supported and they have not disconnected yet
-        case _ \ true => // They have disconnected at this point, all callacks are already called, do nothing
+        case (true, false) => for (lst <- listeners1) lst.onOperational(me) // They have not disconnected yet
+        case (false, false) => disconnect // Their features are not supported and they have not disconnected yet
+        case (_, true) => // They have disconnected at this point, all callacks are already called, do nothing
       }
     }
 

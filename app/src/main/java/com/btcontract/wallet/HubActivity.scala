@@ -81,7 +81,7 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
 
           override def onException: PartialFunction[Malfunction, Unit] = {
             // Something went wrong while trying to establish a channel, inform user
-            case _ \ err => UITask(WalletApp.app quickToast err.getMessage).run
+            case (_, err) => UITask(WalletApp.app quickToast err.getMessage).run
           }
         }
 

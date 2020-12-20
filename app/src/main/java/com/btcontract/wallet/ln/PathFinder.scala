@@ -42,36 +42,36 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
 
   def doProcess(change: Any): Unit = (change, state) match {
     // This covers two cases: when graph is still not loaded at all and when we have a loaded empty graph (likey a first launch)
-    case (sender: CanBeRepliedTo, _: RouteRequest) \ OPERATIONAL if data.channels.isEmpty => sender process NotifyRejected
-    case (sender: CanBeRepliedTo, _: RouteRequest) \ WAITING => sender process NotifyRejected
+    case (Tuple2(sender: CanBeRepliedTo, _: RouteRequest), OPERATIONAL) if data.channels.isEmpty => sender process NotifyRejected
+    case (Tuple2(sender: CanBeRepliedTo, _: RouteRequest), WAITING) => sender process NotifyRejected
 
-    case (sender: CanBeRepliedTo, request: RouteRequest) \ OPERATIONAL =>
+    case (Tuple2(sender: CanBeRepliedTo, request: RouteRequest), OPERATIONAL) =>
       // In OPERATIONAL state we instruct graph to search through the single pre-selected local channel
       // it is safe to not check for existance becase base graph never has our private outgoing edges
       val graph1 = data.graph.addEdge(edge = request.localEdge, checkIfContains = false)
       sender process handleRouteRequest(graph1, routerConf, request)
 
-    case CMDResync \ WAITING =>
+    case (CMDResync, WAITING) =>
       // We need a loaded routing data to sync properly
       // load that data before proceeding if it's absent
       me process CMDLoadGraph
       me process CMDResync
 
-    case CMDLoadGraph \ WAITING =>
+    case (CMDLoadGraph, WAITING) =>
       val normalShortIdToPubChan = normalStore.getRoutingData
       val hostedShortIdToPubChan = hostedStore.getRoutingData
       val searchGraph = DirectedGraph.makeGraph(normalShortIdToPubChan ++ hostedShortIdToPubChan).addEdges(data.extraEdges.values)
       become(Data(normalShortIdToPubChan, hostedShortIdToPubChan, data.extraEdges, searchGraph), OPERATIONAL)
       listeners.foreach(_ process NotifyOperational)
 
-    case CMDResync \ OPERATIONAL if System.currentTimeMillis - getLastNormalResyncStamp > RESYNC_PERIOD =>
+    case (CMDResync, OPERATIONAL) if System.currentTimeMillis - getLastNormalResyncStamp > RESYNC_PERIOD =>
       // Last normal sync has happened too long ago, start with normal sync, then proceed with PHC sync
       new SyncMaster(getExtraNodes, normalStore.listExcludedChannels, data) { self =>
         def onChunkSyncComplete(pure: PureRoutingData): Unit = me process pure
         def onTotalSyncComplete: Unit = me process self
       }
 
-    case CMDResync \ OPERATIONAL =>
+    case (CMDResync, OPERATIONAL) =>
       // Normal resync has happened recently, but PHC resync is outdated (PHC failed last time due to running out of attempts)
       // in this case we skip normal sync and start directly with PHC sync to save time and increase PHC sync success chances
       new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }

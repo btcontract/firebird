@@ -3,7 +3,6 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import com.softwaremill.quicklens._
-import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.ChanErrorCodes._
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
@@ -30,8 +29,8 @@ case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: M
 
   lazy val incomingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(true, add) => add }
   lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(false, add) => add }
-  lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case accumulator \ inAdd => accumulator + inAdd.amountMsat }
-  lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case accumulator \ outAdd => accumulator + outAdd.amountMsat }
+  lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case (accumulator, inAdd) => accumulator + inAdd.amountMsat }
+  lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case (accumulator, outAdd) => accumulator + outAdd.amountMsat }
   def findHtlcById(id: Long, isIncoming: Boolean): Option[Htlc] = htlcs.find(htlc => htlc.add.id == id && htlc.incoming == isIncoming)
 }
 
@@ -61,21 +60,21 @@ object CommitmentSpec {
   def reduce(local: Vector[LightningMessage], remote: Vector[LightningMessage], spec1: CommitmentSpec): CommitmentSpec = {
 
     val spec2 = spec1.copy(remoteFailed = Set.empty, remoteMalformed = Set.empty, localFulfilled = Set.empty)
-    val spec3 = local.foldLeft(spec2) { case (spec, add: UpdateAddHtlc) => plusOutgoing(add, spec) case spec \ _ => spec }
-    val spec4 = remote.foldLeft(spec3) { case (spec, add: UpdateAddHtlc) => plusIncoming(add, spec) case spec \ _ => spec }
+    val spec3 = local.foldLeft(spec2) { case (spec, add: UpdateAddHtlc) => plusOutgoing(add, spec) case (spec, _) => spec }
+    val spec4 = remote.foldLeft(spec3) { case (spec, add: UpdateAddHtlc) => plusIncoming(add, spec) case (spec, _) => spec }
 
     val spec5 = local.foldLeft(spec4) {
       case (spec, message: UpdateFulfillHtlc) => fulfill(spec, isIncoming = true, message)
       case (spec, message: UpdateFailMalformedHtlc) => failMalformed(spec, isIncoming = true, message)
       case (spec, message: UpdateFailHtlc) => fail(spec, isIncoming = true, message)
-      case spec \ _ => spec
+      case (spec, _) => spec
     }
 
     remote.foldLeft(spec5) {
       case (spec, message: UpdateFulfillHtlc) => fulfill(spec, isIncoming = false, message)
       case (spec, message: UpdateFailMalformedHtlc) => failMalformed(spec, isIncoming = false, message)
       case (spec, message: UpdateFailHtlc) => fail(spec, isIncoming = false, message)
-      case spec \ _ => spec
+      case (spec, _) => spec
     }
   }
 }
@@ -93,8 +92,8 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   val nextTotalRemote: Long = lastCrossSignedState.remoteUpdates + nextRemoteUpdates.size
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
   lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
-  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed but not yet resolved by us
-  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed and new payments offered by us
+  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed MINUS already resolved by us
+  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed PLUS new payments offered by us
 
   lazy val revealedPreimages: Seq[PreimageAndAdd] = for {
     UpdateFulfillHtlc(_, id, paymentPreimage) <- nextLocalUpdates
@@ -102,7 +101,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   } yield paymentPreimage -> add
 
   def nextLocalUnsignedLCSS(blockDay: Long): LastCrossSignedState = {
-    val incomingHtlcs \ outgoingHtlcs = nextLocalSpec.htlcs.toList.partition(_.incoming)
+    val (incomingHtlcs, outgoingHtlcs) = nextLocalSpec.htlcs.toList.partition(_.incoming)
     LastCrossSignedState(lastCrossSignedState.refundScriptPubKey, lastCrossSignedState.initHostedChannel,
       blockDay, nextLocalSpec.toLocal, nextLocalSpec.toRemote, nextTotalLocal, nextTotalRemote,
       incomingHtlcs = incomingHtlcs.map(_.add), outgoingHtlcs = outgoingHtlcs.map(_.add),

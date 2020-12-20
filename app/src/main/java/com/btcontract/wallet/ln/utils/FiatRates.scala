@@ -1,6 +1,5 @@
 package com.btcontract.wallet.ln.utils
 
-import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.FiatRates._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
@@ -22,8 +21,8 @@ object FiatRates {
       "gbp" -> "Pound Sterling", "aud" -> "Australian Dollar")
 
   def reloadData: Map[String, Double] = secureRandom nextInt 3 match {
-    case 0 => to[CoinGecko](get("https://api.coingecko.com/api/v3/exchange_rates").body).rates.map { case code \ CoinGeckoItem(value) => code.toLowerCase -> value }
-    case 1 => to[BlockchainInfoItemMap](get("https://blockchain.info/ticker").body).map { case code \ BlockchainInfoItem(last) => code.toLowerCase -> last }
+    case 0 => to[CoinGecko](get("https://api.coingecko.com/api/v3/exchange_rates").body).rates.map { case (code, item) => code.toLowerCase -> item.value }
+    case 1 => to[BlockchainInfoItemMap](get("https://blockchain.info/ticker").body).map { case (code, item) => code.toLowerCase -> item.last }
     case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap
   }
 
@@ -41,8 +40,8 @@ case class CoinGecko(rates: CoinGeckoItemMap)
 
 case class RatesInfo(rates: Rates, oldRates: Rates, stamp: Long) {
   def pctDifference(code: String): String = (rates get code, oldRates get code) match {
-    case Some(fresh) \ Some(old) if fresh > old => s"<font color=#5B8F36>▲ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
-    case Some(fresh) \ Some(old) if fresh < old => s"<font color=#E35646>▼ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
+    case (Some(fresh), Some(old)) if fresh > old => s"<font color=#5B8F36>▲ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
+    case (Some(fresh), Some(old)) if fresh < old => s"<font color=#E35646>▼ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
     case _ => new String
   }
 }

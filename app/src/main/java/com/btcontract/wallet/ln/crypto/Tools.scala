@@ -31,7 +31,7 @@ object Tools {
   implicit def bytes2VecView(underlyingBytes: Bytes): ByteVector = ByteVector.view(underlyingBytes)
 
   def toMapBy[K, V](items: Iterable[V], mapper: V => K): Map[K, V] = items.map(item => mapper(item) -> item).toMap
-  def mapKeys[K, V, K1](m: mutable.Map[K, V], fun: K => K1, defVal: V): mutable.Map[K1, V] = m map { case key \ value => fun(key) -> value } withDefaultValue defVal
+  def mapKeys[K, V, K1](m: mutable.Map[K, V], fun: K => K1, defVal: V): mutable.Map[K1, V] = m map { case (key, value) => fun(key) -> value } withDefaultValue defVal
   def maxByOption[T, B](items: Iterable[T], mapper: T => B)( implicit cmp: Ordering[B] ): Option[T] = if (items.isEmpty) None else Some(items maxBy mapper)
   def memoize[In, Out](fun: In => Out): collection.mutable.HashMap[In, Out] = new collection.mutable.HashMap[In, Out] { self =>
     override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
@@ -80,11 +80,6 @@ object Tools {
     case Success(OP_0 :: OP_PUSHDATA(pubkeyHash, _) :: Nil) if pubkeyHash.length == 20 => true
     case Success(OP_0 :: OP_PUSHDATA(scriptHash, _) :: Nil) if scriptHash.length == 32 => true
     case _ => false
-  }
-
-  object \ {
-    // Matching Tuple2 via arrows with much less noise
-    def unapply[A, B](t2: (A, B) /* Got a tuple */) = Some(t2)
   }
 }
 

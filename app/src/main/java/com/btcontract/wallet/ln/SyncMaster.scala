@@ -244,7 +244,7 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
         val goodRanges = data1.collectedRanges.values.filter(_.isHolistic)
         val accum = mutable.Map.empty[ShortChannelId, Int] withDefaultValue 0
         goodRanges.flatMap(_.allShortIds).foreach(shortId => accum(shortId) += 1)
-        provenShortIds = accum.collect { case shortId \ confs if confs > acceptThreshold => shortId }.toSet
+        provenShortIds = accum.collect { case (shortId, confs) if confs > acceptThreshold => shortId }.toSet
         val queries = goodRanges.maxBy(_.allShortIds.size).ranges.par.flatMap(reply2Query).toList
 
         // Transfer every worker into gossip syncing state
@@ -298,8 +298,8 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
   }
 
   def sendPureNormalNetworkData: Unit = {
-    val goodAnnounces = confirmedChanAnnounces.collect { case announce \ confirmedByNodes if confirmedByNodes.size > acceptThreshold => announce }.toSet
-    val goodUpdates = confirmedChanUpdates.collect { case _ \ UpdateConifrmState(Some(update), confs) if confs.size > acceptThreshold => update }.toSet
+    val goodAnnounces = confirmedChanAnnounces.collect { case (announce, confirmedByNodes) if confirmedByNodes.size > acceptThreshold => announce }.toSet
+    val goodUpdates = confirmedChanUpdates.values.collect { case UpdateConifrmState(Some(update), confs) if confs.size > acceptThreshold => update }.toSet
     me onChunkSyncComplete PureRoutingData(goodAnnounces, goodUpdates, newExcludedChanUpdates)
     for (announce <- goodAnnounces) confirmedChanAnnounces -= announce
     for (update <- goodUpdates) confirmedChanUpdates -= update.core
@@ -327,9 +327,9 @@ abstract class SyncMaster(extraNodes: Set[NodeAnnouncement], excluded: Set[Long]
                           theirChecksums: ReplyChannelRangeTlv.Checksums) = {
 
     if (routerData.channels contains shortlId) {
-      val ReplyChannelRangeTlv.Timestamps(stamp1, stamp2) \ ReplyChannelRangeTlv.Checksums(checksum1, checksum2) = Sync.getChannelDigestInfo(routerData.channels)(shortlId)
-      val shouldRequestUpdate1 = Sync.shouldRequestUpdate(stamp1, checksum1, theirTimestamps.timestamp1, theirChecksums.checksum1)
-      val shouldRequestUpdate2 = Sync.shouldRequestUpdate(stamp2, checksum2, theirTimestamps.timestamp2, theirChecksums.checksum2)
+      val (stamps: ReplyChannelRangeTlv.Timestamps, checksums: ReplyChannelRangeTlv.Checksums) = Sync.getChannelDigestInfo(routerData.channels)(shortlId)
+      val shouldRequestUpdate1 = Sync.shouldRequestUpdate(stamps.timestamp1, checksums.checksum1, theirTimestamps.timestamp1, theirChecksums.checksum1)
+      val shouldRequestUpdate2 = Sync.shouldRequestUpdate(stamps.timestamp2, checksums.checksum2, theirTimestamps.timestamp2, theirChecksums.checksum2)
 
       val flagUpdate1 = if (shouldRequestUpdate1) INCLUDE_CHANNEL_UPDATE_1 else 0
       val flagUpdate2 = if (shouldRequestUpdate2) INCLUDE_CHANNEL_UPDATE_2 else 0
@@ -358,7 +358,7 @@ abstract class PHCSyncMaster(extraNodes: Set[NodeAnnouncement], routerData: Data
   def onSyncComplete(pure: CompleteHostedRoutingData): Unit
 
   def doProcess(change: Any): Unit = (change, state) match {
-    case CMDAddSync \ PHC_SYNC if data.activeSyncs.size < data.maxSyncs =>
+    case (CMDAddSync, PHC_SYNC) if data.activeSyncs.size < data.maxSyncs =>
       val newSyncWorker = getNewSync(data, hostedSyncNodes ++ extraNodes, LNParams.phcSyncInit)
       become(data.copy(activeSyncs = data.activeSyncs + newSyncWorker), PHC_SYNC)
       newSyncWorker process SyncWorkerPHCData(me)

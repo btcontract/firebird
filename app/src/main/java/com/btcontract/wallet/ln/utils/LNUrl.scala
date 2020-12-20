@@ -24,7 +24,7 @@ object LNUrl {
   type LNUrlAndWithdraw = (LNUrl, WithdrawRequest)
 
   def fromBech32(bech32url: String): LNUrl = {
-    val _ \ dataBody = Bech32.decode(bech32url)
+    val Tuple2(_, dataBody) = Bech32.decode(bech32url)
     val request = new String(Bech32.five2eight(dataBody), "UTF-8")
     LNUrl(request)
   }

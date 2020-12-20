@@ -111,7 +111,7 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
     def onPresentAccount: Unit
 
     def doProcess(change: Any): Unit = (change, state) match {
-      case PeerDisconnected(worker) \ OPERATIONAL if data.reconnectAttemptsLeft > 0 =>
+      case (PeerDisconnected(worker), OPERATIONAL) if data.reconnectAttemptsLeft > 0 =>
         become(data.copy(reconnectAttemptsLeft = data.reconnectAttemptsLeft - 1), OPERATIONAL)
         Rx.ioQueue.delay(3.seconds).foreach(_ => me process worker)
 
@@ -120,21 +120,21 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
         me process CMDTimeoutAccountCheck
 
       case (worker: CommsTower.Worker, OPERATIONAL) =>
-        // We get delayed worker and use its remote peer data to reconnect again
+        // We get previously scheduled worker and use its remote peer data to reconnect again
         CommsTower.listen(Set(accountCheckListener), worker.pkap, worker.ann, LNParams.extInit)
 
-      case PeerResponse(_: InitHostedChannel, worker) \ OPERATIONAL =>
+      case (PeerResponse(_: InitHostedChannel, worker), OPERATIONAL) =>
         val results1 = data.results.updated(worker.ann, false.toSome)
         become(data.copy(results = results1), OPERATIONAL)
         me process CMDCarryCheck
 
-      case PeerResponse(remoteLCSS: LastCrossSignedState, worker) \ OPERATIONAL =>
+      case (PeerResponse(remoteLCSS: LastCrossSignedState, worker), OPERATIONAL) =>
         val isLocalSigOk = remoteLCSS.verifyRemoteSig(data.hosts(worker.ann).nodeSpecificPubKey)
         val results1 = data.results.updated(worker.ann, isLocalSigOk.toSome)
         become(data.copy(results = results1), OPERATIONAL)
         me process CMDCarryCheck
 
-      case CMDCarryCheck \ OPERATIONAL =>
+      case (CMDCarryCheck, OPERATIONAL) =>
         data.results.values.flatten.toSet match {
           case results if results.contains(true) =>
             // At least one peer has confirmed a channel
@@ -150,19 +150,19 @@ class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
           case _ =>
         }
 
-      case CMDTimeoutAccountCheck \ OPERATIONAL =>
+      case (CMDTimeoutAccountCheck, OPERATIONAL) =>
         // Too much time has passed, disconnect all peers
         data.hosts.values.foreach(CommsTower forget _.nodeSpecificPkap)
         // Specifically inform user that cheking is not possible
         UITask(onCanNotCheckAccount).run
         become(data, FINALIZED)
 
-      case CMDCancelAccountCheck \ OPERATIONAL =>
+      case (CMDCancelAccountCheck, OPERATIONAL) =>
         // User has manually cancelled a check, disconnect all peers
         data.hosts.values.foreach(CommsTower forget _.nodeSpecificPkap)
         become(data, FINALIZED)
 
-      case CMDCheck \ null =>
+      case (CMDCheck, null) =>
         val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](LNParams.format.outstandingProviders.map(NodeAnnouncementExt), _.na)
         become(CheckData(remainingHosts, results = remainingHosts.mapValues(_ => None), reconnectAttemptsLeft = remainingHosts.size * 4), OPERATIONAL)
         for (ex <- remainingHosts.values) CommsTower.listen(Set(accountCheckListener), ex.nodeSpecificPkap, ex.na, LNParams.extInit)
