@@ -1,10 +1,10 @@
-package fr.acinq.eclair.channel
+package com.btcontract.wallet.ln
 
-import fr.acinq.eclair.{CltvExpiry, MilliSatoshi}
-import fr.acinq.eclair.wire.{StateOverride, UpdateAddHtlc}
 import fr.acinq.eclair.crypto.Sphinx.{DecryptedPacket, PacketAndSecrets}
+import fr.acinq.eclair.wire.{StateOverride, UpdateAddHtlc}
+import fr.acinq.eclair.{CltvExpiry, MilliSatoshi}
+import fr.acinq.bitcoin.{ByteVector32, Satoshi}
 import fr.acinq.eclair.wire.Onion.FinalPayload
-import fr.acinq.bitcoin.ByteVector32
 import scodec.bits.ByteVector
 
 
@@ -17,8 +17,11 @@ case class CMD_FAIL_MALFORMED_HTLC(onionHash: ByteVector32, failureCode: Int, ad
 case class FinalPayloadSpec(packet: DecryptedPacket, payload: FinalPayload, add: UpdateAddHtlc) extends AddResolution
 case class CMD_FULFILL_HTLC(preimage: ByteVector32, add: UpdateAddHtlc) extends Command with AddResolution
 
-case class CMD_ADD_HTLC(internalId: ByteVector, firstAmount: MilliSatoshi, paymentHash: ByteVector32, cltvExpiry: CltvExpiry, payload: FinalPayload, packetAndSecrets: PacketAndSecrets) extends Command
+case class CMD_ADD_HTLC(internalId: ByteVector, firstAmount: MilliSatoshi, paymentHash: ByteVector32,
+                        cltvExpiry: CltvExpiry, payload: FinalPayload, packetAndSecrets: PacketAndSecrets) extends Command
+
 case class CMD_HOSTED_STATE_OVERRIDE(so: StateOverride) extends Command
+case class HC_CMD_RESIZE(newCapacity: Satoshi) extends Command
 
 case object CMD_INCOMING_TIMEOUT extends Command
 case object CMD_CHAIN_TIP_KNOWN extends Command
@@ -26,4 +29,3 @@ case object CMD_CHAIN_TIP_LOST extends Command
 case object CMD_SOCKET_OFFLINE extends Command
 case object CMD_SOCKET_ONLINE extends Command
 case object CMD_PROCEED extends Command
-case object CMD_SIGN extends Command

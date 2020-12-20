@@ -393,7 +393,7 @@ object HostedMessagesCodecs {
   }.as[AnnouncementSignature]
 
   val resizeChannelCodec: Codec[ResizeChannel] = {
-    (millisatoshi withContext "newCapacity") ::
+    (satoshi withContext "newCapacity") ::
       (bytes64 withContext "clientSig")
   }.as[ResizeChannel]
 

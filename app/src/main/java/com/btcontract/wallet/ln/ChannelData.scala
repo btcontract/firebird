@@ -2,14 +2,12 @@ package com.btcontract.wallet.ln
 
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
+import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.ChanErrorCodes._
-
-import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
-import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
-import fr.acinq.eclair.channel.CMD_ADD_HTLC
-
+import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
+import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
 import com.btcontract.wallet.ln.CommitmentSpec.PreimageAndAdd
 import scodec.bits.ByteVector
 
@@ -89,7 +87,7 @@ case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubK
 case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState,
                          nextLocalUpdates: Vector[LightningMessage], nextRemoteUpdates: Vector[LightningMessage],
                          localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], localError: Option[Error], remoteError: Option[Error],
-                         startedAt: Long = System.currentTimeMillis) extends ChannelData {
+                         resizeProposal: Option[ResizeChannel] = None, startedAt: Long = System.currentTimeMillis) extends ChannelData { me =>
 
   val nextTotalLocal: Long = lastCrossSignedState.localUpdates + nextLocalUpdates.size
   val nextTotalRemote: Long = lastCrossSignedState.remoteUpdates + nextRemoteUpdates.size
@@ -137,4 +135,10 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
     if (commits1.nextLocalSpec.incomingAdds.size > lastCrossSignedState.initHostedChannel.maxAcceptedHtlcs) throw new LightningException
     commits1
   }
+
+  def withResize(resize: ResizeChannel): HostedCommits =
+    me.modify(_.lastCrossSignedState.initHostedChannel.maxHtlcValueInFlightMsat).setTo(resize.newCapacityMsatU64)
+      .modify(_.lastCrossSignedState.initHostedChannel.channelCapacityMsat).setTo(resize.newCapacity.toMilliSatoshi)
+      .modify(_.localSpec.toRemote).using(_ + resize.newCapacity - lastCrossSignedState.initHostedChannel.channelCapacityMsat)
+      .modify(_.resizeProposal).setTo(None)
 }

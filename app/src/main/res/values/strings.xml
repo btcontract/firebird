@@ -132,6 +132,7 @@
     <string name="err_hosted_timed_out_outgoing_htlc">Timed out outgoing payment</string>
     <string name="err_hosted_htlc_external_fulfill">External payment fulfill</string>
     <string name="err_hosted_manual_suspend">Channel manually suspended</string>
+    <string name="err_hosted_invalid_resize">Invalid resize attempt</string>
     <string name="err_hosted_missing_channel">Channel missing</string>
     <string name="err_hosted_channel_denied">Channel denied</string>
 

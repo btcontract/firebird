@@ -2,7 +2,6 @@ package com.btcontract.wallet.ln
 
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
-import fr.acinq.eclair.channel._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto._
 import com.btcontract.wallet.ln.crypto.Tools._

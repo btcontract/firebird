@@ -11,7 +11,6 @@ import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.Router.ChannelDesc
 import fr.acinq.eclair.router.RouteCalculation
-import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import java.io.ByteArrayInputStream
 import language.implicitConversions
 import scala.collection.mutable
@@ -90,8 +89,11 @@ object Tools {
 }
 
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
-case class CMDAddImpossible(cmd: CMD_ADD_HTLC, code: Int) extends LightningException
-trait CanBeRepliedTo { def process(reply: Any): Unit }
+case class CMDAddImpossible(cmd: com.btcontract.wallet.ln.CMD_ADD_HTLC, code: Int) extends LightningException
+
+trait CanBeRepliedTo {
+  def process(reply: Any): Unit
+}
 
 abstract class StateMachine[T] {
   def become(freshData: T, freshState: String): StateMachine[T] = {

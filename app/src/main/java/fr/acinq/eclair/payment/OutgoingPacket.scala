@@ -16,9 +16,9 @@
 
 package fr.acinq.eclair.payment
 
+import com.btcontract.wallet.ln.CMD_ADD_HTLC
 import fr.acinq.bitcoin.ByteVector32
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.eclair.channel.CMD_ADD_HTLC
 import fr.acinq.eclair.crypto.Sphinx
 import fr.acinq.eclair.crypto.Sphinx.PacketAndSecrets
 import fr.acinq.eclair.router.Graph.GraphStructure.GraphEdge

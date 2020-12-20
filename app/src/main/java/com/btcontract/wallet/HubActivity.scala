@@ -4,7 +4,6 @@ import com.btcontract.wallet.ln._
 import com.btcontract.wallet.R.string._
 import com.aurelhubert.ahbottomnavigation._
 import com.btcontract.wallet.ln.crypto.Tools._
-import fr.acinq.eclair.channel.{CMD_CHAIN_TIP_KNOWN, CMD_SOCKET_ONLINE}
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SUSPENDED, WAIT_FOR_ACCEPT}
 import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelMessage, LightningMessage}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}

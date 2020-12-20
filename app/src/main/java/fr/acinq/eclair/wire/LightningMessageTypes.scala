@@ -16,6 +16,7 @@
 
 package fr.acinq.eclair.wire
 
+import fr.acinq.eclair._
 import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
 import java.nio.ByteOrder
 import com.btcontract.wallet.ln.LNParams
@@ -24,7 +25,6 @@ import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrdering, Protocol, Satoshi}
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
-import fr.acinq.eclair.invalidPubKey
 import scodec.bits.ByteVector
 
 /**
@@ -425,12 +425,12 @@ case class RefundPending(startedAt: Long) extends HostedChannelMessage
 
 case class AnnouncementSignature(nodeSignature: ByteVector64, wantsReply: Boolean) extends HostedChannelMessage
 
-case class ResizeChannel(newCapacity: MilliSatoshi, clientSig: ByteVector64 = ByteVector64.Zeroes) extends HostedChannelMessage {
+case class ResizeChannel(newCapacity: Satoshi, clientSig: ByteVector64 = ByteVector64.Zeroes) extends HostedChannelMessage {
+  def isRemoteResized(remote: LastCrossSignedState): Boolean = newCapacity.toMilliSatoshi == remote.initHostedChannel.channelCapacityMsat
   def sign(priv: PrivateKey): ResizeChannel = ResizeChannel(clientSig = Crypto.sign(Crypto.sha256(sigMaterial), priv), newCapacity = newCapacity)
   def verifyClientSig(pubKey: PublicKey): Boolean = Crypto.verifySignature(data = Crypto.sha256(sigMaterial), clientSig, pubKey)
-  def isRemoteResized(remote: LastCrossSignedState): Boolean = remote.initHostedChannel.channelCapacityMsat == newCapacity
   lazy val sigMaterial: ByteVector = Protocol.writeUInt64(newCapacity.toLong, ByteOrder.LITTLE_ENDIAN)
-  lazy val newCapacityU64: UInt64 = UInt64(newCapacity.toLong)
+  lazy val newCapacityMsatU64: UInt64 = UInt64(newCapacity.toMilliSatoshi.toLong)
 }
 
 // PHC

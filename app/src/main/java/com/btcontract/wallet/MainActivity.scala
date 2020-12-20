@@ -9,7 +9,6 @@ import scala.util.{Success, Try}
 import android.content.{Context, Intent}
 import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
 import android.net.{ConnectivityManager, NetworkCapabilities}
-import fr.acinq.eclair.channel.{CMD_SOCKET_OFFLINE, CMD_SOCKET_ONLINE}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
 import fr.acinq.eclair.wire.{HostedChannelBranding, HostedChannelMessage, LightningMessage, NodeAnnouncement}
 import org.ndeftools.util.activity.NfcReaderActivity

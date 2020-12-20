@@ -15,6 +15,7 @@ class ChanDetailsActivity extends FirebirdActivity {
     ChanErrorCodes.ERR_HOSTED_HTLC_EXTERNAL_FULFILL -> err_hosted_htlc_external_fulfill,
     ChanErrorCodes.ERR_HOSTED_CHANNEL_DENIED -> err_hosted_channel_denied,
     ChanErrorCodes.ERR_HOSTED_MANUAL_SUSPEND -> err_hosted_manual_suspend,
+    ChanErrorCodes.ERR_HOSTED_INVALID_RESIZE -> err_hosted_invalid_resize,
     ChanErrorCodes.ERR_MISSING_CHANNEL -> err_hosted_missing_channel
   )
 

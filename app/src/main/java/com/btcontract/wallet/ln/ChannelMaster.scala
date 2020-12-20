@@ -2,7 +2,6 @@ package com.btcontract.wallet.ln
 
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
-import fr.acinq.eclair.channel._
 import scala.concurrent.duration._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
@@ -93,7 +92,7 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
 
 
 abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
-  private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, MilliSatoshi(0L), invalidPubKey), Map.empty)
+  private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, 0L.msat, invalidPubKey), Map.empty)
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
 
@@ -349,10 +348,10 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     def getUsedCapacities: mutable.Map[DescAndCapacity, MilliSatoshi] = {
       // This gets supposedly used capacities of external channels in a routing graph
       // we need this to exclude channels which definitely can't route a given amount right now
-      val accum = mutable.Map.empty[DescAndCapacity, MilliSatoshi] withDefaultValue MilliSatoshi(0L)
+      val accumulator = mutable.Map.empty[DescAndCapacity, MilliSatoshi] withDefaultValue 0L.msat
       val descsAndCaps = data.payments.values.flatMap(_.data.inFlights).flatMap(_.route.amountPerDescAndCap)
-      descsAndCaps foreach { case amount \ dnc => accum(dnc) += amount }
-      accum
+      descsAndCaps foreach { case amount \ dnc => accumulator(dnc) += amount }
+      accumulator
     }
 
     def totalSendable: MilliSatoshi =

@@ -8,10 +8,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln._
 import com.btcontract.wallet.ln.crypto.Tools
 import com.btcontract.wallet.ln.wire.UpdateAddTlv
-import com.btcontract.wallet.lnutils.{BitcoinJChainLink, SQLiteChannelBag, SQLiteNetworkDataStore}
+import com.btcontract.wallet.lnutils.{BitcoinJChainLink, SQLiteChannelBag}
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Satoshi}
-import fr.acinq.eclair.channel.CMD_SOCKET_OFFLINE
 import fr.acinq.eclair.router.Router.ChannelDesc
 import fr.acinq.eclair.{CltvExpiryDelta, ShortChannelId}
 import fr.acinq.eclair.wire.{InitHostedChannel, LastCrossSignedState, NodeAddress, NodeAnnouncement, Tlv, TlvStream, UpdateAddHtlc, UpdateFailHtlc, UpdateFulfillHtlc}
