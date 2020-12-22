@@ -307,6 +307,18 @@ object LightningMessageCodecs {
       .typecase(263, queryChannelRangeCodec)
       .typecase(264, replyChannelRangeCodec)
       .typecase(265, gossipTimestampFilterCodec)
+      // SwapIn
+      .typecase(55037, provide(SwapInRequest))
+      .typecase(55035, SwapCodecs.swapInResponseCodec)
+      .typecase(55033, SwapCodecs.swapInPaymentRequestCodec)
+      .typecase(55031, SwapCodecs.swapInPaymentDeniedCodec)
+      .typecase(55029, SwapCodecs.swapInStateCodec)
+      // SwapOut
+      .typecase(55027, provide(SwapOutRequest))
+      .typecase(55025, SwapCodecs.swapOutFeeratesCodec)
+      .typecase(55023, SwapCodecs.swapOutTransactionRequestCodec)
+      .typecase(55021, SwapCodecs.swapOutTransactionResponseCodec)
+      .typecase(55019, SwapCodecs.swapOutTransactionDeniedCodec)
       // HC
       .typecase(65535, HostedMessagesCodecs.invokeHostedChannelCodec)
       .typecase(65533, HostedMessagesCodecs.initHostedChannelCodec)
@@ -324,7 +336,7 @@ object LightningMessageCodecs {
       .typecase(65511, channelAnnouncementCodec) // Sync
       .typecase(65509, channelUpdateCodec) // Gossip
       .typecase(65507, channelUpdateCodec) // Sync
-      // HC-adjusted normal messages (codecs MUST NOT be duplicated because we send and receive these)
+      // HC-adjusted normal messages
       .typecase(65505, updateAddHtlcCodec)
       .typecase(65503, updateFulfillHtlcCodec)
       .typecase(65501, updateFailHtlcCodec)
@@ -333,13 +345,13 @@ object LightningMessageCodecs {
 }
 
 object HostedMessagesCodecs {
-  val invokeHostedChannelCodec: Codec[InvokeHostedChannel] = {
+  val invokeHostedChannelCodec = {
     (bytes32 withContext "chainHash") ::
       (varsizebinarydata withContext "refundScriptPubKey") ::
       (varsizebinarydata withContext "secret")
   }.as[InvokeHostedChannel]
 
-  val initHostedChannelCodec: Codec[InitHostedChannel] = {
+  val initHostedChannelCodec = {
     (uint64 withContext "maxHtlcValueInFlightMsat") ::
       (millisatoshi withContext "htlcMinimumMsat") ::
       (uint16 withContext "maxAcceptedHtlcs") ::
@@ -349,13 +361,13 @@ object HostedMessagesCodecs {
       (millisatoshi withContext "initialClientBalanceMsat")
   }.as[InitHostedChannel]
 
-  val hostedChannelBrandingCodec: Codec[HostedChannelBranding] = {
+  val hostedChannelBrandingCodec = {
     (rgb withContext "rgbColor") ::
       (varsizebinarydata withContext "pngIcon") ::
       (variableSizeBytes(uint16, utf8) withContext "contactInfo")
   }.as[HostedChannelBranding]
 
-  val lastCrossSignedStateCodec: Codec[LastCrossSignedState] = {
+  val lastCrossSignedStateCodec = {
     (varsizebinarydata withContext "refundScriptPubKey") ::
       (initHostedChannelCodec withContext "initHostedChannel") ::
       (uint32 withContext "blockDay") ::
@@ -369,14 +381,14 @@ object HostedMessagesCodecs {
       (bytes64 withContext "localSigOfRemote")
   }.as[LastCrossSignedState]
 
-  val stateUpdateCodec: Codec[StateUpdate] = {
+  val stateUpdateCodec = {
     (uint32 withContext "blockDay") ::
       (uint32 withContext "localUpdates") ::
       (uint32 withContext "remoteUpdates") ::
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateUpdate]
 
-  val stateOverrideCodec: Codec[StateOverride] = {
+  val stateOverrideCodec = {
     (uint32 withContext "blockDay") ::
       (millisatoshi withContext "localBalanceMsat") ::
       (uint32 withContext "localUpdates") ::
@@ -384,22 +396,88 @@ object HostedMessagesCodecs {
       (bytes64 withContext "localSigOfRemoteLCSS")
   }.as[StateOverride]
 
-  val refundPendingCodec: Codec[RefundPending] =
+  val refundPendingCodec =
     (uint32 withContext "startedAt").as[RefundPending]
 
-  val announcementSignatureCodec: Codec[AnnouncementSignature] = {
+  val announcementSignatureCodec = {
     (bytes64 withContext "nodeSignature") ::
       (bool withContext "wantsReply")
   }.as[AnnouncementSignature]
 
-  val resizeChannelCodec: Codec[ResizeChannel] = {
+  val resizeChannelCodec = {
     (satoshi withContext "newCapacity") ::
       (bytes64 withContext "clientSig")
   }.as[ResizeChannel]
 
-  val queryPublicHostedChannelsCodec: Codec[QueryPublicHostedChannels] =
+  val queryPublicHostedChannelsCodec =
     (bytes32 withContext "chainHash").as[QueryPublicHostedChannels]
 
-  val replyPublicHostedChannelsEndCodec: Codec[ReplyPublicHostedChannelsEnd] =
+  val replyPublicHostedChannelsEndCodec =
     (bytes32 withContext "chainHash").as[ReplyPublicHostedChannelsEnd]
+}
+
+object SwapCodecs {
+  private val text = variableSizeBytes(uint16, utf8)
+
+  val swapInResponseCodec = {
+    ("btcAddress" | text) ::
+      ("minChainDeposit" | satoshi)
+  }.as[SwapInResponse]
+
+  val swapInPaymentRequestCodec =
+    ("paymentRequest" | text).as[SwapInPaymentRequest]
+
+  val swapInPaymentDeniedCodec = {
+    ("paymentRequest" | text) ::
+      ("reason" | text)
+  }.as[SwapInPaymentDenied]
+
+  val pendingDepositCodec = {
+    ("btcAddress" | text) ::
+      ("txid" | bytes32) ::
+      ("amount" | satoshi) ::
+      ("stamp" | uint32)
+  }.as[PendingDeposit]
+
+  val swapInStateCodec = {
+    ("balance" | millisatoshi) ::
+      ("inFlight" | millisatoshi) ::
+      ("pendingChainDeposits" | listOfN(uint16, pendingDepositCodec))
+  }.as[SwapInState]
+
+  // SwapOut
+
+  val blockTargetAndFeeCodec = {
+    ("blockTarget" | uint16) ::
+      ("fee" | satoshi)
+  }.as[BlockTargetAndFee]
+
+  val keyedBlockTargetAndFeeCodec = {
+    ("feerates" | listOfN(uint16, blockTargetAndFeeCodec)) ::
+      ("feerateKey" | bytes32)
+  }.as[KeyedBlockTargetAndFee]
+
+  val swapOutFeeratesCodec = {
+    ("feerates" | keyedBlockTargetAndFeeCodec) ::
+      ("providerCanHandle" | satoshi) ::
+      ("minWithdrawable" | satoshi)
+  }.as[SwapOutFeerates]
+
+  val swapOutTransactionRequestCodec = {
+    ("amount" | satoshi) ::
+      ("btcAddress" | text) ::
+      ("blockTarget" | uint16) ::
+      ("feerateKey" | bytes32)
+  }.as[SwapOutTransactionRequest]
+
+  val swapOutTransactionResponseCodec = {
+    ("paymentRequest" | text) ::
+      ("amount" | satoshi) ::
+      ("fee" | satoshi)
+  }.as[SwapOutTransactionResponse]
+
+  val swapOutTransactionDeniedCodec = {
+    ("btcAddress" | text) ::
+      ("reason" | text)
+  }.as[SwapOutTransactionDenied]
 }

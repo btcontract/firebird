@@ -438,3 +438,37 @@ case class ResizeChannel(newCapacity: Satoshi, clientSig: ByteVector64 = ByteVec
 case class QueryPublicHostedChannels(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
 
 case class ReplyPublicHostedChannelsEnd(chainHash: ByteVector32) extends RoutingMessage with HasChainHash
+
+// Swap In/Out
+
+sealed trait ChainSwapMessage extends LightningMessage
+
+sealed trait SwapIn
+
+case object SwapInRequest extends SwapIn with ChainSwapMessage
+
+case class SwapInResponse(btcAddress: String, minChainDeposit: Satoshi) extends SwapIn with ChainSwapMessage
+
+case class SwapInPaymentRequest(paymentRequest: String) extends SwapIn with ChainSwapMessage
+
+case class SwapInPaymentDenied(paymentRequest: String, reason: String) extends SwapIn with ChainSwapMessage
+
+case class PendingDeposit(btcAddress: String, txid: ByteVector32, amount: Satoshi, stamp: Long)
+
+case class SwapInState(balance: MilliSatoshi, inFlight: MilliSatoshi, pendingChainDeposits: List[PendingDeposit] = Nil) extends SwapIn with ChainSwapMessage
+
+sealed trait SwapOut
+
+case object SwapOutRequest extends SwapOut with ChainSwapMessage
+
+case class BlockTargetAndFee(blockTarget: Int, fee: Satoshi)
+
+case class KeyedBlockTargetAndFee(feerates: List[BlockTargetAndFee], feerateKey: ByteVector32)
+
+case class SwapOutFeerates(feerates: KeyedBlockTargetAndFee, providerCanHandle: Satoshi, minWithdrawable: Satoshi) extends SwapOut with ChainSwapMessage
+
+case class SwapOutTransactionRequest(amount: Satoshi, btcAddress: String, blockTarget: Int, feerateKey: ByteVector32) extends SwapOut with ChainSwapMessage
+
+case class SwapOutTransactionResponse(paymentRequest: String, amount: Satoshi, fee: Satoshi) extends SwapOut with ChainSwapMessage
+
+case class SwapOutTransactionDenied(btcAddress: String, reason: String) extends SwapOut with ChainSwapMessage
