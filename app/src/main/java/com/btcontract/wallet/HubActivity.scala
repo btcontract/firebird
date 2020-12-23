@@ -22,6 +22,7 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
   lazy val contentWindow: FrameLayout = findViewById(R.id.contentWindow).asInstanceOf[FrameLayout]
 
   override def onResume: Unit = {
+    // initChannelsOnTipKnownIfHasOutstanding
     checkCurrentClipboard
     super.onResume
   }
@@ -30,9 +31,8 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
     if (WalletApp.isOperational) {
       setContentView(R.layout.activity_hub)
       val wallet = new AHBottomNavigationItem(item_wallet, R.drawable.ic_wallet_black_24dp, R.color.accent, "wallet")
-      val shopping = new AHBottomNavigationItem(item_shopping, R.drawable.ic_shopping_black_24dp, R.color.accent, "shopping")
       val addons = new AHBottomNavigationItem(item_addons, R.drawable.ic_add_black_24dp, R.color.accent, "addons")
-      bottomNavigation addItems util.Arrays.asList(wallet, shopping, addons)
+      bottomNavigation addItems util.Arrays.asList(wallet, addons)
       bottomNavigation setOnTabSelectedListener me
     } else me exitTo classOf[MainActivity]
 
@@ -114,10 +114,7 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
       }
     }
 
-  def clearClipboard: Unit = {
-    val clip = ClipData.newPlainText(null, new String)
-    WalletApp.app.clipboardManager.setPrimaryClip(clip)
-  }
+  def clearClipboard: Unit = WalletApp.app.clipboardManager setPrimaryClip ClipData.newPlainText(null, new String)
 
   def onTabSelected(position: Int, tag: String, wasSelected: Boolean): Boolean = true
 }

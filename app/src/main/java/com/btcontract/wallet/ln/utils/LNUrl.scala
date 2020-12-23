@@ -114,11 +114,8 @@ case class PayRequest(callback: String, maxSendable: Long, minSendable: Long, me
   val metaDataTextPlain: String = metaDataTexts.head
 }
 
-case class PayRequestFinal(successAction: Option[PaymentAction], disposable: Option[Boolean],
-                           routes: Vector[String], pr: String) extends LNUrlData {
-
+case class PayRequestFinal(successAction: Option[PaymentAction], routes: Vector[String], pr: String) extends LNUrlData {
   val paymentRequest: PaymentRequest = PaymentRequest.read(pr)
-  val isThrowAway: Boolean = disposable getOrElse true
 }
 
 case class MessageAction(domain: Option[String], message: String) extends PaymentAction {

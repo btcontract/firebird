@@ -91,13 +91,13 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
 
 
-abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener { me =>
-  private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, 0L.msat, invalidPubKey), Map.empty)
+abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener {
+  private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, totalAmount = 0L.msat, invalidPubKey), Map.empty)
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
 
   val socketToChannelBridge: ConnectionListener
-  val operationalListeners: Set[ChannelListener] = Set(me, PaymentMaster)
+  val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster)
   var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data)
   var listeners: Set[ChannelMasterListener] = Set.empty
 
@@ -601,9 +601,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     }
 
     override def onTotalDisconnect: Unit = {
-      // Once we're disconnected, wait for 6 hours and then put channels into SLEEPING state if there's no reconnect
+      // Once we're disconnected, wait for 3 hours and then put channels into SLEEPING state if there's no reconnect
       // sending CMD_CHAIN_TIP_LOST puts a channel into SLEEPING state where it does not react to new payments
-      val delay = Rx.initDelay(Observable.from(all), System.currentTimeMillis, 3600 * 6 * 1000L)
+      val delay = Rx.initDelay(Observable.from(all), System.currentTimeMillis, 3600 * 3 * 1000L)
       shutdownTimer = delay.subscribe(_ process CMD_CHAIN_TIP_LOST).toSome
     }
   }

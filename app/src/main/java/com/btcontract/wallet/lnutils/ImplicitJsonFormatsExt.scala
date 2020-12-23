@@ -49,8 +49,8 @@ object ImplicitJsonFormatsExt {
   implicit val payRequestFmt: JsonFormat[PayRequest] = taggedJsonFmt(jsonFormat[String, Long, Long, String, Option[Int],
     PayRequest](PayRequest.apply, "callback", "maxSendable", "minSendable", "metadata", "commentAllowed"), tag = "payRequest")
 
-  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Option[Boolean], Vector[String], String,
-    PayRequestFinal](PayRequestFinal.apply, "successAction", "disposable", "routes", "pr")
+  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Vector[String], String,
+    PayRequestFinal](PayRequestFinal.apply, "successAction", "routes", "pr")
 
   // Addons
 

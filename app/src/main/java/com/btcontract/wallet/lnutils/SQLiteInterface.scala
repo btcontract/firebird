@@ -41,7 +41,6 @@ class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(c
     DataTable.createStatements.foreach(dbs.execSQL)
     ChannelTable.createStatements.foreach(dbs.execSQL)
     PaymentTable.createStatements.foreach(dbs.execSQL)
-    PayMarketTable.createStatements.foreach(dbs.execSQL)
   }
 
   def onUpgrade(dbs: SQLiteDatabase, v0: Int, v1: Int): Unit = {

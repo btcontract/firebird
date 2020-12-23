@@ -50,7 +50,7 @@ object MainActivity {
             if (mustHalt) interruptWallet else Rx.ioQueue.delay(5.seconds).foreach(_ => initConnect)
           }
         }
-    }
+      }
 
     LNParams.format = format
     LNParams.channelMaster = channelMaster
@@ -89,7 +89,7 @@ class MainActivity extends NfcReaderActivity with FirebirdActivity { me =>
 
   def INIT(state: Bundle): Unit = {
     setContentView(R.layout.activity_main)
-    me initNfc state
+    initNfc(state)
   }
 
   // NFC AND SHARE
