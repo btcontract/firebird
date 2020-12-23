@@ -85,6 +85,7 @@ object Tools {
 
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
 case class CMDAddImpossible(cmd: com.btcontract.wallet.ln.CMD_ADD_HTLC, code: Int) extends LightningException
+case class ChannelResizingAlreadyInProgress(cmd: com.btcontract.wallet.ln.HC_CMD_RESIZE) extends LightningException
 
 trait CanBeRepliedTo {
   def process(reply: Any): Unit
