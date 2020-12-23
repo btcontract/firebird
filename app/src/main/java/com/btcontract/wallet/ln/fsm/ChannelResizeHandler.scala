@@ -13,20 +13,21 @@ abstract class ChannelResizeHandler(chan: HostedChannel, newCapacity: Satoshi) e
   chan.listeners += this
   chan process command
 
+  def onResizingCarriedOutSuccessfully: Unit
   def onResizingSentToSuspendedChannel: Unit
   def onResizingAlreadyInProgress: Unit
-  def onResizingSuccess: Unit
 
   override def onBecome: PartialFunction[Transition, Unit] = {
     case (_, _, _, prevState, SUSPENDED) if SUSPENDED != prevState =>
       // Something went wrong while we were trying to resize a channel
+      onResizingSentToSuspendedChannel
       chan.listeners -= this
 
       case(_, hc0: HostedCommits, hc1: HostedCommits, _, _)
         if hc0.resizeProposal.isDefined && hc1.resizeProposal.isEmpty =>
         // Previous state had resizing proposal while new one does not
+        onResizingCarriedOutSuccessfully
         chan.listeners -= this
-        onResizingSuccess
   }
 
   override def onException: PartialFunction[Malfunction, Unit] = {

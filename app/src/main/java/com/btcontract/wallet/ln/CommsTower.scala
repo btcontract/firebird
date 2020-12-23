@@ -59,16 +59,15 @@ object CommsTower {
     var pinging: Subscription = _
 
     def disconnect: Unit = try sock.close catch none
-    def handleTheirInit(listeners1: Set[ConnectionListener] = Set.empty)(theirInitMsg: Init): Unit = {
+    def handleTheirInit(listeners1: Set[ConnectionListener] = Set.empty)(remoteInit: Init): Unit = {
       // Use a separate variable for listeners here because a set of listeners provided to this method may be different
       // Account for a case where they disconnect while we are deciding on their features (do nothing in this case)
-      val areSupported = Features.areSupported(theirInitMsg.features)
-      theirInit = Some(theirInitMsg)
+      theirInit = Some(remoteInit)
 
-      (areSupported, thread.isCompleted) match {
-        case (true, false) => for (lst <- listeners1) lst.onOperational(me) // They have not disconnected yet
-        case (false, false) => disconnect // Their features are not supported and they have not disconnected yet
-        case (_, true) => // They have disconnected at this point, all callacks are already called, do nothing
+      if (!thread.isCompleted) {
+        val areSupported = Features.areSupported(remoteInit.features)
+        if (areSupported) for (lst <- listeners1) lst.onOperational(me, remoteInit) // They have not disconnected yet
+        else disconnect // Their features are not supported and they have not disconnected yet, so we disconnect
       }
     }
 
@@ -89,15 +88,15 @@ object CommsTower {
           // Prevent pinger from disconnecting or sending pings
           pingState = PROCESSING_DATA
 
-          val ourListenerOpt = listeners(pkap)
+          val ourListenerSet = listeners(pkap)
           lightningMessageCodec.decode(data.bits).require.value match {
-            case message: Init => handleTheirInit(ourListenerOpt)(message)
+            case message: Init => handleTheirInit(ourListenerSet)(message)
             case message: Ping => if (message.pongLength > 0) handler process Pong(ByteVector fromValidHex "00" * message.pongLength)
-            case message: HostedChannelBranding => for (lst <- ourListenerOpt) lst.onBrandingMessage(me, message)
-            case message: HostedChannelMessage => for (lst <- ourListenerOpt) lst.onHostedMessage(me, message)
-            case message: SwapOut => for (lst <- ourListenerOpt) lst.onSwapOutMessage(me, message)
-            case message: SwapIn => for (lst <- ourListenerOpt) lst.onSwapInMessage(me, message)
-            case message => for (lst <- ourListenerOpt) lst.onMessage(me, message)
+            case message: HostedChannelBranding => for (lst <- ourListenerSet) lst.onBrandingMessage(me, message)
+            case message: HostedChannelMessage => for (lst <- ourListenerSet) lst.onHostedMessage(me, message)
+            case message: SwapOut => for (lst <- ourListenerSet) lst.onSwapOutMessage(me, message)
+            case message: SwapIn => for (lst <- ourListenerSet) lst.onSwapInMessage(me, message)
+            case message => for (lst <- ourListenerSet) lst.onMessage(me, message)
           }
 
           // Allow pinger operations again
@@ -137,11 +136,11 @@ object CommsTower {
 }
 
 class ConnectionListener {
+  def onOperational(worker: CommsTower.Worker, theirInit: Init): Unit = none
   def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = none
   def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit = none
   def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = none
   def onSwapOutMessage(worker: CommsTower.Worker, msg: SwapOut): Unit = none
   def onSwapInMessage(worker: CommsTower.Worker, msg: SwapIn): Unit = none
-  def onOperational(worker: CommsTower.Worker): Unit = none
   def onDisconnect(worker: CommsTower.Worker): Unit = none
 }

@@ -110,7 +110,7 @@ case class SyncWorker(master: CanBeRepliedTo, keyPair: KeyPair, ann: NodeAnnounc
   val pkap = PublicKeyAndPair(ann.nodeId, keyPair)
 
   val listener: ConnectionListener = new ConnectionListener {
-    override def onOperational(worker: CommsTower.Worker): Unit = me process worker
+    override def onOperational(worker: CommsTower.Worker, theirInit: Init): Unit = me process worker
     override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = me process msg
 
     override def onDisconnect(worker: CommsTower.Worker): Unit = {

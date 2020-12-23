@@ -5,8 +5,8 @@ import com.btcontract.wallet.R.string._
 import com.aurelhubert.ahbottomnavigation._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SUSPENDED, WAIT_FOR_ACCEPT}
+import fr.acinq.eclair.wire.{HostedChannelMessage, Init, LightningMessage}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
-import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage}
 import org.bitcoinj.uri.BitcoinURI
 import android.widget.FrameLayout
 import android.content.ClipData
@@ -56,7 +56,7 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
           override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = freshChannel process msg
           override def onDisconnect(worker: CommsTower.Worker): Unit = CommsTower.forget(worker.pkap)
 
-          override def onOperational(worker: CommsTower.Worker): Unit = {
+          override def onOperational(worker: CommsTower.Worker, theirInit: Init): Unit = {
             freshChannel process CMD_CHAIN_TIP_KNOWN
             freshChannel process CMD_SOCKET_ONLINE
           }

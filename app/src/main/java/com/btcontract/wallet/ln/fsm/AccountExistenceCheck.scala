@@ -35,7 +35,7 @@ abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVecto
     override def onDisconnect(worker: CommsTower.Worker): Unit = me process PeerDisconnected(worker)
     override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = me process PeerResponse(msg, worker)
 
-    override def onOperational(worker: CommsTower.Worker): Unit = {
+    override def onOperational(worker: CommsTower.Worker, theirInit: Init): Unit = {
       val peerSpecificSecret = format.keys.refundPubKey(theirNodeId = worker.ann.nodeId)
       val peerSpecificRefundPubKey = format.attachedChannelSecret(theirNodeId = worker.ann.nodeId)
       worker.handler process InvokeHostedChannel(chainHash, peerSpecificSecret, peerSpecificRefundPubKey)
@@ -100,7 +100,7 @@ abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVecto
 
     case (CMDCheck, null) =>
       val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](format.outstandingProviders.map(NodeAnnouncementExt), _.na)
-      become(CheckData(remainingHosts, results = remainingHosts.mapValues(_ => None), reconnectAttemptsLeft = remainingHosts.size * 4), OPERATIONAL)
+      become(CheckData(remainingHosts, remainingHosts.mapValues(_ => None), reconnectAttemptsLeft = remainingHosts.size * 4), OPERATIONAL)
       for (ext <- remainingHosts.values) CommsTower.listen(Set(accountCheckListener), ext.nodeSpecificPkap, ext.na, init)
       Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
   }

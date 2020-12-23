@@ -8,7 +8,7 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
-import fr.acinq.bitcoin.{Block, ByteVector32, Crypto, DeterministicWallet, Protocol, Satoshi, Script}
+import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
@@ -54,7 +54,7 @@ object LNParams {
       ActivatedFeature(HostedChannels, FeatureSupport.Mandatory)
     )
 
-    val extendedFeatures: Set[ActivatedFeature] = Set (
+    val hcFeatures: Set[ActivatedFeature] = Set (
       ActivatedFeature(ChannelRangeQueriesExtended, FeatureSupport.Mandatory),
       ActivatedFeature(BasicMultiPartPayment, FeatureSupport.Mandatory),
       ActivatedFeature(ChannelRangeQueries, FeatureSupport.Mandatory),
@@ -65,7 +65,7 @@ object LNParams {
 
     val sync = Init(Features(syncFeatures), tlvStream)
     val phcSync = Init(Features(phcSyncFeatures), tlvStream)
-    val hc = Init(Features(extendedFeatures), tlvStream)
+    val hc = Init(Features(hcFeatures), tlvStream)
     (sync, phcSync, hc)
   }
 }
