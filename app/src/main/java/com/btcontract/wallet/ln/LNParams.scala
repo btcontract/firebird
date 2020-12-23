@@ -37,7 +37,7 @@ object LNParams {
   var format: StorageFormat = _
   var channelMaster: ChannelMaster = _
 
-  lazy val (syncInit, phcSyncInit, extInit) = {
+  lazy val (syncInit, phcSyncInit, hcInit) = {
     val networks: InitTlv = InitTlv.Networks(chainHash :: Nil)
     val tlvStream: TlvStream[InitTlv] = TlvStream(networks)
 
@@ -65,8 +65,8 @@ object LNParams {
 
     val sync = Init(Features(syncFeatures), tlvStream)
     val phcSync = Init(Features(phcSyncFeatures), tlvStream)
-    val ext = Init(Features(extendedFeatures), tlvStream)
-    (sync, phcSync, ext)
+    val hc = Init(Features(extendedFeatures), tlvStream)
+    (sync, phcSync, hc)
   }
 }
 
@@ -122,17 +122,17 @@ case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String,
 }
 
 sealed trait StorageFormat {
-  def keys: LightningNodeKeys
-  def attachedChannelSecret: ByteVector
+  def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32
   def outstandingProviders: Set[NodeAnnouncement]
+  def keys: LightningNodeKeys
 }
 
 case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: Option[ByteVector] = None) extends StorageFormat {
-  override def attachedChannelSecret: ByteVector = Crypto.hash256(keys.extendedNodeKey.secretkeybytes)
+  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.extendedNodeKey.secretkeybytes, theirNodeId.value)
 }
 
 case class PasswordStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
-  override def attachedChannelSecret: ByteVector = Crypto.hash256(user getBytes "UTF-8")
+  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(user getBytes "UTF-8", theirNodeId.value)
 }
 
 object ChanErrorCodes {

@@ -96,7 +96,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
 
-  val socketToChannelBridge: ConnectionListener
+  val sockBrandingBridge: ConnectionListener
+  val sockChannelBridge: ConnectionListener
+
   val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster)
   var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data)
   var listeners: Set[ChannelMasterListener] = Set.empty
@@ -130,7 +132,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
-  def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(socketToChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.extInit)
+  def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(sockBrandingBridge, sockChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.hcInit)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)

@@ -5,13 +5,11 @@ import com.btcontract.wallet.R.string._
 import com.aurelhubert.ahbottomnavigation._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel.{OPEN, SUSPENDED, WAIT_FOR_ACCEPT}
-import fr.acinq.eclair.wire.{ChannelUpdate, HostedChannelMessage, LightningMessage}
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Transition}
+import fr.acinq.eclair.wire.{HostedChannelMessage, LightningMessage}
 import org.bitcoinj.uri.BitcoinURI
 import android.widget.FrameLayout
 import android.content.ClipData
-import scodec.bits.ByteVector
-import fr.acinq.eclair.wire
 import android.os.Bundle
 import scala.util.Try
 import java.util
@@ -48,13 +46,14 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
   def initChannelsOnTipKnown: Unit =
     LNParams.format.outstandingProviders foreach {
       case ann if LNParams.channelMaster.fromNode(ann.nodeId).isEmpty =>
-        val peerSpecificSecret: ByteVector = LNParams.format.attachedChannelSecret
-        val peerSpecificRefundPubKey: ByteVector = LNParams.format.keys.refundPubKey(ann.nodeId)
+        val peerSpecificSecret = LNParams.format.attachedChannelSecret(theirNodeId = ann.nodeId)
+        val peerSpecificRefundPubKey = LNParams.format.keys.refundPubKey(theirNodeId = ann.nodeId)
         val waitData = WaitRemoteHostedReply(NodeAnnouncementExt(ann), peerSpecificRefundPubKey, peerSpecificSecret)
         val freshChannel = LNParams.channelMaster.mkHostedChannel(initListeners = Set.empty, waitData)
 
         val makeChanListener = new ConnectionListener with ChannelListener {
           override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = freshChannel process msg
+          override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = freshChannel process msg
           override def onDisconnect(worker: CommsTower.Worker): Unit = CommsTower.forget(worker.pkap)
 
           override def onOperational(worker: CommsTower.Worker): Unit = {
@@ -62,21 +61,14 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
             freshChannel process CMD_SOCKET_ONLINE
           }
 
-          override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = msg match {
-            case update: ChannelUpdate => freshChannel process update
-            case error: wire.Error => freshChannel process error
-            case _ =>
-          }
-
           override def onBecome: PartialFunction[Transition, Unit] = {
             case (_, _, newChannelData, WAIT_FOR_ACCEPT, OPEN | SUSPENDED) =>
               // Hosted channel is now established and stored, may contain error
-              freshChannel.listeners = LNParams.channelMaster.operationalListeners
-              CommsTower.listeners(newChannelData.announce.nodeSpecificPkap) -= this
-              LNParams.channelMaster.all = LNParams.channelMaster.all :+ freshChannel
-              // Add standard listener for this new channel
-              LNParams.channelMaster.initConnect
-              WalletApp syncRmOutstanding ann
+              freshChannel.listeners = LNParams.channelMaster.operationalListeners // Add standard channel listeners to this channel
+              CommsTower.listeners(newChannelData.announce.nodeSpecificPkap) -= this // Stop sending messages from this connection listener
+              LNParams.channelMaster.all = LNParams.channelMaster.all :+ freshChannel // Put this channel to vector of established channels
+              LNParams.channelMaster.initConnect // Add standard connection listeners for this peer
+              WalletApp syncRmOutstanding ann // Remove this channel from un-established list
           }
 
           override def onException: PartialFunction[Malfunction, Unit] = {
@@ -85,9 +77,8 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
           }
         }
 
-        // listen and connect right away
-        val pkap = freshChannel.data.announce.nodeSpecificPkap
-        CommsTower.listen(Set(makeChanListener), pkap, ann, LNParams.extInit)
+        val connectionListeners = Set(makeChanListener, LNParams.channelMaster.sockBrandingBridge)
+        CommsTower.listen(connectionListeners, freshChannel.data.announce.nodeSpecificPkap, ann, LNParams.hcInit)
         freshChannel.listeners += makeChanListener
 
       case hasChannelAnn =>

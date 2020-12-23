@@ -37,11 +37,15 @@ object MainActivity {
 
     val channelMaster: ChannelMaster =
       new ChannelMaster(WalletApp.paymentBag, channelBag, pf, WalletApp.chainLink) {
-        override val socketToChannelBridge: ConnectionListener = new ConnectionListener {
+        override val sockBrandingBridge: ConnectionListener = new ConnectionListener {
+          override def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit =
+            WalletApp.dataBag.putBranding(worker.ann.nodeId, msg)
+        }
+
+        override val sockChannelBridge: ConnectionListener = new ConnectionListener {
           // Messages should be differentiated by channelId, but we don't since only one hosted channel per node is allowed
           override def onOperational(worker: CommsTower.Worker): Unit = fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_ONLINE)
           override def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
-          override def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit = WalletApp.dataBag.putBranding(worker.ann.nodeId, msg)
           override def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = fromNode(worker.ann.nodeId).foreach(_ process msg)
 
           override def onDisconnect(worker: CommsTower.Worker): Unit = {

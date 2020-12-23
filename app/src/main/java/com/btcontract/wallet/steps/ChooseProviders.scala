@@ -14,6 +14,7 @@ import android.view.View
 
 
 case class Providers(set: Set[NodeAnnouncement] = Set.empty)
+
 class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Providers](title, true) with ExternalDataChecker { me =>
   val availableProviders: Array[NodeAnnouncement] = SyncMaster.hostedChanNodes.toArray
   var chosenProviders: Providers = Providers(Set.empty)
@@ -30,8 +31,9 @@ class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Provid
 
   override def checkExternalData: Unit =
     WalletApp checkAndMaybeErase {
-      case ann: NodeAnnouncement =>
-        chosenProviders = Providers(Set apply ann)
+      case userAnn: NodeAnnouncement =>
+        // If user chooses their own node we only use it
+        chosenProviders = Providers(Set apply userAnn)
         markAsCompletedOrUncompleted(true)
         getFormView.goToNextStep(true)
         list.clearChoices

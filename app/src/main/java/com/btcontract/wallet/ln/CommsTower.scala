@@ -89,12 +89,15 @@ object CommsTower {
           // Prevent pinger from disconnecting or sending pings
           pingState = PROCESSING_DATA
 
+          val ourListenerOpt = listeners(pkap)
           lightningMessageCodec.decode(data.bits).require.value match {
-            case message: Init => handleTheirInit(listeners apply pkap)(message)
+            case message: Init => handleTheirInit(ourListenerOpt)(message)
             case message: Ping => if (message.pongLength > 0) handler process Pong(ByteVector fromValidHex "00" * message.pongLength)
-            case message: HostedChannelBranding => for (lst <- listeners apply pkap) lst.onBrandingMessage(me, message)
-            case message: HostedChannelMessage => for (lst <- listeners apply pkap) lst.onHostedMessage(me, message)
-            case message => for (lst <- listeners apply pkap) lst.onMessage(me, message)
+            case message: HostedChannelBranding => for (lst <- ourListenerOpt) lst.onBrandingMessage(me, message)
+            case message: HostedChannelMessage => for (lst <- ourListenerOpt) lst.onHostedMessage(me, message)
+            case message: SwapOut => for (lst <- ourListenerOpt) lst.onSwapOutMessage(me, message)
+            case message: SwapIn => for (lst <- ourListenerOpt) lst.onSwapInMessage(me, message)
+            case message => for (lst <- ourListenerOpt) lst.onMessage(me, message)
           }
 
           // Allow pinger operations again
@@ -137,6 +140,8 @@ class ConnectionListener {
   def onMessage(worker: CommsTower.Worker, msg: LightningMessage): Unit = none
   def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit = none
   def onHostedMessage(worker: CommsTower.Worker, msg: HostedChannelMessage): Unit = none
+  def onSwapOutMessage(worker: CommsTower.Worker, msg: SwapOut): Unit = none
+  def onSwapInMessage(worker: CommsTower.Worker, msg: SwapIn): Unit = none
   def onOperational(worker: CommsTower.Worker): Unit = none
   def onDisconnect(worker: CommsTower.Worker): Unit = none
 }
