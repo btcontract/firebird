@@ -27,17 +27,16 @@ object PaymentStatus {
   val SUCCEEDED = "state-succeeded"
 }
 
-case class PaymentInfo(payeeNodeIdString: String, prString: String, preimageString: String, status: String, stamp: Long,
-                       descriptionString: String, actionString: String, hashString: String, received: MilliSatoshi,
-                       sent: MilliSatoshi, fee: MilliSatoshi, balanceSnapshot: MilliSatoshi,
-                       fiatRateSnapshotString: String, incoming: Long) {
+case class PaymentInfo(payeeNodeIdString: String, prString: String, preimageString: String, status: String, stamp: Long, descriptionString: String,
+                       actionString: String, paymentHashString: String, received: MilliSatoshi, sent: MilliSatoshi, fee: MilliSatoshi,
+                       balanceSnapshot: MilliSatoshi, fiatRateSnapshotString: String, incoming: Long) {
 
   def isIncoming: Boolean = 1 == incoming
   lazy val pr: PaymentRequest = PaymentRequest.read(prString)
   lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0L.msat)
   lazy val payeeNodeId: PublicKey = PublicKey(ByteVector fromValidHex payeeNodeIdString)
   lazy val preimage: ByteVector32 = ByteVector32(ByteVector fromValidHex preimageString)
-  lazy val paymentHash: ByteVector32 = ByteVector32(ByteVector fromValidHex hashString)
+  lazy val paymentHash: ByteVector32 = ByteVector32(ByteVector fromValidHex paymentHashString)
 
   lazy val fiatRateSnapshot: FiatRates.Rates = to[FiatRates.Rates](fiatRateSnapshotString)
   lazy val description: PaymentDescription = to[PaymentDescription](descriptionString)

@@ -62,7 +62,7 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentUpdat
   def toPaymentInfo(rc: RichCursor): PaymentInfo =
     PaymentInfo(payeeNodeIdString = rc string PaymentTable.nodeId, prString = rc string PaymentTable.pr, preimageString = rc string PaymentTable.preimage,
       status = rc string PaymentTable.status, stamp = rc long PaymentTable.stamp, descriptionString = rc string PaymentTable.description, actionString = rc string PaymentTable.action,
-      hashString = rc string PaymentTable.hash, received = MilliSatoshi(rc long PaymentTable.receivedMsat), sent = MilliSatoshi(rc long PaymentTable.sentMsat),
+      paymentHashString = rc string PaymentTable.hash, received = MilliSatoshi(rc long PaymentTable.receivedMsat), sent = MilliSatoshi(rc long PaymentTable.sentMsat),
       fee = MilliSatoshi(rc long PaymentTable.feeMsat), balanceSnapshot = MilliSatoshi(rc long PaymentTable.balanceSnapMsat),
       fiatRateSnapshotString = rc string PaymentTable.fiatRateSnap, incoming = rc long PaymentTable.incoming)
 }

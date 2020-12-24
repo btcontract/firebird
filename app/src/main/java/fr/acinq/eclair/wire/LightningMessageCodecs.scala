@@ -418,31 +418,39 @@ object HostedMessagesCodecs {
 
 object SwapCodecs {
   private val text = variableSizeBytes(uint16, utf8)
+  private val optionalText = optional(bool, text)
 
   val swapInResponseCodec = {
     ("btcAddress" | text) ::
       ("minChainDeposit" | satoshi)
   }.as[SwapInResponse]
 
-  val swapInPaymentRequestCodec =
-    ("paymentRequest" | text).as[SwapInPaymentRequest]
+  val swapInPaymentRequestCodec = {
+    ("paymentRequest" | text) ::
+      ("id" | uint32)
+  }.as[SwapInPaymentRequest]
 
   val swapInPaymentDeniedCodec = {
     ("paymentRequest" | text) ::
-      ("reason" | text)
+      ("reason" | uint32)
   }.as[SwapInPaymentDenied]
 
   val pendingDepositCodec = {
-    ("btcAddress" | text) ::
-      ("txid" | bytes32) ::
-      ("amount" | satoshi) ::
+    ("id" | uint32) ::
+      ("lnPaymentId" | optionalText) ::
+      ("lnStatus" | uint32) ::
+      ("btcAddress" | text) ::
+      ("outIndex" | uint32) ::
+      ("txid" | text) ::
+      ("amountSat" | uint32) ::
+      ("depth" | uint32) ::
       ("stamp" | uint32)
-  }.as[PendingDeposit]
+  }.as[ChainDeposit]
 
   val swapInStateCodec = {
-    ("balance" | millisatoshi) ::
-      ("inFlight" | millisatoshi) ::
-      ("pendingChainDeposits" | listOfN(uint16, pendingDepositCodec))
+    ("pending" | listOfN(uint16, pendingDepositCodec)) ::
+      ("ready" | listOfN(uint16, pendingDepositCodec)) ::
+      ("processing" | listOfN(uint16, pendingDepositCodec))
   }.as[SwapInState]
 
   // SwapOut
