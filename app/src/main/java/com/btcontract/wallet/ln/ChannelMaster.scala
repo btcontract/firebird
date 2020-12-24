@@ -6,6 +6,7 @@ import scala.concurrent.duration._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.PaymentMaster._
+import com.btcontract.wallet.ln.PaymentStatus._
 import com.btcontract.wallet.ln.PaymentFailure._
 
 import rx.lang.scala.{Subscription, Observable}
@@ -31,11 +32,6 @@ import scodec.Attempt
 
 
 object PaymentMaster {
-  val INIT = "state-init"
-  val PENDING = "state-pending"
-  val ABORTED = "state-aborted"
-  val SUCCEEDED = "state-succeeded"
-
   val EXPECTING_PAYMENTS = "state-expecting-payments"
   val WAITING_FOR_ROUTE = "state-waiting-for-route"
 

@@ -1,21 +1,17 @@
 package com.btcontract.wallet.ln.fsm
 
-import fr.acinq.eclair._
 import com.btcontract.wallet.ln._
 import com.btcontract.wallet.ln.ChannelListener.{Malfunction, Incoming, Transition}
-import com.btcontract.wallet.ln.crypto.ChannelResizingAlreadyInProgress
 import com.btcontract.wallet.ln.HostedChannel.SUSPENDED
 import fr.acinq.bitcoin.Satoshi
 
 
-abstract class ChannelResizeHandler(chan: HostedChannel, newCapacity: Satoshi) extends ChannelListener {
-  val command: HC_CMD_RESIZE = HC_CMD_RESIZE(newCapacity, requestId = randomBytes32)
-  chan.listeners += this
-  chan process command
-
+// Successful resize may come from a different handler, client should always re-check if new capacity is OK
+abstract class ChannelResizeHandler(cmd: HC_CMD_RESIZE, chan: HostedChannel) extends ChannelListener {
   def onResizingCarriedOutSuccessfully: Unit
   def onResizingSentToSuspendedChannel: Unit
-  def onResizingAlreadyInProgress: Unit
+  chan.listeners += this
+  chan process cmd
 
   override def onBecome: PartialFunction[Transition, Unit] = {
     case (_, _, _, prevState, SUSPENDED) if SUSPENDED != prevState =>
@@ -28,13 +24,6 @@ abstract class ChannelResizeHandler(chan: HostedChannel, newCapacity: Satoshi) e
         // Previous state had resizing proposal while new one does not
         onResizingCarriedOutSuccessfully
         chan.listeners -= this
-  }
-
-  override def onException: PartialFunction[Malfunction, Unit] = {
-    case (_, err: ChannelResizingAlreadyInProgress) if err.cmd == command =>
-      // We have sent a resize to a channel which is already being resized
-      onResizingAlreadyInProgress
-      chan.listeners -= this
   }
 
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {

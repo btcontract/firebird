@@ -4,7 +4,6 @@ import spray.json._
 import fr.acinq.eclair._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
-import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import com.btcontract.wallet.ln.{LNParams, PaymentAction}
 import fr.acinq.bitcoin.{Bech32, Crypto}
 
@@ -81,8 +80,8 @@ case class WithdrawRequest(callback: String, k1: String, maxWithdrawable: Long, 
   override def checkAgainstParent(lnUrl: LNUrl): Boolean = lnUrl.uri.getHost == callbackUri.getHost
 
   val callbackUri: Uri = LNUrl.checkHost(callback)
-  val minCanReceive: MilliSatoshi = minWithdrawable.map(MilliSatoshi.apply).getOrElse(LNParams.minPayment).max(LNParams.minPayment)
-  require(minCanReceive <= MilliSatoshi(maxWithdrawable), s"$maxWithdrawable is less than min $minCanReceive")
+  val minCanReceive: MilliSatoshi = minWithdrawable.map(_.msat).getOrElse(LNParams.minPayment).max(LNParams.minPayment)
+  require(minCanReceive <= maxWithdrawable.msat, s"$maxWithdrawable is less than min $minCanReceive")
 }
 
 object PayRequest {
@@ -101,35 +100,14 @@ case class PayRequest(callback: String, maxSendable: Long, minSendable: Long, me
   def metaDataHash: ByteVector = Crypto.sha256(ByteVector view metadata.getBytes)
   private val decodedMetadata = to[PayMetaData](metadata)
 
-  val metaDataImageBase64s: Seq[String] = for {
-    Vector("image/png;base64" | "image/jpeg;base64", content) <- decodedMetadata
-    _ = require(content.length <= 136536, s"Image is too heavy, base64 length=${content.length}")
-  } yield content
-
   val callbackUri: Uri = LNUrl.checkHost(callback)
-  val minCanSend: MilliSatoshi = MilliSatoshi(minSendable) max LNParams.minPayment
-  val metaDataTexts: Vector[String] = decodedMetadata.collect { case Vector("text/plain", content) => content }
-  require(minCanSend <= MilliSatoshi(maxSendable), s"max=$maxSendable while min=$minCanSend")
+  val minCanSend: MilliSatoshi = minSendable.msat.max(LNParams.minPayment)
+  val metaDataTexts: Vector[String] = decodedMetadata.collect { case Vector("text/plain", txt) => txt }
   require(metaDataTexts.size == 1, "There must be exactly one text/plain entry in metadata")
+  require(minCanSend <= maxSendable.msat, s"max=$maxSendable while min=$minCanSend")
   val metaDataTextPlain: String = metaDataTexts.head
 }
 
 case class PayRequestFinal(successAction: Option[PaymentAction], routes: Vector[String], pr: String) extends LNUrlData {
   val paymentRequest: PaymentRequest = PaymentRequest.read(pr)
-}
-
-case class MessageAction(domain: Option[String], message: String) extends PaymentAction {
-  val finalMessage = s"<br>${message take 144}"
-}
-
-case class UrlAction(domain: Option[String], description: String, url: String) extends PaymentAction {
-  val finalMessage = s"<br>${description take 144}<br><br><font color=#0000FF><tt>$url</tt></font><br>"
-  require(domain.forall(url.contains), "Payment action domain mismatch")
-  val uri: Uri = LNUrl.checkHost(url)
-}
-
-case class AESAction(domain: Option[String], description: String, ciphertext: String, iv: String) extends PaymentAction {
-  val ciphertextBytes: Bytes = ByteVector.fromValidBase64(ciphertext).take(1024 * 4).toArray // up to ~2kb of encrypted data
-  val ivBytes: Bytes = ByteVector.fromValidBase64(iv).take(24).toArray // 16 bytes
-  val finalMessage = s"<br>${description take 144}"
 }

@@ -21,7 +21,7 @@ case class CMD_ADD_HTLC(internalId: ByteVector, firstAmount: MilliSatoshi, payme
                         cltvExpiry: CltvExpiry, payload: FinalPayload, packetAndSecrets: PacketAndSecrets) extends Command
 
 case class CMD_HOSTED_STATE_OVERRIDE(so: StateOverride) extends Command
-case class HC_CMD_RESIZE(newCapacity: Satoshi, requestId: ByteVector32) extends Command
+case class HC_CMD_RESIZE(newCapacity: Satoshi) extends Command
 
 case object CMD_INCOMING_TIMEOUT extends Command
 case object CMD_CHAIN_TIP_KNOWN extends Command

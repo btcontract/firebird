@@ -104,4 +104,67 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")
+
+  // Payment description
+
+  implicit object PaymentDescriptionFmt extends JsonFormat[PaymentDescription] {
+    def write(internal: PaymentDescription): JsValue = internal match {
+      case paymentDescription: PlainMetaDescription => paymentDescription.toJson
+      case paymentDescription: PlainDescription => paymentDescription.toJson
+      case _ => throw new Exception
+    }
+
+    def read(raw: JsValue): PaymentDescription = raw.asJsObject fields TAG match {
+      case JsString("PlainMetaDescription") => raw.convertTo[PlainMetaDescription]
+      case JsString("PlainDescription") => raw.convertTo[PlainDescription]
+      case tag => throw new Exception(s"Unknown action=$tag")
+    }
+  }
+
+  implicit val plainDescriptionFmt: JsonFormat[PlainDescription] = taggedJsonFmt(jsonFormat[String, PlainDescription](PlainDescription.apply, "invoiceText"), tag = "PlainDescription")
+  implicit val plainMetainfoDescriptionFmt: JsonFormat[PlainMetaDescription] = taggedJsonFmt(jsonFormat[String, String, PlainMetaDescription](PlainMetaDescription.apply, "invoiceText", "meta"), tag = "PlainMetaDescription")
+
+  // Payment action
+
+  implicit object PaymentActionFmt extends JsonFormat[PaymentAction] {
+    def write(internal: PaymentAction): JsValue = internal match {
+      case paymentAction: MessageAction => paymentAction.toJson
+      case paymentAction: UrlAction => paymentAction.toJson
+      case paymentAction: AESAction => paymentAction.toJson
+      case _ => throw new Exception
+    }
+
+    def read(raw: JsValue): PaymentAction = raw.asJsObject fields TAG match {
+      case JsString("message") => raw.convertTo[MessageAction]
+      case JsString("aes") => raw.convertTo[AESAction]
+      case JsString("url") => raw.convertTo[UrlAction]
+      case tag => throw new Exception(s"Unknown action=$tag")
+    }
+  }
+
+  implicit val aesActionFmt: JsonFormat[AESAction] = taggedJsonFmt(jsonFormat[Option[String], String, String, String, AESAction](AESAction.apply, "domain", "description", "ciphertext", "iv"), tag = "aes")
+  implicit val messageActionFmt: JsonFormat[MessageAction] = taggedJsonFmt(jsonFormat[Option[String], String, MessageAction](MessageAction.apply, "domain", "message"), tag = "message")
+  implicit val urlActionFmt: JsonFormat[UrlAction] = taggedJsonFmt(jsonFormat[Option[String], String, String, UrlAction](UrlAction.apply, "domain", "description", "url"), tag = "url")
+
+  // LNURL
+
+  implicit object LNUrlDataFmt extends JsonFormat[LNUrlData] {
+    def write(internal: LNUrlData): JsValue = throw new RuntimeException
+
+    def read(raw: JsValue): LNUrlData = raw.asJsObject fields TAG match {
+      case JsString("withdrawRequest") => raw.convertTo[WithdrawRequest]
+      case JsString("payRequest") => raw.convertTo[PayRequest]
+      case tag => throw new Exception(s"Unknown lnurl=$tag")
+    }
+  }
+
+  // Note: tag on these MUST start with lower case because it is defined that way on protocol level
+  implicit val withdrawRequestFmt: JsonFormat[WithdrawRequest] = taggedJsonFmt(jsonFormat[String, String, Long, String, Option[Long],
+    WithdrawRequest](WithdrawRequest.apply, "callback", "k1", "maxWithdrawable", "defaultDescription", "minWithdrawable"), tag = "withdrawRequest")
+
+  implicit val payRequestFmt: JsonFormat[PayRequest] = taggedJsonFmt(jsonFormat[String, Long, Long, String, Option[Int],
+    PayRequest](PayRequest.apply, "callback", "maxSendable", "minSendable", "metadata", "commentAllowed"), tag = "payRequest")
+
+  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Vector[String], String,
+    PayRequestFinal](PayRequestFinal.apply, "successAction", "routes", "pr")
 }

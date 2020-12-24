@@ -4,7 +4,6 @@ import com.btcontract.wallet.ln.utils.FiatRates._
 import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import rx.lang.scala.{Subscription, Observable}
-import fr.acinq.eclair.secureRandom
 
 
 object FiatRates {
@@ -20,7 +19,7 @@ object FiatRates {
       "inr" -> "Indian Rupee", "cad" -> "Canadian Dollar", "rub" -> "Русский Рубль", "brl" -> "Real Brasileiro",
       "gbp" -> "Pound Sterling", "aud" -> "Australian Dollar")
 
-  def reloadData: Map[String, Double] = secureRandom nextInt 3 match {
+  def reloadData: Map[String, Double] = fr.acinq.eclair.secureRandom nextInt 3 match {
     case 0 => to[CoinGecko](get("https://api.coingecko.com/api/v3/exchange_rates").body).rates.map { case (code, item) => code.toLowerCase -> item.value }
     case 1 => to[BlockchainInfoItemMap](get("https://blockchain.info/ticker").body).map { case (code, item) => code.toLowerCase -> item.last }
     case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap

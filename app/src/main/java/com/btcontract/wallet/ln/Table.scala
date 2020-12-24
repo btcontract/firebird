@@ -125,7 +125,7 @@ object PaymentTable extends Table {
 
   // Selecting
   val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?"
-  def selectRecentSql(limit: Int) = s"SELECT * FROM $table ORDER BY $id DESC LIMIT $limit"
+  val selectRecentSql = s"SELECT * FROM $table ORDER BY $id DESC LIMIT 10"
   val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ? AND $status = ?"
   val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ?"
   val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)"

@@ -253,8 +253,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (shortIdMatches) data = me STORE hc.copy(updateOpt = upd.toSome)
 
 
-      case (hc: HostedCommits, cmd: HC_CMD_RESIZE, OPEN | SLEEPING) =>
-        if (hc.resizeProposal.nonEmpty) throw ChannelResizingAlreadyInProgress(cmd)
+      case (hc: HostedCommits, cmd: HC_CMD_RESIZE, OPEN | SLEEPING) if hc.resizeProposal.isEmpty =>
         val resize = ResizeChannel(cmd.newCapacity).sign(data.announce.nodeSpecificPrivKey)
         STORESENDBECOME(hc.copy(resizeProposal = resize.toSome), state, resize)
         doProcess(CMD_SIGN)
