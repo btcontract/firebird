@@ -10,7 +10,6 @@ import fr.acinq.eclair.{MilliSatoshi, wire}
 import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
 import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
 import com.btcontract.wallet.ln.utils.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
-import fr.acinq.eclair.wire.HostedMessagesCodecs.{hostedChannelBrandingCodec, lastCrossSignedStateCodec, resizeChannelCodec}
 import fr.acinq.bitcoin.Crypto.PrivateKey
 import fr.acinq.bitcoin.ByteVector32
 import scodec.Codec
@@ -44,9 +43,11 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val lightningMessageFmt: JsonFormat[LightningMessage] = sCodecJsonFmt(lightningMessageCodec)
   implicit val updateFailMalformedHtlcFmt: JsonFormat[UpdateFailMalformedHtlc] = sCodecJsonFmt(updateFailMalformedHtlcCodec)
 
-  implicit val resizeChannelFmt: JsonFormat[ResizeChannel] = sCodecJsonFmt(resizeChannelCodec)
-  implicit val lastCrossSignedStateFmt: JsonFormat[LastCrossSignedState] = sCodecJsonFmt(lastCrossSignedStateCodec)
-  implicit val hostedChannelBrandingFmt: JsonFormat[HostedChannelBranding] = sCodecJsonFmt(hostedChannelBrandingCodec)
+  implicit val resizeChannelFmt: JsonFormat[ResizeChannel] = sCodecJsonFmt(fr.acinq.eclair.wire.HostedMessagesCodecs.resizeChannelCodec)
+  implicit val lastCrossSignedStateFmt: JsonFormat[LastCrossSignedState] = sCodecJsonFmt(fr.acinq.eclair.wire.HostedMessagesCodecs.lastCrossSignedStateCodec)
+  implicit val hostedChannelBrandingFmt: JsonFormat[HostedChannelBranding] = sCodecJsonFmt(fr.acinq.eclair.wire.HostedMessagesCodecs.hostedChannelBrandingCodec)
+
+  implicit val swapInStateFmt: JsonFormat[SwapInState] = sCodecJsonFmt(fr.acinq.eclair.wire.SwapCodecs.swapInStateCodec)
 
   implicit val bytesFmt: JsonFormat[ByteVector] = sCodecJsonFmt(varsizebinarydata)
   implicit val privateKeyFmt: JsonFormat[PrivateKey] = sCodecJsonFmt(privateKey)

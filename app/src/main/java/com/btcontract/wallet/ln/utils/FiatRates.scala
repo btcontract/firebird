@@ -19,15 +19,13 @@ object FiatRates {
       "inr" -> "Indian Rupee", "cad" -> "Canadian Dollar", "rub" -> "Русский Рубль", "brl" -> "Real Brasileiro",
       "gbp" -> "Pound Sterling", "aud" -> "Australian Dollar")
 
-  def reloadData: Map[String, Double] = fr.acinq.eclair.secureRandom nextInt 3 match {
+  def reloadData: Rates = fr.acinq.eclair.secureRandom nextInt 3 match {
     case 0 => to[CoinGecko](get("https://api.coingecko.com/api/v3/exchange_rates").body).rates.map { case (code, item) => code.toLowerCase -> item.value }
     case 1 => to[BlockchainInfoItemMap](get("https://blockchain.info/ticker").body).map { case (code, item) => code.toLowerCase -> item.last }
     case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap
   }
 
-  def makeObservable(stamp: Long): Observable[Rates] =
-    Rx.initDelay(Rx.retry(Rx.ioQueue.map(_ => reloadData),
-      Rx.pickInc, times = 3 to 18 by 3), stamp, 60 * 1000 * 30)
+  def makeObservable(stamp: Long): Observable[Rates] = Rx.initDelay(Rx.retry(Rx.ioQueue.map(_ => reloadData), Rx.pickInc, times = 3 to 18 by 3), stamp, 60 * 1000 * 30)
 }
 
 case class CoinGeckoItem(value: Double)
