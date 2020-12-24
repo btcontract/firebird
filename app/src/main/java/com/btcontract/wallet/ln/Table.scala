@@ -6,21 +6,6 @@ trait Table {
   def createStatements: Seq[String]
 }
 
-object DataTable extends Table {
-  val (table, label, content) = ("data", "label", "content")
-  val newSql = s"INSERT OR IGNORE INTO $table ($label, $content) VALUES (?, ?)"
-  val updSql = s"UPDATE $table SET $content = ? WHERE $label = ?"
-  val selectSql = s"SELECT * FROM $table WHERE $label = ?"
-  val killSql = s"DELETE FROM $table WHERE $label = ?"
-
-  def createStatements: Seq[String] =
-    s"""CREATE TABLE IF NOT EXISTS $table(
-      $id INTEGER PRIMARY KEY AUTOINCREMENT,
-      $label TEXT NOT NULL UNIQUE,
-      $content TEXT NOT NULL
-    )""" :: Nil
-}
-
 object ChannelTable extends Table {
   val (table, identifier, data) = ("channel", "identifier", "data")
   val newSql = s"INSERT OR IGNORE INTO $table ($identifier, $data) VALUES (?, ?)"

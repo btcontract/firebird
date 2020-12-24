@@ -8,6 +8,21 @@ import android.content.Context
 import android.net.Uri
 
 
+object DataTable extends Table {
+  val (table, label, content) = ("data", "label", "content")
+  val newSql = s"INSERT OR IGNORE INTO $table ($label, $content) VALUES (?, ?)"
+  val updSql = s"UPDATE $table SET $content = ? WHERE $label = ?"
+  val selectSql = s"SELECT * FROM $table WHERE $label = ?"
+  val killSql = s"DELETE FROM $table WHERE $label = ?"
+
+  def createStatements: Seq[String] =
+    s"""CREATE TABLE IF NOT EXISTS $table(
+      $id INTEGER PRIMARY KEY AUTOINCREMENT,
+      $label TEXT NOT NULL UNIQUE,
+      $content TEXT NOT NULL
+    )""" :: Nil
+}
+
 class SQLiteInterface(context: Context, name: String) extends SQLiteOpenHelper(context, name, null, 1) {
   def sqlPath(targetTable: String): Uri = Uri parse s"sqlite://com.btcontract.wallet/table/$targetTable"
   def change(sql: String, params: Object*): Unit = base.execSQL(sql, params.toArray)

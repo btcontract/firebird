@@ -4,7 +4,7 @@ import spray.json._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
 import fr.acinq.eclair.wire.{HostedChannelBranding, SwapInState}
-import com.btcontract.wallet.ln.{DataTable, StorageFormat}
+import com.btcontract.wallet.ln.StorageFormat
 import fr.acinq.bitcoin.Crypto.PublicKey
 import scala.util.Try
 
