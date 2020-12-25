@@ -15,10 +15,7 @@ import fr.acinq.bitcoin.ByteVector32
 object AccountExistenceCheck {
   val OPERATIONAL = "existance-state-operational"
   val FINALIZED = "existance-state-finalized"
-
-  val CMDTimeout = "existance-cmd-timeout"
   val CMDCancel = "existance-cmd-cancel"
-  val CMDCheck = "existance-cmd-check"
 
   case class CMDStart(exts: Set[NodeAnnouncementExt] = Set.empty)
   case class PeerResponse(msg: HostedChannelMessage, worker: CommsTower.Worker)
@@ -55,42 +52,23 @@ abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVecto
 
     case (_: PeerDisconnected, OPERATIONAL) =>
       // We've run out of reconnect attempts
-      me process CMDTimeout
+      doSearch(force = true)
 
     case (worker: CommsTower.Worker, OPERATIONAL) =>
-      // We get previously scheduled worker and use its remote peer data to reconnect again
+      // We get previously scheduled worker and use its peer data to reconnect again
       CommsTower.listen(Set(accountCheckListener), worker.pkap, worker.ann, init)
 
     case (PeerResponse(_: InitHostedChannel, worker), OPERATIONAL) =>
       // Remote node offers to create a new channel, no "account" there
       become(data.copy(results = data.results - worker.ann), OPERATIONAL)
-      me process CMDCheck
+      doSearch(force = false)
 
     case (PeerResponse(remoteLCSS: LastCrossSignedState, worker), OPERATIONAL) =>
       // Remote node replies with a state, check our signature to make sure it's valid
       val isLocalSigOk = remoteLCSS.verifyRemoteSig(data.hosts(worker.ann).nodeSpecificPubKey)
       val results1 = if (isLocalSigOk) data.results.updated(worker.ann, true) else data.results - worker.ann
       become(data.copy(results = results1), OPERATIONAL)
-      me process CMDCheck
-
-    case (CMDCheck, OPERATIONAL) =>
-      if (data.results.values.toSet contains true) {
-        // At least one remote peer has confirmed a channel
-        // we do not wait for the rest and proceed right away
-        me doProcess CMDCancel
-        onPresentAccount
-      } else if (data.results.isEmpty) {
-        // All peers replied, none has a channel
-        me doProcess CMDCancel
-        onNoAccountFound
-      }
-
-    case (CMDTimeout, OPERATIONAL) =>
-      // Too much time has passed, disconnect all peers
-      data.hosts.values.foreach(CommsTower forget _.nodeSpecificPkap)
-      // Specifically inform user that cheking is not possible
-      become(data, FINALIZED)
-      onTimeout
+      doSearch(force = false)
 
     case (CMDCancel, OPERATIONAL) =>
       // User has manually cancelled a check, disconnect all peers
@@ -101,6 +79,21 @@ abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVecto
       val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](outstandingProviderExts, _.na)
       become(CheckData(remainingHosts, remainingHosts.mapValues(_ => false), remainingHosts.size * 4), OPERATIONAL)
       for (ext <- outstandingProviderExts) CommsTower.listen(Set(accountCheckListener), ext.nodeSpecificPkap, ext.na, init)
-      Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeout)
+      Rx.ioQueue.delay(30.seconds).foreach(_ => me doSearch true)
   }
+
+  private def doSearch(force: Boolean): Unit =
+    if (data.results.values.toSet contains true) {
+      // At least one remote peer has confirmed a channel
+      // we do not wait for the rest and proceed right away
+      me doProcess CMDCancel
+      onPresentAccount
+    } else if (data.results.isEmpty) {
+      // All peers replied, none has a channel
+      me doProcess CMDCancel
+      onNoAccountFound
+    } else if (force) {
+      me doProcess CMDCancel
+      onTimeout
+    }
 }
