@@ -154,6 +154,8 @@ object ChanErrorCodes {
   val ERR_NOT_OPEN = 5
 }
 
+// Extension wrappers
+
 case class NodeAnnouncementExt(na: NodeAnnouncement) {
   lazy val prettyNodeName: String = na.addresses collectFirst {
     case _: IPv4 | _: IPv6 => na.nodeId.toString take 15 grouped 3 mkString "\u0020"
@@ -161,6 +163,8 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
     case _: Tor3 => s"<strong>Tor</strong>\u0020${na.nodeId.toString take 12 grouped 3 mkString "\u0020"}"
   } getOrElse "No IP address"
 
+  // Important: this relies on format being defined at runtime
+  // we do not provide format as class field here to avoid storing of duplicated data
   lazy val nodeSpecificPrivKey: PrivateKey = LNParams.format.keys.ourFakeNodeIdKey(na.nodeId)
   lazy val nodeSpecificPubKey: PublicKey = nodeSpecificPrivKey.publicKey
 
@@ -168,9 +172,13 @@ case class NodeAnnouncementExt(na: NodeAnnouncement) {
   lazy val nodeSpecificHostedChanId: ByteVector32 = hostedChanId(pubkey1 = nodeSpecificPubKey.value, pubkey2 = na.nodeId.value)
 }
 
-class PaymentRequestExt(val pr: PaymentRequest, val raw: String) {
+case class PaymentRequestExt(pr: PaymentRequest, raw: String) {
   def paymentHashStr: String = pr.paymentHash.toHex
 }
+
+case class SwapInStateExt(state: SwapInState, nodeId: PublicKey)
+
+// Interfaces
 
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit

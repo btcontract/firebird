@@ -13,19 +13,21 @@ import fr.acinq.bitcoin.ByteVector32
 
 
 object AccountExistenceCheck {
-  type ChanExistenceResult = Option[Boolean]
-  val OPERATIONAL = "setup-state-operational"
-  val FINALIZED = "setup-state-finalized"
+  val OPERATIONAL = "existance-state-operational"
+  val FINALIZED = "existance-state-finalized"
 
-  val CMDTimeoutAccountCheck = "setup-cmd-timeout"
-  val CMDCancelAccountCheck = "setup-cmd-cancel"
-  val CMDCarryCheck = "setup-cmd-carry-check"
-  val CMDCheck = "setup-cmd-check"
+  val CMDTimeout = "existance-cmd-timeout"
+  val CMDCancel = "existance-cmd-cancel"
+  val CMDCheck = "existance-cmd-check"
+
+  case class CMDStart(exts: Set[NodeAnnouncementExt] = Set.empty)
+  case class PeerResponse(msg: HostedChannelMessage, worker: CommsTower.Worker)
+  case class PeerDisconnected(worker: CommsTower.Worker)
+
+  case class CheckData(hosts: Map[NodeAnnouncement, NodeAnnouncementExt], // Need this for node specific keys
+                       results: Map[NodeAnnouncement, Boolean], // False is unknown, True is channel exists
+                       reconnectsLeft: Int)
 }
-
-case class CheckData(hosts: Map[NodeAnnouncement, NodeAnnouncementExt], results: Map[NodeAnnouncement, ChanExistenceResult], reconnectAttemptsLeft: Int)
-case class PeerResponse(msg: HostedChannelMessage, worker: CommsTower.Worker)
-case class PeerDisconnected(worker: CommsTower.Worker)
 
 abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVector32, init: Init) extends StateMachine[CheckData] { me =>
   implicit val context: ExecutionContextExecutor = ExecutionContext fromExecutor Executors.newSingleThreadExecutor
@@ -42,66 +44,63 @@ abstract class AccountExistenceCheck(format: StorageFormat, chainHash: ByteVecto
     }
   }
 
-  def onCanNotCheckAccount: Unit
+  def onTimeout: Unit
   def onNoAccountFound: Unit
   def onPresentAccount: Unit
 
   def doProcess(change: Any): Unit = (change, state) match {
-    case (PeerDisconnected(worker), OPERATIONAL) if data.reconnectAttemptsLeft > 0 =>
-      become(data.copy(reconnectAttemptsLeft = data.reconnectAttemptsLeft - 1), OPERATIONAL)
+    case (PeerDisconnected(worker), OPERATIONAL) if data.reconnectsLeft > 0 =>
+      become(data.copy(reconnectsLeft = data.reconnectsLeft - 1), OPERATIONAL)
       Rx.ioQueue.delay(3.seconds).foreach(_ => me process worker)
 
     case (_: PeerDisconnected, OPERATIONAL) =>
       // We've run out of reconnect attempts
-      me process CMDTimeoutAccountCheck
+      me process CMDTimeout
 
     case (worker: CommsTower.Worker, OPERATIONAL) =>
       // We get previously scheduled worker and use its remote peer data to reconnect again
       CommsTower.listen(Set(accountCheckListener), worker.pkap, worker.ann, init)
 
     case (PeerResponse(_: InitHostedChannel, worker), OPERATIONAL) =>
-      val results1 = data.results.updated(worker.ann, false.toSome)
-      become(data.copy(results = results1), OPERATIONAL)
-      me process CMDCarryCheck
+      // Remote node offers to create a new channel, no "account" there
+      become(data.copy(results = data.results - worker.ann), OPERATIONAL)
+      me process CMDCheck
 
     case (PeerResponse(remoteLCSS: LastCrossSignedState, worker), OPERATIONAL) =>
+      // Remote node replies with a state, check our signature to make sure it's valid
       val isLocalSigOk = remoteLCSS.verifyRemoteSig(data.hosts(worker.ann).nodeSpecificPubKey)
-      val results1 = data.results.updated(worker.ann, isLocalSigOk.toSome)
+      val results1 = if (isLocalSigOk) data.results.updated(worker.ann, true) else data.results - worker.ann
       become(data.copy(results = results1), OPERATIONAL)
-      me process CMDCarryCheck
+      me process CMDCheck
 
-    case (CMDCarryCheck, OPERATIONAL) =>
-      data.results.values.flatten.toSet match {
-        case results if results.contains(true) =>
-          // At least one peer has confirmed a channel
-          me doProcess CMDCancelAccountCheck
-          onPresentAccount
-
-        case results if results.size == data.hosts.size =>
-          // All peers replied, none has a channel
-          me doProcess CMDCancelAccountCheck
-          onNoAccountFound
-
-        // Keep waiting
-        case _ =>
+    case (CMDCheck, OPERATIONAL) =>
+      if (data.results.values.toSet contains true) {
+        // At least one remote peer has confirmed a channel
+        // we do not wait for the rest and proceed right away
+        me doProcess CMDCancel
+        onPresentAccount
+      } else if (data.results.isEmpty) {
+        // All peers replied, none has a channel
+        me doProcess CMDCancel
+        onNoAccountFound
       }
 
-    case (CMDTimeoutAccountCheck, OPERATIONAL) =>
+    case (CMDTimeout, OPERATIONAL) =>
       // Too much time has passed, disconnect all peers
       data.hosts.values.foreach(CommsTower forget _.nodeSpecificPkap)
       // Specifically inform user that cheking is not possible
       become(data, FINALIZED)
-      onCanNotCheckAccount
+      onTimeout
 
-    case (CMDCancelAccountCheck, OPERATIONAL) =>
+    case (CMDCancel, OPERATIONAL) =>
       // User has manually cancelled a check, disconnect all peers
       data.hosts.values.foreach(CommsTower forget _.nodeSpecificPkap)
       become(data, FINALIZED)
 
-    case (CMDCheck, null) =>
-      val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](format.outstandingProviders.map(NodeAnnouncementExt), _.na)
-      become(CheckData(remainingHosts, remainingHosts.mapValues(_ => None), reconnectAttemptsLeft = remainingHosts.size * 4), OPERATIONAL)
-      for (ext <- remainingHosts.values) CommsTower.listen(Set(accountCheckListener), ext.nodeSpecificPkap, ext.na, init)
-      Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeoutAccountCheck)
+    case (CMDStart(outstandingProviderExts), null) =>
+      val remainingHosts = toMapBy[NodeAnnouncement, NodeAnnouncementExt](outstandingProviderExts, _.na)
+      become(CheckData(remainingHosts, remainingHosts.mapValues(_ => false), remainingHosts.size * 4), OPERATIONAL)
+      for (ext <- outstandingProviderExts) CommsTower.listen(Set(accountCheckListener), ext.nodeSpecificPkap, ext.na, init)
+      Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeout)
   }
 }

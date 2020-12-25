@@ -462,7 +462,9 @@ case class SwapInPaymentDenied(paymentRequest: String, reason: Long) extends Swa
 
 case class ChainDeposit(id: Long, lnPaymentId: Option[String], lnStatus: Long, btcAddress: String, outIndex: Long, txid: String, amountSat: Long, depth: Long, stamp: Long)
 
-case class SwapInState(pending: List[ChainDeposit], ready: List[ChainDeposit], processing: List[ChainDeposit] = Nil) extends SwapIn with ChainSwapMessage
+case class SwapInState(pending: List[ChainDeposit], ready: List[ChainDeposit], processing: List[ChainDeposit] = Nil) extends SwapIn with ChainSwapMessage {
+  lazy val unclaimedDeposits: List[ChainDeposit] = pending ++ ready
+}
 
 sealed trait SwapOut
 

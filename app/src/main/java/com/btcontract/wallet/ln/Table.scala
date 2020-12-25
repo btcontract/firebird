@@ -62,7 +62,7 @@ abstract class ChannelUpdateTable(val table: String, val useHeuristics: Boolean)
   def createStatements: Seq[String] = {
     val createTable = s"""CREATE TABLE IF NOT EXISTS $table(
       $id INTEGER PRIMARY KEY AUTOINCREMENT, $sid INTEGER NOT NULL, $timestamp INTEGER NOT NULL, $msgFlags INTEGER NOT NULL,
-      $chanFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL,$minMsat INTEGER NOT NULL,$base INTEGER NOT NULL,
+      $chanFlags INTEGER NOT NULL, $cltvExpiryDelta INTEGER NOT NULL, $minMsat INTEGER NOT NULL,$base INTEGER NOT NULL,
       $proportional INTEGER NOT NULL, $maxMsat INTEGER NOT NULL, $position INTEGER NOT NULL,
       $score INTEGER NOT NULL, $crc32 INTEGER NOT NULL
     )"""

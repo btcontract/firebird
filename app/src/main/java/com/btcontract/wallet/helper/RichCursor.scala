@@ -22,14 +22,13 @@ case class RichCursor(c: Cursor) extends Iterable[RichCursor] { me =>
   }
 }
 
-// Loading data with side effect
-abstract class ReactLoader[T](ct: Context)
-  extends AsyncTaskLoader[Cursor](ct) {
+// Loading data with side effect, can be automatically notified to update
+abstract class ReactLoader[T](ct: Context) extends AsyncTaskLoader[Cursor](ct) {
 
   def loadInBackground: Cursor = {
-    val cursor: Cursor = this.getCursor
-    consume(RichCursor(cursor) vec createItem)
-    cursor
+    val currentCursor: Cursor = getCursor
+    consume(RichCursor(currentCursor) vec createItem)
+    currentCursor
   }
 
   val consume: Vector[T] => Unit
