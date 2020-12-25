@@ -4,22 +4,21 @@ import spray.json._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
-
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
+
 import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, FiatRates, LNUrl, RatesInfo, SatDenomination}
+import android.app.{AlarmManager, Application, NotificationChannel, NotificationManager, PendingIntent}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt, utils}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
-import android.app.{AlarmManager, Application, NotificationChannel, NotificationManager, PendingIntent}
 import com.btcontract.wallet.helper.{AwaitService, Notificator, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement}
-
 import scala.util.{Success, Try}
+
 import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
-
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -126,6 +125,17 @@ object WalletApp {
     private[this] def getIntent: PendingIntent = PendingIntent.getBroadcast(app, NOTIFICATION_ID, new Intent(app, notificatorClass), 0)
     def reSchedule: Unit = runAnd(cancel)(try getAlarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, getDelayPeriod, getIntent) catch none)
     def cancel: Unit = getAlarmManager.cancel(getIntent)
+  }
+
+  object Vibrator {
+    private var lastVibrated = 0L
+    private val vibrator = app.getSystemService(Context.VIBRATOR_SERVICE).asInstanceOf[android.os.Vibrator]
+    def canVibrate: Boolean = null != vibrator && vibrator.hasVibrator && lastVibrated < System.currentTimeMillis - 3000L
+
+    def vibrate: Unit = if (canVibrate) {
+      lastVibrated = System.currentTimeMillis
+      vibrator.vibrate(Array(0L, 85, 200), -1)
+    }
   }
 }
 
