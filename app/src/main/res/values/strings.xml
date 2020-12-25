@@ -80,8 +80,11 @@
     <string name="buffer_invoice_found">An invoice is found in clipboard</string>
     <string name="buffer_address_found">An address is found in clipboard</string>
 
-    <string name="notify_title">Waiting for incoming payment</string>
-    <string name="notify_body">Keeping an app open to receive %1$s</string>
+    <string name="wait_incoming_notify_title">Waiting for incoming payment</string>
+    <string name="wait_incoming_notify_body">Keeping an app open to receive %1$s</string>
+
+    <string name="in_flight_notify_title">Incoming payment is pending</string>
+    <string name="in_flight_notify_body">Please open an app to finalize it</string>
 
     <!-- auth -->
 

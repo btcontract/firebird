@@ -4,21 +4,22 @@ import spray.json._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
+
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
-
 import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, FiatRates, LNUrl, RatesInfo, SatDenomination}
 import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt, utils}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
-import android.app.{Application, NotificationChannel, NotificationManager}
-import com.btcontract.wallet.helper.{AwaitService, WebSocketBus}
+import android.app.{AlarmManager, Application, NotificationChannel, NotificationManager, PendingIntent}
+import com.btcontract.wallet.helper.{AwaitService, Notificator, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement}
-import scala.util.{Success, Try}
 
+import scala.util.{Success, Try}
 import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
+
 import scala.util.matching.UnanchoredRegex
 import org.bitcoinj.params.MainNetParams
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -115,6 +116,17 @@ object WalletApp {
     LNParams.format = LNParams.format.modify(_.outstandingProviders).using(_ - ann)
     dataBag.put(SQLiteDataBag.LABEL_FORMAT, LNParams.format.toJson.compactPrint)
   }
+
+  object Notificator {
+    val NOTIFICATION_ID = 15
+    val CHANNEL_ID = "delayedChannelId"
+    private[this] val notificatorClass = classOf[Notificator]
+    private[this] def getDelayPeriod: Long = System.currentTimeMillis + 1000 * 60 * 30
+    private[this] def getAlarmManager: AlarmManager = app.getSystemService(Context.ALARM_SERVICE).asInstanceOf[AlarmManager]
+    private[this] def getIntent: PendingIntent = PendingIntent.getBroadcast(app, NOTIFICATION_ID, new Intent(app, notificatorClass), 0)
+    def reSchedule: Unit = runAnd(cancel)(try getAlarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, getDelayPeriod, getIntent) catch none)
+    def cancel: Unit = getAlarmManager.cancel(getIntent)
+  }
 }
 
 class WalletApp extends Application {
@@ -149,8 +161,9 @@ class WalletApp extends Application {
     makeAlive
 
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-      val srvChan = new NotificationChannel(AwaitService.CHANNEL_ID, "NC", NotificationManager.IMPORTANCE_DEFAULT)
-      this getSystemService classOf[NotificationManager] createNotificationChannel srvChan
+      val manager = this getSystemService classOf[NotificationManager]
+      manager createNotificationChannel new NotificationChannel(AwaitService.CHANNEL_ID, "NC1", NotificationManager.IMPORTANCE_DEFAULT)
+      manager createNotificationChannel new NotificationChannel(WalletApp.Notificator.CHANNEL_ID, "NC2", NotificationManager.IMPORTANCE_DEFAULT)
     }
   }
 
