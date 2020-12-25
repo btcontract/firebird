@@ -37,6 +37,12 @@ object Tools {
     override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
   }
 
+  def randomBest[T, B](bestItem: T, mapper: T => B, items: Vector[T] = Vector.empty): T = {
+    // Given a list and a best item from it, get random best if there are many equally good items
+    val bestItems = items.filter(item => mapper(item) == mapper(bestItem) || item == bestItem)
+    scala.util.Random.shuffle(bestItems).head
+  }
+
   def hostedNodesCombined(pubkey1: ByteVector, pubkey2: ByteVector): ByteVector = {
     val pubkey1First: Boolean = LexicographicalOrdering.isLessThan(pubkey1, pubkey2)
     if (pubkey1First) pubkey1 ++ pubkey2 else pubkey2 ++ pubkey1

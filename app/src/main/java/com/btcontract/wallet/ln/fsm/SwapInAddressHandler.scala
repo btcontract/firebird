@@ -9,8 +9,6 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import com.btcontract.wallet.ln.crypto.StateMachine
 import com.btcontract.wallet.ln.utils.Rx
 import java.util.concurrent.Executors
-import scala.util.Random.shuffle
-import fr.acinq.bitcoin.Satoshi
 import fr.acinq.eclair.Features
 
 
@@ -47,11 +45,15 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
       me process YesSwapInSupport(worker, msg)
   }
 
-  def onFound(offer: SwapInResponseExt): Unit
+  def onFound(offers: Vector[SwapInResponseExt] = Vector.empty): Unit
   def onNoProviderSwapInSupport: Unit
   def onTimeoutAndNoResponse: Unit
 
   def doProcess(change: Any): Unit = (change, state) match {
+    case (NoSwapInSupport(worker), WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
+      become(data.copy(results = data.results - worker.ann), state)
+      me process CMDSearch
+
     case (YesSwapInSupport(worker, msg: SwapInResponse), WAITING_FIRST_RESPONSE) =>
       val results1 = data.results.updated(worker.ann, SwapInResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), WAITING_REST_OF_RESPONSES) // Start waiting for the rest of responses
@@ -61,10 +63,6 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
     case (YesSwapInSupport(worker, msg: SwapInResponse), WAITING_REST_OF_RESPONSES) =>
       val results1 = data.results.updated(worker.ann, SwapInResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), state)
-      me process CMDSearch
-
-    case (NoSwapInSupport(worker), WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
-      become(data.copy(results = data.results - worker.ann), state)
       me process CMDSearch
 
     case (CMDSearch, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) => doSearch(data, force = false)
@@ -89,7 +87,7 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
 
     if (responses.size == data.results.size) {
       // All responses have been collected
-      onFound(me randomBest responses)
+      onFound(offers = responses)
       me process CMDCancel
     } else if (data.results.isEmpty) {
       // No provider supports this right now
@@ -97,18 +95,12 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
       me process CMDCancel
     } else if (responses.nonEmpty && force) {
       // We have partial responses, but timed out
-      onFound(me randomBest responses)
+      onFound(offers = responses)
       me process CMDCancel
     } else if (force) {
       // Timed out with no responses
       onTimeoutAndNoResponse
       me process CMDCancel
     }
-  }
-
-  private def randomBest(responses: Vector[SwapInResponseExt] = Vector.empty) = {
-    val bestMinimalChainDepositAmount: Satoshi = responses.map(_.msg.minChainDeposit).min
-    val best = responses.filter(_.msg.minChainDeposit == bestMinimalChainDepositAmount)
-    shuffle(best).head
   }
 }
