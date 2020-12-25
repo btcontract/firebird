@@ -78,7 +78,10 @@
     <string name="amount_hint_can_send">Can send %1$s</string>
 
     <string name="buffer_invoice_found">An invoice is found in clipboard</string>
-    <string name="buffer_address_found">A Bitcoin address is found in clipboard</string>
+    <string name="buffer_address_found">An address is found in clipboard</string>
+
+    <string name="notify_title">Waiting for incoming payment</string>
+    <string name="notify_body">Keeping an app open to receive %1$s</string>
 
     <!-- auth -->
 

@@ -21,6 +21,8 @@ import android.view.View
 
 
 object MainActivity {
+  val mainActivityClass: Class[MainActivity] = classOf[MainActivity]
+
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit = {
     val normalNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
     val hostedNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
@@ -78,7 +80,6 @@ object MainActivity {
     require(!WalletApp.isOperational, "Still operational")
 
     // Effectively restart an app
-    val mainActivityClass = classOf[MainActivity]
     val component = new Intent(WalletApp.app, mainActivityClass).getComponent
     WalletApp.app.startActivity(Intent makeRestartActivityTask component)
   }

@@ -118,7 +118,7 @@ object WalletApp {
 }
 
 class WalletApp extends Application {
-  lazy val foregroundServiceIntent = new Intent(this, AwaitService.classof)
+  lazy val foregroundServiceIntent = new Intent(this, AwaitService.awaitServiceClass)
   lazy val prefs: SharedPreferences = getSharedPreferences("prefs", Context.MODE_PRIVATE)
 
   private[this] lazy val metrics = getResources.getDisplayMetrics
