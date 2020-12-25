@@ -16,10 +16,7 @@ object SwapInAddressHandler {
   val WAITING_FIRST_RESPONSE = "address-state-waiting-first-response"
   val WAITING_REST_OF_RESPONSES = "address-state-waiting-rest-of-responses"
   val FINALIZED = "address-state-finalized"
-
-  val CMDTimeout = "address-cmd-timeout"
   val CMDCancel = "address-cmd-cancel"
-  val CMDSearch = "address-cmd-search"
 
   case class NoSwapInSupport(worker: CommsTower.Worker)
   case class YesSwapInSupport(worker: CommsTower.Worker, msg: SwapIn)
@@ -52,21 +49,18 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
   def doProcess(change: Any): Unit = (change, state) match {
     case (NoSwapInSupport(worker), WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
       become(data.copy(results = data.results - worker.ann), state)
-      me process CMDSearch
+      doSearch(force = false)
 
     case (YesSwapInSupport(worker, msg: SwapInResponse), WAITING_FIRST_RESPONSE) =>
       val results1 = data.results.updated(worker.ann, SwapInResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), WAITING_REST_OF_RESPONSES) // Start waiting for the rest of responses
-      Rx.ioQueue.delay(5.seconds).foreach(_ => me process CMDTimeout) // Decrease timeout for the rest of responses
-      me process CMDSearch
+      Rx.ioQueue.delay(5.seconds).foreach(_ => me doSearch true) // Decrease timeout for the rest of responses
+      doSearch(force = false)
 
     case (YesSwapInSupport(worker, msg: SwapInResponse), WAITING_REST_OF_RESPONSES) =>
       val results1 = data.results.updated(worker.ann, SwapInResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), state)
-      me process CMDSearch
-
-    case (CMDSearch, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) => doSearch(data, force = false)
-    case (CMDTimeout, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) => doSearch(data, force = true)
+      doSearch(force = false)
 
     case (CMDCancel, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
       // Do not disconnect from remote peer because we have a channel with them, but remove SwapIn listener
@@ -76,12 +70,12 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
     case (cmd: CMDStart, null) =>
       become(freshData = AddressData(results = cmd.channels.map(_.data.announce.na -> None).toMap, cmd), WAITING_FIRST_RESPONSE)
       for (chan <- cmd.channels) CommsTower.listen(Set(swapInListener), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, ourInit)
-      Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeout)
+      Rx.ioQueue.delay(30.seconds).foreach(_ => me doSearch true)
 
     case _ =>
   }
 
-  private def doSearch(data: AddressData, force: Boolean): Unit = {
+  private def doSearch(force: Boolean): Unit = {
     // Remove yet unknown responses, unsupporting peers have been removed earlier
     val responses: Vector[SwapInResponseExt] = data.results.values.flatten.toVector
 

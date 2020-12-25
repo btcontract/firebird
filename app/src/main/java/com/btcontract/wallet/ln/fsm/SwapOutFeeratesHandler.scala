@@ -17,10 +17,7 @@ object SwapOutFeeratesHandler {
   val WAITING_FIRST_RESPONSE = "feerates-state-waiting-first-response"
   val WAITING_REST_OF_RESPONSES = "feerates-state-waiting-rest-of-responses"
   val FINALIZED = "feerates-state-finalized"
-
-  val CMDTimeout = "feerates-cmd-timeout"
   val CMDCancel = "feerates-cmd-cancel"
-  val CMDSearch = "feerates-cmd-search"
 
   case class NoSwapOutSupport(worker: CommsTower.Worker)
   case class YesSwapOutSupport(worker: CommsTower.Worker, msg: SwapOut)
@@ -54,27 +51,24 @@ abstract class SwapOutFeeratesHandler(ourInit: Init) extends StateMachine[Feerat
   def doProcess(change: Any): Unit = (change, state) match {
     case (NoSwapOutSupport(worker), WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
       become(data.copy(results = data.results - worker.ann), state)
-      me process CMDSearch
+      doSearch(force = false)
 
     case (YesSwapOutSupport(worker, msg: SwapOutFeerates), WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES)
       // Provider has sent feerates which are too low, tx won't likely ever confirm
       if msg.feerates.feerates.forall(params => minChainFee > params.fee) =>
       become(data.copy(results = data.results - worker.ann), state)
-      me process CMDSearch
+      doSearch(force = false)
 
     case (YesSwapOutSupport(worker, msg: SwapOutFeerates), WAITING_FIRST_RESPONSE) =>
       val results1 = data.results.updated(worker.ann, SwapOutResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), WAITING_REST_OF_RESPONSES) // Start waiting for the rest of responses
-      Rx.ioQueue.delay(5.seconds).foreach(_ => me process CMDTimeout) // Decrease timeout for the rest of responses
-      me process CMDSearch
+      Rx.ioQueue.delay(5.seconds).foreach(_ => me doSearch true) // Decrease timeout for the rest of responses
+      doSearch(force = false)
 
     case (YesSwapOutSupport(worker, msg: SwapOutFeerates), WAITING_REST_OF_RESPONSES) =>
       val results1 = data.results.updated(worker.ann, SwapOutResponseExt(msg, worker.ann).toSome)
       become(data.copy(results = results1), state)
-      me process CMDSearch
-
-    case (CMDSearch, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) => doSearch(data, force = false)
-    case (CMDTimeout, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) => doSearch(data, force = true)
+      doSearch(force = false)
 
     case (CMDCancel, WAITING_FIRST_RESPONSE | WAITING_REST_OF_RESPONSES) =>
       // Do not disconnect from remote peer because we have a channel with them, but remove SwapIn listener
@@ -84,12 +78,12 @@ abstract class SwapOutFeeratesHandler(ourInit: Init) extends StateMachine[Feerat
     case (cmd: CMDStart, null) =>
       become(freshData = FeeratesData(results = cmd.channels.map(_.data.announce.na -> None).toMap, cmd), WAITING_FIRST_RESPONSE)
       for (chan <- cmd.channels) CommsTower.listen(Set(swapOutListener), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, ourInit)
-      Rx.ioQueue.delay(30.seconds).foreach(_ => me process CMDTimeout)
+      Rx.ioQueue.delay(30.seconds).foreach(_ => me doSearch true)
 
     case _ =>
   }
 
-  private def doSearch(data: FeeratesData, force: Boolean): Unit = {
+  private def doSearch(force: Boolean): Unit = {
     // Remove yet unknown responses, unsupporting peers have been removed earlier
     val responses: Vector[SwapOutResponseExt] = data.results.values.flatten.toVector
 
