@@ -96,19 +96,19 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
       onNoProviderSwapInSupport
       me process CMDCancel
     } else if (responses.nonEmpty && force) {
-      // We have partial results, but timed out
+      // We have partial responses, but timed out
       onFound(me randomBest responses)
       me process CMDCancel
     } else if (force) {
-      // Timed out with no results
+      // Timed out with no responses
       onTimeoutAndNoResponse
       me process CMDCancel
     }
   }
 
   private def randomBest(responses: Vector[SwapInResponseExt] = Vector.empty) = {
-    val minimalChainDepositAMount: Satoshi = responses.map(_.msg.minChainDeposit).min
-    val best = responses.filter(_.msg.minChainDeposit == minimalChainDepositAMount)
+    val bestMinimalChainDepositAmount: Satoshi = responses.map(_.msg.minChainDeposit).min
+    val best = responses.filter(_.msg.minChainDeposit == bestMinimalChainDepositAmount)
     shuffle(best).head
   }
 }
