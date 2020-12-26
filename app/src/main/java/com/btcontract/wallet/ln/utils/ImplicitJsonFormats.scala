@@ -8,10 +8,10 @@ import fr.acinq.eclair.wire.LightningMessageCodecs._
 import scodec.bits.{BitVector, ByteVector}
 import fr.acinq.eclair.{MilliSatoshi, wire}
 import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
-import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata}
+import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata, satoshi, millisatoshi, publicKey}
 import com.btcontract.wallet.ln.utils.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
-import fr.acinq.bitcoin.Crypto.PrivateKey
-import fr.acinq.bitcoin.ByteVector32
+import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.bitcoin.{ByteVector32, Satoshi}
 import scodec.Codec
 
 
@@ -49,11 +49,13 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit val swapInStateFmt: JsonFormat[SwapInState] = sCodecJsonFmt(fr.acinq.eclair.wire.SwapCodecs.swapInStateCodec)
 
+  implicit val satoshiFmt: JsonFormat[Satoshi] = sCodecJsonFmt(satoshi)
+  implicit val milliSatoshiFmt: JsonFormat[MilliSatoshi] = sCodecJsonFmt(millisatoshi)
   implicit val bytesFmt: JsonFormat[ByteVector] = sCodecJsonFmt(varsizebinarydata)
   implicit val privateKeyFmt: JsonFormat[PrivateKey] = sCodecJsonFmt(privateKey)
+  implicit val publicKeyFmt: JsonFormat[PublicKey] = sCodecJsonFmt(publicKey)
   implicit val bytes32Fmt: JsonFormat[ByteVector32] = sCodecJsonFmt(bytes32)
 
-  implicit val milliSatoshiFmt: JsonFormat[MilliSatoshi] = jsonFormat[Long, MilliSatoshi](MilliSatoshi.apply, "underlying")
   implicit val failAndAddFmt: JsonFormat[FailAndAdd] = jsonFormat[UpdateFailHtlc, UpdateAddHtlc, FailAndAdd](FailAndAdd.apply, "theirFail", "ourAdd")
   implicit val malformAndAddFmt: JsonFormat[MalformAndAdd] = jsonFormat[UpdateFailMalformedHtlc, UpdateAddHtlc, MalformAndAdd](MalformAndAdd.apply, "theirMalform", "ourAdd")
   implicit val htlcFmt: JsonFormat[Htlc] = jsonFormat[Boolean, UpdateAddHtlc, Htlc](Htlc.apply, "incoming", "add")
@@ -62,8 +64,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
     jsonFormat[Long, MilliSatoshi, MilliSatoshi, Set[Htlc], Set[FailAndAdd], Set[MalformAndAdd], Set[ByteVector32],
       CommitmentSpec](CommitmentSpec.apply, "feeratePerKw", "toLocal", "toRemote", "htlcs", "remoteFailed", "remoteMalformed", "localFulfilled")
 
-  implicit val nodeAnnouncementExtFmt: JsonFormat[NodeAnnouncementExt] =
-    jsonFormat[NodeAnnouncement, NodeAnnouncementExt](NodeAnnouncementExt.apply, "na")
+  implicit val nodeAnnouncementExtFmt: JsonFormat[NodeAnnouncementExt] = jsonFormat[NodeAnnouncement, NodeAnnouncementExt](NodeAnnouncementExt.apply, "na")
 
   implicit val hostedCommitsFmt: JsonFormat[HostedCommits] =
     jsonFormat[NodeAnnouncementExt, LastCrossSignedState, Vector[LightningMessage], Vector[LightningMessage],
@@ -110,20 +111,33 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit object PaymentDescriptionFmt extends JsonFormat[PaymentDescription] {
     def write(internal: PaymentDescription): JsValue = internal match {
-      case paymentDescription: PlainMetaDescription => paymentDescription.toJson
       case paymentDescription: PlainDescription => paymentDescription.toJson
+      case paymentDescription: PlainMetaDescription => paymentDescription.toJson
+      case paymentDescription: SwapInDescription => paymentDescription.toJson
+      case paymentDescription: SwapOutDescription => paymentDescription.toJson
       case _ => throw new Exception
     }
 
     def read(raw: JsValue): PaymentDescription = raw.asJsObject fields TAG match {
-      case JsString("PlainMetaDescription") => raw.convertTo[PlainMetaDescription]
       case JsString("PlainDescription") => raw.convertTo[PlainDescription]
+      case JsString("PlainMetaDescription") => raw.convertTo[PlainMetaDescription]
+      case JsString("SwapInDescription") => raw.convertTo[SwapInDescription]
+      case JsString("SwapOutDescription") => raw.convertTo[SwapOutDescription]
       case tag => throw new Exception(s"Unknown action=$tag")
     }
   }
 
-  implicit val plainDescriptionFmt: JsonFormat[PlainDescription] = taggedJsonFmt(jsonFormat[String, PlainDescription](PlainDescription.apply, "invoiceText"), tag = "PlainDescription")
-  implicit val plainMetainfoDescriptionFmt: JsonFormat[PlainMetaDescription] = taggedJsonFmt(jsonFormat[String, String, PlainMetaDescription](PlainMetaDescription.apply, "invoiceText", "meta"), tag = "PlainMetaDescription")
+  implicit val plainDescriptionFmt: JsonFormat[PlainDescription] = taggedJsonFmt(jsonFormat[String,
+    PlainDescription](PlainDescription.apply, "invoiceText"), tag = "PlainDescription")
+
+  implicit val plainMetaDescriptionFmt: JsonFormat[PlainMetaDescription] = taggedJsonFmt(jsonFormat[String, String,
+    PlainMetaDescription](PlainMetaDescription.apply, "invoiceText", "meta"), tag = "PlainMetaDescription")
+
+  implicit val swapInDescriptionFmt: JsonFormat[SwapInDescription] = taggedJsonFmt(jsonFormat[String, String, Long, PublicKey,
+    SwapInDescription](SwapInDescription.apply, "invoiceText", "txid", "internalId", "nodeId"), tag = "SwapInDescription")
+
+  implicit val swapOutDescriptionFmt: JsonFormat[SwapOutDescription] = taggedJsonFmt(jsonFormat[String, String, Satoshi, PublicKey,
+    SwapOutDescription](SwapOutDescription.apply, "invoiceText", "btcAddress", "chainFee", "nodeId"), tag = "SwapOutDescription")
 
   // Payment action
 

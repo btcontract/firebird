@@ -3,11 +3,12 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.utils.{FiatRates, LNUrl}
+import fr.acinq.bitcoin.{ByteVector32, Satoshi}
+
 import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.utils.uri.Uri
 import fr.acinq.eclair.payment.PaymentRequest
 import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.bitcoin.ByteVector32
 import fr.acinq.eclair.MilliSatoshi
 import scodec.bits.ByteVector
 
@@ -78,4 +79,8 @@ sealed trait PaymentDescription { val invoiceText: String }
 
 case class PlainDescription(invoiceText: String) extends PaymentDescription
 
-case class PlainMetaDescription(invoiceText: String, meta: String)  extends PaymentDescription
+case class PlainMetaDescription(invoiceText: String, meta: String) extends PaymentDescription
+
+case class SwapInDescription(invoiceText: String, txid: String, internalId: Long, nodeId: PublicKey) extends PaymentDescription
+
+case class SwapOutDescription(invoiceText: String, btcAddress: String, chainFee: Satoshi, nodeId: PublicKey) extends PaymentDescription
