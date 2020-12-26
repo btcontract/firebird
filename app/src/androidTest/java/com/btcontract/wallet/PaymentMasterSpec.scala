@@ -176,7 +176,7 @@ class PaymentMasterSpec {
     synchronized(wait(500L))
 
     assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).data.inFlights.isEmpty)
-    assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).state == PaymentMaster.ABORTED)
+    assertTrue(master.PaymentMaster.data.payments(cmd.paymentHash).state == PaymentStatus.ABORTED)
   }
 
   @Test
@@ -303,7 +303,7 @@ class PaymentMasterSpec {
     master.PaymentMaster process fulfill
     synchronized(wait(500L))
 
-    assertTrue(master.PaymentMaster.data.payments(fulfill.paymentHash).state == PaymentMaster.SUCCEEDED)
+    assertTrue(master.PaymentMaster.data.payments(fulfill.paymentHash).state == PaymentStatus.SUCCEEDED)
     assertTrue(response.head.cmd.paymentHash == fulfill.paymentHash)
     assertTrue(response.size == 1)
   }
@@ -342,7 +342,7 @@ class PaymentMasterSpec {
     master.PaymentMaster process fail
     synchronized(wait(500L))
 
-    assertTrue(master.PaymentMaster.data.payments(fail.ourAdd.paymentHash).state == PaymentMaster.ABORTED)
+    assertTrue(master.PaymentMaster.data.payments(fail.ourAdd.paymentHash).state == PaymentStatus.ABORTED)
     assertTrue(response.head.cmd.paymentHash == fail.ourAdd.paymentHash)
     assertTrue(response.size == 3)
   }
@@ -400,7 +400,7 @@ class PaymentMasterSpec {
     val ws2 = master.PaymentMaster.data.payments(cmd2.paymentHash).data.parts.values.map(_.asInstanceOf[WaitForRouteOrInFlight])
     assertTrue(ws2.map(_.amount).toList.sorted == List(150000.msat, 150000.msat, 300000.msat))
 
-    assertTrue(master.PaymentMaster.data.payments(cmd3.paymentHash).state == PaymentMaster.ABORTED)
+    assertTrue(master.PaymentMaster.data.payments(cmd3.paymentHash).state == PaymentStatus.ABORTED)
   }
 
   @Test

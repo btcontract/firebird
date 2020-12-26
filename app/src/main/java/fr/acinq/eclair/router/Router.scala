@@ -60,11 +60,9 @@ object Router {
 
     lazy val fee: MilliSatoshi = weight.costs.head - weight.costs.last
 
-    // We don't care about first route and amount since it belongs to local channel
-    lazy val amountPerDescAndCap: Seq[MsatDescCapacity] = weight.costs.tail zip hops.tail.map(_.toDescAndCapacity)
+    lazy val amountPerDescAndCap: Seq[MsatDescCapacity] = weight.costs.tail zip hops.tail.map(_.toDescAndCapacity) // We don't care about first route and amount since it belongs to local channel
 
-    // This method retrieves the edge that we used when we built the route
-    def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId)
+    def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId) // This method retrieves the edge that we used when we built the route
   }
 
   sealed trait RouteResponse { def paymentHash: ByteVector32 }

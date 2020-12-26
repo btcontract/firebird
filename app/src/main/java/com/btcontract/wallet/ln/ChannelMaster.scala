@@ -51,30 +51,6 @@ object PaymentFailure {
     case _: UnreadableRemoteFailure => s"Remote: UnreadableRemoteFailure\nChannel: unknown"
     case LocalFailure(errorStatus) => s"Local: $errorStatus"
   }
-
-  // Catch a specific situation where all remote failures are readable, come from our peers, indicate liquidity issues, all peers are used
-  // Ensure failed route is not like A -> B [peer] -> C because peer may send temp failures for these but it could be C's fault
-
-  trait IrrelevantOrNotPeerOrNodeId
-  case object Irrelevant extends IrrelevantOrNotPeerOrNodeId
-  case object NotFromPeer extends IrrelevantOrNotPeerOrNodeId
-  case class FromPeer(nodeId: PublicKey) extends IrrelevantOrNotPeerOrNodeId
-
-  def failureSummary(peerNodeIds: Vector[PublicKey], data: PaymentSenderData): Vector[IrrelevantOrNotPeerOrNodeId] = data.failures map {
-    case RemoteFailure(Sphinx.DecryptedFailurePacket(originId, _: TemporaryChannelFailure), route) if peerNodeIds.contains(originId) && route.hops.size > 1 => FromPeer(originId)
-    case RemoteFailure(Sphinx.DecryptedFailurePacket(originId, PermanentChannelFailure), route) if peerNodeIds.contains(originId) && route.hops.size > 1 => FromPeer(originId)
-    case remote: RemoteFailure if remote.route.hops.size == 1 => Irrelevant
-    case _: UnreadableRemoteFailure => NotFromPeer
-    case _: LocalFailure => Irrelevant
-    case _ => NotFromPeer
-  }
-
-  def allRemoteErrorsFromPeers(summary: Vector[IrrelevantOrNotPeerOrNodeId] = Vector.empty): Boolean =
-    // First we remove irrelevant failures, then we make sure summary only contains failures from our local peers
-    summary filterNot { case Irrelevant => true case _ => false } forall { case NotFromPeer => false case _ => true }
-
-  def peersWithoutLiquidity(summary: Vector[IrrelevantOrNotPeerOrNodeId] = Vector.empty): Set[PublicKey] =
-    summary.toSet collect { case FromPeer(nodeId) => nodeId }
 }
 
 sealed trait PaymentFailure

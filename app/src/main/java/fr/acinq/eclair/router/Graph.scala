@@ -16,17 +16,17 @@
 
 package fr.acinq.eclair.router
 
-import fr.acinq.bitcoin.Crypto.PublicKey
-import fr.acinq.bitcoin.{Btc, MilliBtc}
 import fr.acinq.eclair._
-import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
 import fr.acinq.eclair.router.Router._
 import scala.collection.JavaConversions._
+import fr.acinq.eclair.router.Graph.GraphStructure.{DirectedGraph, GraphEdge}
+import fr.acinq.bitcoin.{Btc, MilliBtc}
+
+import fr.acinq.bitcoin.Crypto.PublicKey
 import scala.collection.mutable
 
-object Graph {
 
-  // @formatter:off
+object Graph {
   /**
    * The cumulative weight of a set of edges (path in the graph).
    *
@@ -39,18 +39,17 @@ object Graph {
   }
 
   case class WeightedNode(key: PublicKey, weight: RichWeight)
+
   case class WeightedPath(path: Seq[GraphEdge], weight: RichWeight)
-  // @formatter:on
 
   /**
-   * This comparator must be consistent with the "equals" behavior, thus for two weighted nodes with
-   * the same weight we distinguish them by their public key.
+   * This comparator must be consistent with the "equals" behavior, thus for two weighted nodes with the same weight we distinguish them by their public key
    * See https://docs.oracle.com/javase/8/docs/api/java/util/Comparator.html
    */
   object NodeComparator extends Ordering[WeightedNode] {
     override def compare(x: WeightedNode, y: WeightedNode): Int = {
       val weightCmp = x.weight.compareTo(y.weight)
-      if (weightCmp == 0) x.key.toString().compareTo(y.key.toString())
+      if (weightCmp == 0) x.key.toString.compareTo(y.key.toString)
       else weightCmp
     }
   }
@@ -69,14 +68,9 @@ object Graph {
    * @param currentBlockHeight the height of the chain tip (latest block)
    * @param boundaries         a predicate function that can be used to impose limits on the outcome of the search
    */
-  def bestPath(graph: DirectedGraph,
-               sourceNode: PublicKey,
-               targetNode: PublicKey,
-               amount: MilliSatoshi,
-               ignoredEdges: Set[ChannelDesc],
-               ignoredVertices: Set[PublicKey],
-               currentBlockHeight: Long,
-               boundaries: RichWeight => Boolean): Option[WeightedPath] = {
+  def bestPath(graph: DirectedGraph, sourceNode: PublicKey, targetNode: PublicKey, amount: MilliSatoshi, ignoredEdges: Set[ChannelDesc],
+               ignoredVertices: Set[PublicKey], currentBlockHeight: Long, boundaries: RichWeight => Boolean): Option[WeightedPath] = {
+
     val targetWeight = RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)
     val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight)
     if (shortestPath.isEmpty) None else Some(WeightedPath(shortestPath, pathWeight(sourceNode, shortestPath, amount, currentBlockHeight)))
@@ -97,21 +91,12 @@ object Graph {
    * @param boundaries         a predicate function that can be used to impose limits on the outcome of the search
    * @param currentBlockHeight the height of the chain tip (latest block)
    */
-  private def dijkstraShortestPath(g: DirectedGraph,
-                                   sender: PublicKey,
-                                   sourceNode: PublicKey,
-                                   targetNode: PublicKey,
-                                   ignoredEdges: Set[ChannelDesc],
-                                   ignoredVertices: Set[PublicKey],
-                                   initialWeight: RichWeight,
-                                   boundaries: RichWeight => Boolean,
-                                   currentBlockHeight: Long): Seq[GraphEdge] = {
-    // the graph does not contain source/destination nodes
+  private def dijkstraShortestPath(g: DirectedGraph, sender: PublicKey, sourceNode: PublicKey, targetNode: PublicKey, ignoredEdges: Set[ChannelDesc],
+                                   ignoredVertices: Set[PublicKey], initialWeight: RichWeight, boundaries: RichWeight => Boolean, currentBlockHeight: Long): Seq[GraphEdge] = {
+    // The graph does not contain source/destination nodes
     val sourceNotInGraph = !g.containsVertex(sourceNode)
     val targetNotInGraph = !g.containsVertex(targetNode)
-    if (sourceNotInGraph || targetNotInGraph) {
-      return Seq.empty
-    }
+    if (sourceNotInGraph || targetNotInGraph) return Seq.empty
 
     // conservative estimation to avoid over-allocating memory: this is not the actual optimal size for the maps,
     // because in the worst case scenario we will insert all the vertices.
@@ -119,7 +104,8 @@ object Graph {
 
     val bestWeights = new DefaultHashMap[PublicKey, RichWeight](RichWeight(Vector(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue), initialCapacity)
     val bestEdges = new java.util.HashMap[PublicKey, GraphEdge](initialCapacity)
-    // NB: we want the elements with smallest weight first, hence the `reverse`.
+
+    // NB: we want the elements with smallest weight first, hence the `reverse`
     val toExplore = mutable.PriorityQueue.empty[WeightedNode](NodeComparator.reverse)
 
     // initialize the queue and cost array with the initial weight
@@ -207,6 +193,7 @@ object Graph {
     }
 
     val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
+
     val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.updExt.update.cltvExpiryDelta
 
     // Every heuristic adds 0 - 100 imgainary SAT to edge weight (which is based on fee cost in msat), the better heuristic is the less SAT it adds
@@ -242,40 +229,35 @@ object Graph {
    * @param currentBlockHeight the height of the chain tip (latest block).
    */
   def pathWeight(sender: PublicKey, path: Seq[GraphEdge], amount: MilliSatoshi, currentBlockHeight: Long): RichWeight = {
-    path.foldRight(RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)) { (edge, prev) =>
+    path.foldRight(RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)) { case (edge, prev) =>
       addEdgeWeight(sender, edge, prev, currentBlockHeight)
     }
   }
 
   object RoutingHeuristics {
-
     val BLOCK_TIME_8_YEARS: Int = 4320 * 12 * 8
 
-    // Low/High bound for channel capacity
     val CAPACITY_CHANNEL_LOW: MilliSatoshi = MilliBtc(10).toMilliSatoshi
+
     val CAPACITY_CHANNEL_HIGH: MilliSatoshi = Btc(20).toMilliSatoshi
 
-    // Low/High bound for CLTV channel value
     val CLTV_LOW = 9
+
     val CLTV_HIGH = 2016
 
     val SCORE_LOW = 1
+
     val SCORE_HIGH = 1000
 
     /**
      * Normalize the given value between (0, 1). If the @param value is outside the min/max window we flatten it to something very close to the
      * extremes but always bigger than zero so it's guaranteed to never return zero
      */
-    def normalize(value: Double, min: Double, max: Double): Double = {
-      if (value <= min) 0D
-      else if (value >= max) 1D
-      else (value - min) / (max - min)
-    }
-
+    def normalize(value: Double, min: Double, max: Double): Double =
+      if (value <= min) 0D else if (value >= max) 1D else (value - min) / (max - min)
   }
 
   object GraphStructure {
-
     case class DescAndCapacity(desc: ChannelDesc, capacity: MilliSatoshi)
 
     /**
@@ -285,7 +267,6 @@ object Graph {
      * @param updExt      channel info with extra info
      */
     case class GraphEdge(desc: ChannelDesc, updExt: ChannelUpdateExt) {
-
       lazy val capacity: MilliSatoshi = updExt.update.htlcMaximumMsat.get // All updates MUST have htlcMaximumMsat
 
       def fee(amount: MilliSatoshi): MilliSatoshi = nodeFee(updExt.update.feeBaseMsat, updExt.update.feeProportionalMillionths, amount)
@@ -295,7 +276,6 @@ object Graph {
 
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
     case class DirectedGraph(vertices: Map[PublicKey, List[GraphEdge]]) {
-
       def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)((acc, edge) => acc.addEdge(edge))
 
       /**
@@ -365,13 +345,13 @@ object Graph {
     }
 
     object DirectedGraph {
-
-      // @formatter:off
       def apply(): DirectedGraph = new DirectedGraph(Map.empty)
+
       def apply(key: PublicKey): DirectedGraph = new DirectedGraph(Map(key -> List.empty))
+
       def apply(edge: GraphEdge): DirectedGraph = DirectedGraph().addEdge(edge)
+
       def apply(edges: Seq[GraphEdge]): DirectedGraph = DirectedGraph().addEdges(edges)
-      // @formatter:on
 
       /**
        * This is the recommended way of initializing the network graph (from a public network DB).
