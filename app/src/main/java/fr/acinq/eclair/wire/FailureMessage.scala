@@ -42,30 +42,30 @@ sealed trait Perm extends FailureMessage
 sealed trait Node extends FailureMessage
 sealed trait Update extends FailureMessage { def update: ChannelUpdate }
 
-case object InvalidRealm extends Perm { def message = "realm was not understood by the processing node" }
-case object TemporaryNodeFailure extends Node { def message = "general temporary failure of the processing node" }
-case object PermanentNodeFailure extends Perm with Node { def message = "general permanent failure of the processing node" }
-case object RequiredNodeFeatureMissing extends Perm with Node { def message = "processing node requires features that are missing from this onion" }
-case class InvalidOnionVersion(onionHash: ByteVector32) extends BadOnion with Perm { def message = "onion version was not understood by the processing node" }
-case class InvalidOnionHmac(onionHash: ByteVector32) extends BadOnion with Perm { def message = "onion HMAC was incorrect when it reached the processing node" }
-case class InvalidOnionKey(onionHash: ByteVector32) extends BadOnion with Perm { def message = "ephemeral key was unparsable by the processing node" }
-case class TemporaryChannelFailure(update: ChannelUpdate) extends Update { def message = s"channel ${update.shortChannelId} is currently unavailable" }
-case object PermanentChannelFailure extends Perm { def message = "channel is permanently unavailable" }
-case object RequiredChannelFeatureMissing extends Perm { def message = "channel requires features not present in the onion" }
-case object UnknownNextPeer extends Perm { def message = "processing node does not know the next peer in the route" }
-case class AmountBelowMinimum(amount: MilliSatoshi, update: ChannelUpdate) extends Update { def message = s"payment amount was below the minimum required by the channel" }
-case class FeeInsufficient(amount: MilliSatoshi, update: ChannelUpdate) extends Update { def message = s"payment fee was below the minimum required by the channel" }
-case object TrampolineFeeInsufficient extends Node { def message = "payment fee was below the minimum required by the trampoline node" }
-case class ChannelDisabled(messageFlags: Byte, channelFlags: Byte, update: ChannelUpdate) extends Update { def message = "channel is currently disabled" }
-case class IncorrectCltvExpiry(expiry: CltvExpiry, update: ChannelUpdate) extends Update { def message = "payment expiry doesn't match the value in the onion" }
-case class IncorrectOrUnknownPaymentDetails(amount: MilliSatoshi, height: Long) extends Perm { def message = "incorrect payment details or unknown payment hash" }
-case class ExpiryTooSoon(update: ChannelUpdate) extends Update { def message = "payment expiry is too close to the current block height for safe handling by the relaying node" }
-case object TrampolineExpiryTooSoon extends Node { def message = "payment expiry is too close to the current block height for safe handling by the relaying node" }
-case class FinalIncorrectCltvExpiry(expiry: CltvExpiry) extends FailureMessage { def message = "payment expiry doesn't match the value in the onion" }
-case class FinalIncorrectHtlcAmount(amount: MilliSatoshi) extends FailureMessage { def message = "payment amount is incorrect in the final htlc" }
-case object ExpiryTooFar extends FailureMessage { def message = "payment expiry is too far in the future" }
-case class InvalidOnionPayload(tag: UInt64, offset: Int) extends Perm { def message = "onion per-hop payload is invalid" }
-case object PaymentTimeout extends FailureMessage { def message = "the complete payment amount was not received within a reasonable time" }
+case object InvalidRealm extends Perm { def message = "InvalidRealm" }
+case object TemporaryNodeFailure extends Node { def message = "TemporaryNodeFailure" }
+case object PermanentNodeFailure extends Perm with Node { def message = "PermanentNodeFailure" }
+case object RequiredNodeFeatureMissing extends Perm with Node { def message = "RequiredNodeFeatureMissing" }
+case class InvalidOnionVersion(onionHash: ByteVector32) extends BadOnion with Perm { def message = "InvalidOnionVersion" }
+case class InvalidOnionHmac(onionHash: ByteVector32) extends BadOnion with Perm { def message = "InvalidOnionHmac" }
+case class InvalidOnionKey(onionHash: ByteVector32) extends BadOnion with Perm { def message = "InvalidOnionKey" }
+case class TemporaryChannelFailure(update: ChannelUpdate) extends Update { def message = "TemporaryChannelFailure" }
+case object PermanentChannelFailure extends Perm { def message = "PermanentChannelFailure" }
+case object RequiredChannelFeatureMissing extends Perm { def message = "RequiredChannelFeatureMissing" }
+case object UnknownNextPeer extends Perm { def message = "UnknownNextPeer" }
+case class AmountBelowMinimum(amount: MilliSatoshi, update: ChannelUpdate) extends Update { def message = "AmountBelowMinimum" }
+case class FeeInsufficient(amount: MilliSatoshi, update: ChannelUpdate) extends Update { def message = "FeeInsufficient" }
+case object TrampolineFeeInsufficient extends Node { def message = "TrampolineFeeInsufficient" }
+case class ChannelDisabled(messageFlags: Byte, channelFlags: Byte, update: ChannelUpdate) extends Update { def message = "ChannelDisabled" }
+case class IncorrectCltvExpiry(expiry: CltvExpiry, update: ChannelUpdate) extends Update { def message = "IncorrectCltvExpiry" }
+case class IncorrectOrUnknownPaymentDetails(amount: MilliSatoshi, height: Long) extends Perm { def message = "IncorrectOrUnknownPaymentDetails" }
+case class ExpiryTooSoon(update: ChannelUpdate) extends Update { def message = "ExpiryTooSoon" }
+case object TrampolineExpiryTooSoon extends Node { def message = "TrampolineExpiryTooSoon" }
+case class FinalIncorrectCltvExpiry(expiry: CltvExpiry) extends FailureMessage { def message = "FinalIncorrectCltvExpiry" }
+case class FinalIncorrectHtlcAmount(amount: MilliSatoshi) extends FailureMessage { def message = "FinalIncorrectHtlcAmount" }
+case object ExpiryTooFar extends FailureMessage { def message = "ExpiryTooFar" }
+case class InvalidOnionPayload(tag: UInt64, offset: Int) extends Perm { def message = "InvalidOnionPayload" }
+case object PaymentTimeout extends FailureMessage { def message = "PaymentTimeout" }
 
 /**
  * We allow remote nodes to send us unknown failure codes (e.g. deprecated failure codes).

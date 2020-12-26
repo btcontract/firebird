@@ -9,7 +9,7 @@ import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentStatus._
 import com.btcontract.wallet.ln.PaymentFailure._
 
-import rx.lang.scala.{Subscription, Observable}
+import rx.lang.scala.{Observable, Subscription}
 import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
@@ -41,16 +41,48 @@ object PaymentMaster {
 }
 
 object PaymentFailure {
-  final val NOT_ENOUGH_CAPACITY = 1
-  final val RUN_OUT_OF_RETRY_ATTEMPTS = 2
-  final val PEER_COULD_NOT_PARSE_ONION = 3
-  final val NOT_RETRYING_NO_DETAILS = 4
+  final val NOT_ENOUGH_CAPACITY = "not-enough-capacity"
+  final val RUN_OUT_OF_RETRY_ATTEMPTS = "run-out-of-retry-attempts"
+  final val PEER_COULD_NOT_PARSE_ONION = "peer-could-not-parse-onion"
+  final val NOT_RETRYING_NO_DETAILS = "not-retrying-no-details"
+
+  def translate(data: PaymentSenderData): Vector[String] = data.failures.map {
+    case remote: RemoteFailure => s"Remote: ${remote.packet.failureMessage.message}\nChannel: ${remote.originChannelId}"
+    case _: UnreadableRemoteFailure => s"Remote: UnreadableRemoteFailure\nChannel: unknown"
+    case LocalFailure(errorStatus) => s"Local: $errorStatus"
+  }
+
+  // Catch a specific situation where all remote failures are readable, come from our peers, indicate liquidity issues, all peers are used
+  // Ensure failed route is not like A -> B [peer] -> C because peer may send temp failures for these but it could be C's fault
+
+  trait IrrelevantOrNotPeerOrNodeId
+  case object Irrelevant extends IrrelevantOrNotPeerOrNodeId
+  case object NotFromPeer extends IrrelevantOrNotPeerOrNodeId
+  case class FromPeer(nodeId: PublicKey) extends IrrelevantOrNotPeerOrNodeId
+
+  def failureSummary(peerNodeIds: Vector[PublicKey], data: PaymentSenderData): Vector[IrrelevantOrNotPeerOrNodeId] = data.failures map {
+    case RemoteFailure(Sphinx.DecryptedFailurePacket(originId, _: TemporaryChannelFailure), route) if peerNodeIds.contains(originId) && route.hops.size > 1 => FromPeer(originId)
+    case RemoteFailure(Sphinx.DecryptedFailurePacket(originId, PermanentChannelFailure), route) if peerNodeIds.contains(originId) && route.hops.size > 1 => FromPeer(originId)
+    case remote: RemoteFailure if remote.route.hops.size == 1 => Irrelevant
+    case _: UnreadableRemoteFailure => NotFromPeer
+    case _: LocalFailure => Irrelevant
+    case _ => NotFromPeer
+  }
+
+  def allRemoteErrorsFromPeers(summary: Vector[IrrelevantOrNotPeerOrNodeId] = Vector.empty): Boolean =
+    // First we remove irrelevant failures, then we make sure summary only contains failures from our local peers
+    summary filterNot { case Irrelevant => true case _ => false } forall { case NotFromPeer => false case _ => true }
+
+  def peersWithoutLiquidity(summary: Vector[IrrelevantOrNotPeerOrNodeId] = Vector.empty): Set[PublicKey] =
+    summary.toSet collect { case FromPeer(nodeId) => nodeId }
 }
 
 sealed trait PaymentFailure
+case class LocalFailure(errorStatus: String) extends PaymentFailure
 case class UnreadableRemoteFailure(route: Route) extends PaymentFailure
-case class RemoteFailure(route: Route, packet: Sphinx.DecryptedFailurePacket) extends PaymentFailure
-case class LocalFailure(errorStatus: Int) extends PaymentFailure
+case class RemoteFailure(packet: Sphinx.DecryptedFailurePacket, route: Route) extends PaymentFailure {
+  def originChannelId: String = route.getEdgeForNode(packet.originNode).map(_.desc.shortChannelId.toString).getOrElse("unknown")
+}
 
 sealed trait PartStatus {
   def tuple = Tuple2(partId, this)
@@ -59,9 +91,8 @@ sealed trait PartStatus {
 
 case class InFlightInfo(cmd: CMD_ADD_HTLC, route: Route)
 case class WaitForBetterConditions(partId: ByteVector, amount: MilliSatoshi) extends PartStatus
-case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo],
-                                  localFailed: List[HostedChannel] = Nil, remoteAttempts: Int = 0) extends PartStatus {
 
+case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo], localFailed: List[HostedChannel] = Nil, remoteAttempts: Int = 0) extends PartStatus {
   def oneMoreRemoteAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, remoteAttempts = remoteAttempts + 1, chan = newHostedChannel)
   def oneMoreLocalAttempt(newHostedChannel: HostedChannel): WaitForRouteOrInFlight = copy(flight = None, localFailed = allFailedChans, chan = newHostedChannel)
   lazy val amountWithFees: MilliSatoshi = flight match { case Some(info) => info.route.weight.costs.head case None => amount }
@@ -69,8 +100,8 @@ case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan
 }
 
 case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Vector[PaymentFailure] = Vector.empty) {
-  def withRemoteFailure(route: Route, pkt: Sphinx.DecryptedFailurePacket): PaymentSenderData = copy(failures = RemoteFailure(route, pkt) +: failures)
-  def withLocalFailure(reason: Int): PaymentSenderData = copy(failures = LocalFailure(reason) +: failures)
+  def withRemoteFailure(route: Route, pkt: Sphinx.DecryptedFailurePacket): PaymentSenderData = copy(failures = RemoteFailure(pkt, route) +: failures)
+  def withLocalFailure(reason: String): PaymentSenderData = copy(failures = LocalFailure(reason) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
 
   def inFlights: Iterable[InFlightInfo] = parts.values.collect { case wait: WaitForRouteOrInFlight => wait.flight }.flatten
@@ -100,8 +131,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   var listeners: Set[ChannelMasterListener] = Set.empty
 
   val events: ChannelMasterListener = new ChannelMasterListener {
-    override def outgoingFailed(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(data)
-    override def outgoingSucceeded(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingSucceeded(data)
+    override def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(paymentSenderData)
+    override def outgoingSucceeded(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentSenderData)
     override def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = for (lst <- listeners) lst.incomingPending(paymentHashes)
 
     override def incomingSucceeded(paymentHash: ByteVector32): Unit = {
@@ -458,21 +489,21 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
             case pkt if pkt.originNode == data.cmd.targetNodeId || PaymentTimeout == pkt.failureMessage =>
               self abortAndNotify data.withoutPartId(partId).withRemoteFailure(info.route, pkt)
 
-            case pkt @ Sphinx.DecryptedFailurePacket(nodeId, failure: Update) =>
+            case pkt @ Sphinx.DecryptedFailurePacket(originNodeId, failure: Update) =>
               // Pathfinder channels must be fully loaded from db at this point since we have already used them to construct a route
               val originalNodeIdOpt = pf.data.channels.get(failure.update.shortChannelId).map(_.ann getNodeIdSameSideAs failure.update)
-              val isSignatureFine = originalNodeIdOpt.contains(nodeId) && Announcements.checkSig(failure.update)(nodeId)
+              val isSignatureFine = originalNodeIdOpt.contains(originNodeId) && Announcements.checkSig(failure.update)(originNodeId)
               val data1 = data.withRemoteFailure(info.route, pkt)
 
               if (isSignatureFine) {
                 pf process failure.update
-                info.route.getEdgeForNode(nodeId) match {
+                info.route.getEdgeForNode(originNodeId) match {
                   case Some(edge) if edge.updExt.update.shortChannelId != failure.update.shortChannelId =>
                     // This is fine: remote node has used a different channel than the one we have initially requested
                     // But remote node may send such errors infinitely so increment this specific type of failure
                     // This most likely means an originally requested channel has also been tried and failed
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
-                    PaymentMaster doProcess NodeFailed(nodeId, increment = 1)
+                    PaymentMaster doProcess NodeFailed(originNodeId, increment = 1)
                     resolveRemoteFail(data1, wait)
 
                   case Some(edge) if edge.updExt.update.core == failure.update.core =>
@@ -489,7 +520,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                 }
               } else {
                 // Invalid sig is a severe violation, ban sender node for 6 next payments
-                PaymentMaster doProcess NodeFailed(nodeId, pf.routerConf.maxStrangeNodeFailures * 32)
+                PaymentMaster doProcess NodeFailed(originNodeId, pf.routerConf.maxStrangeNodeFailures * 32)
                 resolveRemoteFail(data1, wait)
               }
 
@@ -610,8 +641,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 }
 
 trait ChannelMasterListener {
+  def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = none
+  def outgoingSucceeded(paymentSenderData: PaymentSenderData): Unit = none
   def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = none
   def incomingSucceeded(paymentHash: ByteVector32): Unit = none
-  def outgoingSucceeded(data: PaymentSenderData): Unit = none
-  def outgoingFailed(data: PaymentSenderData): Unit = none
 }
