@@ -102,6 +102,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(data)
     override def outgoingSucceeded(data: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingSucceeded(data)
+    override def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = for (lst <- listeners) lst.incomingPending(paymentHashes)
 
     override def incomingSucceeded(paymentHash: ByteVector32): Unit = {
       // Clear for correct access to payments updated to PaymentInfo.SUCCESS
@@ -208,6 +209,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
     val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
     allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingSucceeded) // Notify about those where no pending shards left
+    events.incomingPending(allIncomingHashes)
     processIncoming
   }
 
@@ -608,6 +610,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 }
 
 trait ChannelMasterListener {
+  def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = none
   def incomingSucceeded(paymentHash: ByteVector32): Unit = none
   def outgoingSucceeded(data: PaymentSenderData): Unit = none
   def outgoingFailed(data: PaymentSenderData): Unit = none
