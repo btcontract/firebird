@@ -431,7 +431,7 @@ object SwapCodecs {
   }.as[SwapInPaymentRequest]
 
   val swapInPaymentDeniedCodec = {
-    ("paymentRequest" | text) ::
+    ("id" | uint32) ::
       ("reason" | uint32)
   }.as[SwapInPaymentDenied]
 
@@ -481,11 +481,12 @@ object SwapCodecs {
   val swapOutTransactionResponseCodec = {
     ("paymentRequest" | text) ::
       ("amount" | satoshi) ::
+      ("btcAddress" | text) ::
       ("fee" | satoshi)
   }.as[SwapOutTransactionResponse]
 
   val swapOutTransactionDeniedCodec = {
     ("btcAddress" | text) ::
-      ("reason" | text)
+      ("reason" | uint32)
   }.as[SwapOutTransactionDenied]
 }
