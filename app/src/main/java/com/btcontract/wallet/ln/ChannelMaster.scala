@@ -45,14 +45,21 @@ object PaymentFailure {
   }
 }
 
-sealed trait PaymentFailure { def translate: String }
+sealed trait PaymentFailure {
+  def translate: String
+}
 
-case class LocalFailure(status: String, amount: MilliSatoshi) extends PaymentFailure { def translate: String = s"LOCAL: $status" }
-case class UnreadableRemoteFailure(route: Route) extends PaymentFailure { def translate: String = "REMOTE: UnreadableRemoteFailure\nChannel: unknown" }
+case class LocalFailure(status: String, amount: MilliSatoshi) extends PaymentFailure {
+  override def translate: String = s"LOCAL: $status"
+}
+
+case class UnreadableRemoteFailure(route: Route) extends PaymentFailure {
+  override def translate: String = "REMOTE: UnreadableRemoteFailure\nChannel: unknown"
+}
 
 case class RemoteFailure(packet: Sphinx.DecryptedFailurePacket, route: Route) extends PaymentFailure {
   def originChannelId: String = route.getEdgeForNode(packet.originNode).map(_.desc.shortChannelId.toString).getOrElse("unknown")
-  def translate: String = s"REMOTE: ${packet.failureMessage.message}\nChannel: $originChannelId"
+  override def translate: String = s"REMOTE: ${packet.failureMessage.message}\nChannel: $originChannelId"
 }
 
 
@@ -71,6 +78,7 @@ sealed trait PartStatus {
 }
 
 case class InFlightInfo(cmd: CMD_ADD_HTLC, route: Route)
+
 case class WaitForBetterConditions(partId: ByteVector, amount: MilliSatoshi) extends PartStatus
 
 case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan: HostedChannel, flight: Option[InFlightInfo], localFailed: List[HostedChannel] = Nil, remoteAttempts: Int = 0) extends PartStatus {
