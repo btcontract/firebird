@@ -38,8 +38,8 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
     if (LNParams.format.outstandingProviders.nonEmpty) {
       // Initialize this operation AFTER chain tip becomes known
       WalletApp.chainLink addAndMaybeInform new ChainLinkListener {
-        def onChainTipKnown: Unit = initChannelsOnTipKnown
-        def onTotalDisconnect: Unit = none
+        def onChainTipConfirmed: Unit = initChannelsOnTipKnown
+        def onCompleteChainDisconnect: Unit = none
       }
     }
 

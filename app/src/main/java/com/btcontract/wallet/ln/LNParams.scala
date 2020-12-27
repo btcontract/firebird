@@ -204,7 +204,7 @@ trait NetworkDataStore {
 trait ChainLink {
   var listeners = Set.empty[ChainLinkListener]
   def addAndMaybeInform(listener: ChainLinkListener): Unit = {
-    if (chainTipCanBeTrusted) listener.onChainTipKnown
+    if (chainTipCanBeTrusted) listener.onChainTipConfirmed
     listeners += listener
   }
 
@@ -215,8 +215,8 @@ trait ChainLink {
 }
 
 trait ChainLinkListener {
-  def onChainTipKnown: Unit
-  def onTotalDisconnect: Unit
+  def onChainTipConfirmed: Unit
+  def onCompleteChainDisconnect: Unit
 }
 
 trait ChannelBag {

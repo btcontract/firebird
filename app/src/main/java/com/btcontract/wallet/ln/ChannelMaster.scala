@@ -9,7 +9,6 @@ import com.btcontract.wallet.ln.PaymentMaster._
 import com.btcontract.wallet.ln.PaymentStatus._
 import com.btcontract.wallet.ln.PaymentFailure._
 
-import rx.lang.scala.{Observable, Subscription}
 import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
@@ -27,6 +26,7 @@ import fr.acinq.bitcoin.ByteVector32
 import fr.acinq.eclair.crypto.Sphinx
 import scala.util.Random.shuffle
 import scala.collection.mutable
+import rx.lang.scala.Observable
 import scodec.bits.ByteVector
 import scodec.Attempt
 
@@ -47,9 +47,9 @@ object PaymentFailure {
   final val NOT_RETRYING_NO_DETAILS = "not-retrying-no-details"
 
   def translate(data: PaymentSenderData): Vector[String] = data.failures.map {
-    case remote: RemoteFailure => s"Remote: ${remote.packet.failureMessage.message}\nChannel: ${remote.originChannelId}"
-    case _: UnreadableRemoteFailure => s"Remote: UnreadableRemoteFailure\nChannel: unknown"
-    case LocalFailure(errorStatus) => s"Local: $errorStatus"
+    case remote: RemoteFailure => s"R: ${remote.packet.failureMessage.message}\nChannel: ${remote.originChannelId}"
+    case _: UnreadableRemoteFailure => s"R: UnreadableRemoteFailure\nChannel: unknown"
+    case LocalFailure(errorStatus) => s"L: $errorStatus"
   }
 }
 
@@ -102,9 +102,10 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val sockBrandingBridge: ConnectionListener
   val sockChannelBridge: ConnectionListener
 
-  val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster)
-  var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data)
-  var listeners: Set[ChannelMasterListener] = Set.empty
+  val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster) // All established channels must have these listeners
+  var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data) // All channels we have
+  var listeners: Set[ChannelMasterListener] = Set.empty // Listeners interested in LN payment lifecycle events
+  var lastChainDisconnect: Option[Long] = None // Last chain tip has been reported this many msecs ago
 
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(paymentSenderData)
@@ -133,7 +134,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     doProcess(cd)
   }
 
-  def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingOutgoing)
+  def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.allOutgoing)
   def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(sockBrandingBridge, sockChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.hcInit)
@@ -167,23 +168,77 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   def failFinalPayloadSpec(fail: FailureMessage, finalPayloadSpec: FinalPayloadSpec): CMD_FAIL_HTLC = failHtlc(finalPayloadSpec.packet, fail, finalPayloadSpec.add)
   def failHtlc(packet: DecryptedPacket, fail: FailureMessage, add: UpdateAddHtlc): CMD_FAIL_HTLC = CMD_FAIL_HTLC(FailurePacket.create(packet.sharedSecret, fail), add)
 
-  private def processIncoming: Unit = {
-    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.pendingIncoming).map(preliminaryResolveMemo)
+  private def preliminaryResolve(add: UpdateAddHtlc): AddResolution = {
+    val invoiceKey = LNParams.format.keys.fakeInvoiceKey(add.paymentHash)
+    PaymentPacket.peel(invoiceKey, add.paymentHash, add.onionRoutingPacket) match {
+      case Left(parseError) => CMD_FAIL_MALFORMED_HTLC(parseError.onionHash, parseError.code, add)
+      case Right(packet) if !packet.isLastPacket => failHtlc(packet, incorrectDetails(add), add)
+
+      case Right(lastPacket) =>
+        OnionCodecs.finalPerHopPayloadCodec.decode(lastPacket.payload.bits) match {
+          case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(lastPacket, InvalidOnionPayload(error.tag, offset = 0), add)
+          case _: Attempt.Failure => failHtlc(lastPacket, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
+
+          case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(lastPacket, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
+          case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(lastPacket, incorrectDetails(add), add)
+          case Attempt.Successful(payload) => FinalPayloadSpec(lastPacket, payload.value, add)
+        }
+    }
+  }
+
+  /**
+    * Example: we subsequently get 3 incoming shards into 3 different channels
+    * 1. on shard #1 and #2 `stateUpdated` is called, both shards are fine, we wait for the rest
+    * 2. while waiting for the rest of shards, channel #1 becomes OFFLINE and channel #2 becomes SUSPENDED
+    * 3. shard #3 arrives and `stateUpdated` is called, total sum is reached so we send 3 CMD_FULFILL_HTLC commands
+    * 4. channel #1 (SLEEPING) stores a preimage, channel #2 (SUSPENDED) stores and sends out a preimage, channel #3 (NORMAL) stores, sends out a preimage and then updates a state
+    * 5. at this point sender sees payment as sent because preimage is delivered through channel #2 (SUSPENDED) and channel #3 (NORMAL), we see payment as "pending with preimage revealed"
+    * 6. we get channel #2 to NORMAL by contacting host, new channel state has our fulfilled shard counted in, we still see payment as "pending with preimage revealed" because of channel #1 (SLEEPING)
+    * 7. we close a wallet, then re-open it in an hour and receive another incoming payment into channel #2, pending shard in channel #1 (SLEEPING) is disregarded when `stateUpdated` is called
+    * 8. channel #1 becomes NORMAL, sends out a preimage and gets CMD_SIGN from `stateUpdated`, sends it out and updates a state, we get `incomingSucceeded` event and see payment as done
+    */
+
+  /**
+    * Example: we subsequently get 2 incoming shards into 2 different channels
+    * 1. on shard #1 and #2 `stateUpdated` is called, both shards are fine, we send 2 CMD_FULFILL_HTLC commands
+    * 2. channel #1 stores, sends out a preimage and then updates a state, channel #2 is very busy right now so preimage is neither stored, nor saved
+    * 3. we close a wallet, at this point sender sees payment as sent because preimage is delivered through channel #2, we see payment as just pending and have a dangling shard in channel #1
+    * 4. we re-open a wallet, channel #1 is still SLEEPING, channel #2 becomes OPEN, `stateUpdated` is called and sends CMD_FULFILL_HTLC to channel #1 becase it sees a fulfilled shard in channel #2
+    * 5. channel #1 stores a preimage, then becomes OPEN, sends out a preimage and then updates a state, we get `incomingSucceeded` event and see payment as done
+    */
+
+  override def stateUpdated(hc: HostedCommits): Unit = {
+    val allChansAndCommits: Set[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt).toSet
+    val allRevealedHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.revealedHashes) // Hashes where preimage is revealed, but state not yet updated
+    val allFulfilledHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards which are fulfilled on last state update
+    val allIncomingHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards which are still pending
+    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingSucceeded) // Notify about those where no pending shards left
+    events.incomingPending(allIncomingHashes)
+
+    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.unansweredIncoming).map(preliminaryResolveMemo)
     val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
     val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
 
     // Grouping by payment hash assumes we never ask for two different payments with the same hash!
     val results = maybeGood.groupBy(_.add.paymentHash).map(_.swap).mapValues(getPaymentInfoMemo) map {
-      case (payments, None) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay) // No such incoming payment id our database
+      // No such payment in our database, looks like we have never asked for it, we don't have a preimage
+      case (payments, None) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // These are multipart payments where preimage is revealed or shards partially fulfilled, proceed with fulfilling of the rest of shards
+      case (payments, Some(info)) if allRevealedHashes.contains(info.paymentHash) => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+      case (payments, Some(info)) if allFulfilledHashes.contains(info.paymentHash) => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+      // This is a multipart payment where shards have different values for total payment amount, this is a spec violation so we proceed with failing right away
       case (payments, _) if payments.map(_.payload.totalAmount).toSet.size > 1 => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // This is a payment where total amount is set to a value which is less than what we have requested, this is a spec violation so we proceed with failing right away
       case (payments, Some(info)) if payments.exists(_.payload.totalAmount < info.amountOrZero) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // This is a payment where one of shards has a paymentSecret which is different from the one we have provided in invoice, this is a spec violation so we proceed with failing right away
       case (payments, Some(info)) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // This is a payment which arrives too late, we would have too few blocks to prove that we have fulfilled it with an uncooperative host, not a spec violation but we still fail it to be on safe side
       case (payments, _) if payments.exists(_.add.cltvExpiry.toLong < cl.currentChainTip + LNParams.cltvRejectThreshold) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      case (payments, Some(info)) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (payToFulfill <- payments) yield CMD_FULFILL_HTLC(info.preimage, payToFulfill.add)
-      // This is an unexpected extra-payment or something like OFFLINE channel with fulfilled payment becoming OPEN or post-restart incoming leftovers, fullfil all of them
-      case (payments, Some(info)) if info.isIncoming && info.status == SUCCEEDED => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-      // This can happen either when incoming payments time out or when we restart and have partial unfulfilled incoming leftovers, fail all of them
-      case (payments, _) if incomingTimeoutWorker.hasFinishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
+      // Not related to payment itself, but we have disconnected from chain a long time ago and do not know whether this payment is too late, not a spec violation but we still fail it to be on safe side
+      case (payments, _) if lastChainDisconnect.exists(_ < System.currentTimeMillis - 1000 * 3600 * 3) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      case (payments, Some(info)) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
+      // This can happen either when incoming payments time out or when we restart and have partial unanswered incoming leftovers, fail all of them
+      case (payments, _) if incomingTimeoutWorker.finishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
       case _ => Vector.empty
     }
 
@@ -194,42 +249,16 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     for (chan <- all) chan doProcess CMD_SIGN
   }
 
-  private def preliminaryResolve(add: UpdateAddHtlc): AddResolution =
-    PaymentPacket.peel(LNParams.format.keys.fakeInvoiceKey(add.paymentHash), add.paymentHash, add.onionRoutingPacket) match {
-      case Right(lastPacket) if lastPacket.isLastPacket => OnionCodecs.finalPerHopPayloadCodec.decode(lastPacket.payload.bits) match {
-        case Attempt.Failure(error: MissingRequiredTlv) => failHtlc(lastPacket, InvalidOnionPayload(error.tag, offset = 0), add)
-        case _: Attempt.Failure => failHtlc(lastPacket, InvalidOnionPayload(tag = UInt64(0), offset = 0), add)
-
-        case Attempt.Successful(payload) if payload.value.expiry != add.cltvExpiry => failHtlc(lastPacket, FinalIncorrectCltvExpiry(add.cltvExpiry), add)
-        case Attempt.Successful(payload) if payload.value.amount != add.amountMsat => failHtlc(lastPacket, incorrectDetails(add), add)
-        case Attempt.Successful(payload) => FinalPayloadSpec(lastPacket, payload.value, add)
-      }
-
-      case Right(packet) => failHtlc(packet, incorrectDetails(add), add)
-      case Left(error) => CMD_FAIL_MALFORMED_HTLC(error.onionHash, error.code, add)
-    }
-
-  // CHANNEL LISTENER
-
-  override def stateUpdated(hc: HostedCommits): Unit = {
-    val allChansAndCommits: Set[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt).toSet
-    val allFulfilledHashes = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards fulfilled on last state update
-    val allIncomingHashes = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards still unfinalized
-    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingSucceeded) // Notify about those where no pending shards left
-    events.incomingPending(allIncomingHashes)
-    processIncoming
-  }
-
   override def onProcessSuccess: PartialFunction[Incoming, Unit] = {
     // An incoming payment arrives so we prolong waiting for the rest of shards
     case (_, _, add: UpdateAddHtlc) => incomingTimeoutWorker replaceWork add.paymentHash
     // `incomingTimeoutWorker.hasFinishedOrNeverStarted` becomes true, fail pending incoming
-    case (_, _, CMD_INCOMING_TIMEOUT) => processIncoming
+    case (_, hc: HostedCommits, CMD_INCOMING_TIMEOUT) => stateUpdated(hc)
   }
 
   override def onBecome: PartialFunction[Transition, Unit] = {
-    // Offline chan does not react to commands so resend on reconnect
-    case (_, _, _, SLEEPING, OPEN | SUSPENDED) => processIncoming
+    // SLEEPING channel does not react to CMD_SIGN so resend on reconnect
+    case (_, _, hc: HostedCommits, SLEEPING, OPEN | SUSPENDED) => stateUpdated(hc)
   }
 
   // SENDING OUTGOING PAYMENTS
@@ -254,6 +283,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
     def doProcess(change: Any): Unit = (change, state) match {
       case (CMDClearFailHistory, _) if data.payments.values.forall(fsm => SUCCEEDED == fsm.state || ABORTED == fsm.state) =>
+        // This should be sent BEFORE sending another payment IF there are no active payments currently
         become(data.withFailureTimesReduced, state)
 
       case (cmd: CMD_SEND_MPP, EXPECTING_PAYMENTS | WAITING_FOR_ROUTE) =>
@@ -599,19 +629,12 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
   pf.listeners += PaymentMaster
   cl addAndMaybeInform new ChainLinkListener {
-    var shutdownTimer: Option[Subscription] = None
+    override def onCompleteChainDisconnect: Unit =
+      lastChainDisconnect = Some(System.currentTimeMillis)
 
-    override def onChainTipKnown: Unit = {
-      // Remove pending shutdown timer and notify all channels
-      for (subscription <- shutdownTimer) subscription.unsubscribe
+    override def onChainTipConfirmed: Unit = {
       for (chan <- all) chan process CMD_CHAIN_TIP_KNOWN
-    }
-
-    override def onTotalDisconnect: Unit = {
-      // Once we're disconnected, wait for 3 hours and then put channels into SLEEPING state if there's no reconnect
-      // sending CMD_CHAIN_TIP_LOST puts a channel into SLEEPING state where it does not react to new payments
-      val delay = Rx.initDelay(Observable.from(all), System.currentTimeMillis, 3600 * 3 * 1000L)
-      shutdownTimer = delay.subscribe(_ process CMD_CHAIN_TIP_LOST).toSome
+      lastChainDisconnect = None
     }
   }
 }

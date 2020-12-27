@@ -175,20 +175,20 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         attemptStateUpdate(remoteSU, hc)
 
 
-      // In SUSPENDED state we still send a preimage to get it resolved, then notify user on UI because normal resolution is impossible
-      case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
+      // In SLEEPING | SUSPENDED state we still send a preimage to get it resolved, then notify user on UI because normal resolution is impossible
+      case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, preimage)
         STORESENDBECOME(hc.addLocalProposal(updateFulfill), state, updateFulfill)
 
 
-      // In SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `pendingIncoming` method
-      case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
+      // In SLEEPING | SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `unansweredIncoming` method
+      case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, code)
         STORESENDBECOME(hc.addLocalProposal(updateFailMalformed), state, updateFailMalformed)
 
 
-      // In SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `pendingIncoming` method
-      case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), OPEN | SUSPENDED) if hc.pendingIncoming.contains(add) =>
+      // In SLEEPING | SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `unansweredIncoming` method
+      case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFail = UpdateFailHtlc(hc.announce.nodeSpecificHostedChanId, add.id, reason)
         STORESENDBECOME(hc.addLocalProposal(updateFail), state, updateFail)
 
@@ -205,11 +205,6 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, CMD_SOCKET_OFFLINE, OPEN) =>
         isSocketConnected = false
-        BECOME(hc, SLEEPING)
-
-
-      case (hc: HostedCommits, CMD_CHAIN_TIP_LOST, OPEN) =>
-        isChainHeightKnown = false
         BECOME(hc, SLEEPING)
 
 

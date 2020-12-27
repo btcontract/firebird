@@ -7,7 +7,6 @@ import com.btcontract.wallet.ln.ChanErrorCodes._
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
-import com.btcontract.wallet.ln.CommitmentSpec.PreimageAndAdd
 import scodec.bits.ByteVector
 
 
@@ -35,8 +34,6 @@ case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: M
 }
 
 object CommitmentSpec {
-  type PreimageAndAdd = (ByteVector32, UpdateAddHtlc)
-
   def fulfill(cs: CommitmentSpec, isIncoming: Boolean, m: UpdateFulfillHtlc): CommitmentSpec = cs.findHtlcById(m.id, isIncoming) match {
     case Some(their) if their.incoming => cs.copy(toLocal = cs.toLocal + their.add.amountMsat, localFulfilled = cs.localFulfilled + m.paymentHash, htlcs = cs.htlcs - their)
     case Some(htlc) => cs.copy(toRemote = cs.toRemote + htlc.add.amountMsat, htlcs = cs.htlcs - htlc)
@@ -92,13 +89,13 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   val nextTotalRemote: Long = lastCrossSignedState.remoteUpdates + nextRemoteUpdates.size
   lazy val nextLocalSpec: CommitmentSpec = CommitmentSpec.reduce(nextLocalUpdates, nextRemoteUpdates, localSpec)
   lazy val invokeMsg = InvokeHostedChannel(LNParams.chainHash, lastCrossSignedState.refundScriptPubKey, ByteVector.empty)
-  lazy val pendingIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed MINUS already resolved by us
-  lazy val pendingOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed PLUS new payments offered by us
+  lazy val unansweredIncoming: Set[UpdateAddHtlc] = localSpec.incomingAdds intersect nextLocalSpec.incomingAdds // Cross-signed MINUS already resolved by us
+  lazy val allOutgoing: Set[UpdateAddHtlc] = localSpec.outgoingAdds union nextLocalSpec.outgoingAdds // Cross-signed PLUS new payments offered by us
 
-  lazy val revealedPreimages: Seq[PreimageAndAdd] = for {
-    UpdateFulfillHtlc(_, id, paymentPreimage) <- nextLocalUpdates
-    Htlc(true, add) <- localSpec.findHtlcById(id, isIncoming = true)
-  } yield paymentPreimage -> add
+  lazy val revealedHashes: Seq[ByteVector32] = for {
+    UpdateFulfillHtlc(_, htlcId, _) <- nextLocalUpdates
+    htlc <- localSpec.findHtlcById(htlcId, isIncoming = true)
+  } yield htlc.add.paymentHash
 
   def nextLocalUnsignedLCSS(blockDay: Long): LastCrossSignedState = {
     val (incomingHtlcs, outgoingHtlcs) = nextLocalSpec.htlcs.toList.partition(_.incoming)

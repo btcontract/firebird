@@ -11,8 +11,8 @@ class BitcoinJChainLink(params: NetworkParameters) extends ChainLink {
   val maxPeers = 3
 
   private val peersListener = new PeerConnectedEventListener with PeerDisconnectedEventListener {
-    def onPeerDisconnected(peer: Peer, leftPeers: Int): Unit = if (leftPeers < 1) for (lst <- listeners) lst.onTotalDisconnect
-    def onPeerConnected(peer: Peer, nowPeers: Int): Unit = if (chainTipCanBeTrusted) for (lst <- listeners) lst.onChainTipKnown
+    def onPeerDisconnected(peer: Peer, leftPeers: Int): Unit = if (leftPeers < 1) for (lst <- listeners) lst.onCompleteChainDisconnect
+    def onPeerConnected(peer: Peer, nowPeers: Int): Unit = if (chainTipCanBeTrusted) for (lst <- listeners) lst.onChainTipConfirmed
   }
 
   def chainTipCanBeTrusted: Boolean = peerGroup.numConnectedPeers >= maxPeers

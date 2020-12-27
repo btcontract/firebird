@@ -4,7 +4,7 @@ package com.btcontract.wallet.ln.utils
 abstract class ThrottledWork[T, V] {
   private var lastWork: Option[T] = None
   private var subscription: Option[rx.lang.scala.Subscription] = None
-  def hasFinishedOrNeverStarted: Boolean = subscription.isEmpty
+  def finishedOrNeverStarted: Boolean = subscription.isEmpty
   def work(input: T): rx.lang.scala.Observable[V]
   def process(data: T, res: V): Unit
   def error(error: Throwable): Unit
