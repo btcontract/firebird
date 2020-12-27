@@ -511,25 +511,23 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                     // This most likely means an originally requested channel has also been tried and failed
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
                     PaymentMaster doProcess NodeFailed(originNodeId, increment = 1)
-                    resolveRemoteFail(data1, wait)
 
                   case edge if edge.updExt.update.core == failure.update.core =>
                     // Remote node returned the same update we used, channel is most likely imbalanced
                     // Note: we may have it disabled and new update comes enabled: still same update
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
-                    resolveRemoteFail(data1, wait)
 
-                  case edge =>
-                    // Something like new feerates or CLTV, can be retried after updating graph
-                    // If fresh update is enabled: already refreshed in graph, not penalized here
-                    // If fresh update is disabled: already removed from graph, not penalized here
-                    PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
+                  case _ =>
+                    // Something like higher feerates or CLTV, channel is updated in graph and may be chosen once again
+                    // But remote node may send oscillating updates infinitely so increment this specific type of failure
+                    PaymentMaster doProcess NodeFailed(originNodeId, increment = 1)
                 }
               } else {
-                // Invalid sig is a severe violation, ban sender node for 6 next payments
+                // Invalid sig is a severe violation, ban sender node for 6 subsequent payments
                 PaymentMaster doProcess NodeFailed(originNodeId, pf.routerConf.maxStrangeNodeFailures * 32)
-                resolveRemoteFail(data1, wait)
               }
+
+              resolveRemoteFail(data1, wait)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, _: Node) =>
               // Node may become fine on next payment, but ban it for current attempts
