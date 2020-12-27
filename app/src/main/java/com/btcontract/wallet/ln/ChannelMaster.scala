@@ -499,7 +499,6 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
               // Pathfinder channels must be fully loaded from db at this point since we have already used them to construct a route
               val originalNodeIdOpt = pf.data.channels.get(failure.update.shortChannelId).map(_.ann getNodeIdSameSideAs failure.update)
               val isSignatureFine = originalNodeIdOpt.contains(originNodeId) && Announcements.checkSig(failure.update)(originNodeId)
-              val data1 = data.withRemoteFailure(info.route, pkt)
 
               if (isSignatureFine) {
                 pf process failure.update
@@ -527,6 +526,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                 PaymentMaster doProcess NodeFailed(originNodeId, pf.routerConf.maxStrangeNodeFailures * 32)
               }
 
+              // Record a remote error and keep trying
+              val data1 = data.withRemoteFailure(info.route, pkt)
               resolveRemoteFail(data1, wait)
 
             case pkt @ Sphinx.DecryptedFailurePacket(nodeId, _: Node) =>
