@@ -105,7 +105,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster) // All established channels must have these listeners
   var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data) // All channels we have
   var listeners: Set[ChannelMasterListener] = Set.empty // Listeners interested in LN payment lifecycle events
-  var lastChainDisconnect: Option[Long] = None // Last chain tip has been reported this many msecs ago
+  var lastChainDisconnect: Option[Long] = None // Chain disconnect happened this many msecs ago
 
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(paymentSenderData)
@@ -191,17 +191,17 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     * 1. on shard #1 and #2 `stateUpdated` is called, both shards are fine, we wait for the rest
     * 2. while waiting for the rest of shards, channel #1 becomes OFFLINE and channel #2 becomes SUSPENDED
     * 3. shard #3 arrives and `stateUpdated` is called, total sum is reached so we send 3 CMD_FULFILL_HTLC commands
-    * 4. channel #1 (SLEEPING) stores a preimage, channel #2 (SUSPENDED) stores and sends out a preimage, channel #3 (NORMAL) stores, sends out a preimage and then updates a state
-    * 5. at this point sender sees payment as sent because preimage is delivered through channel #2 (SUSPENDED) and channel #3 (NORMAL), we see payment as "pending with preimage revealed"
-    * 6. we get channel #2 to NORMAL by contacting host, new channel state has our fulfilled shard counted in, we still see payment as "pending with preimage revealed" because of channel #1 (SLEEPING)
+    * 4. channel #1 (SLEEPING) stores a preimage, channel #2 (SUSPENDED) stores and sends out a preimage, channel #3 (OPEN) stores, sends out a preimage and then updates a state
+    * 5. at this point sender sees payment as sent because preimage is delivered through channel #2 (SUSPENDED) and channel #3 (OPEN), we see payment as "pending with preimage revealed"
+    * 6. we get channel #2 to OPEN by contacting host, new channel state has our fulfilled shard counted in, we still see payment as "pending with preimage revealed" because of channel #1 (SLEEPING)
     * 7. we close a wallet, then re-open it in an hour and receive another incoming payment into channel #2, pending shard in channel #1 (SLEEPING) is disregarded when `stateUpdated` is called
-    * 8. channel #1 becomes NORMAL, sends out a preimage and gets CMD_SIGN from `stateUpdated`, sends it out and updates a state, we get `incomingSucceeded` event and see payment as done
+    * 8. channel #1 becomes OPEN, sends out a preimage and gets CMD_SIGN from `stateUpdated`, sends it out and updates a state, we get `incomingSucceeded` event and see payment as done
     */
 
   /**
     * Example: we subsequently get 2 incoming shards into 2 different channels
     * 1. on shard #1 and #2 `stateUpdated` is called, both shards are fine, we send 2 CMD_FULFILL_HTLC commands
-    * 2. channel #1 stores, sends out a preimage and then updates a state, channel #2 is very busy right now so preimage is neither stored, nor saved
+    * 2. channel #1 stores, sends out a preimage and then updates a state, channel #2 is very busy right now so preimage is neither stored, nor sent
     * 3. we close a wallet, at this point sender sees payment as sent because preimage is delivered through channel #2, we see payment as just pending and have a dangling shard in channel #1
     * 4. we re-open a wallet, channel #1 is still SLEEPING, channel #2 becomes OPEN, `stateUpdated` is called and sends CMD_FULFILL_HTLC to channel #1 becase it sees a fulfilled shard in channel #2
     * 5. channel #1 stores a preimage, then becomes OPEN, sends out a preimage and then updates a state, we get `incomingSucceeded` event and see payment as done
