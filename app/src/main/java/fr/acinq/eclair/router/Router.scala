@@ -53,14 +53,14 @@ object Router {
     lazy val reserve: MilliSatoshi = amount / 10 // Used for "failed at amount" to avoid small delta retries such as: 1003 sat, 1002 sat, and so on
   }
 
-  type MsatDescCapacity = (MilliSatoshi, GraphStructure.DescAndCapacity)
+  type PaymentDescCapacity = (MilliSatoshi, GraphStructure.DescAndCapacity)
 
   case class Route(weight: RichWeight, hops: Seq[GraphEdge] = Nil) {
-    require(hops.nonEmpty, "route cannot be empty")
+    require(hops.nonEmpty, "Route cannot be empty")
 
     lazy val fee: MilliSatoshi = weight.costs.head - weight.costs.last
 
-    lazy val amountPerDescAndCap: Seq[MsatDescCapacity] = weight.costs.tail zip hops.tail.map(_.toDescAndCapacity) // We don't care about first route and amount since it belongs to local channel
+    lazy val amountPerDescAndCap: Seq[PaymentDescCapacity] = weight.costs.tail zip hops.tail.map(_.toDescAndCapacity) // We don't care about first route and amount since it belongs to local channel
 
     def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId) // This method retrieves the edge that we used when we built the route
   }

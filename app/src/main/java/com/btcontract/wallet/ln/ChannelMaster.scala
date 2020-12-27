@@ -82,6 +82,7 @@ case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatu
 
   def inFlights: Iterable[InFlightInfo] = parts.values.collect { case wait: WaitForRouteOrInFlight => wait.flight }.flatten
   def successfulUpdates: Iterable[ChannelUpdate] = inFlights.flatMap(_.route.hops).map(_.updExt.update)
+  def closestCltvExpiry: InFlightInfo = inFlights.minBy(_.route.weight.cltv)
   def totalFee: MilliSatoshi = inFlights.map(_.route.fee).sum
 }
 
