@@ -503,8 +503,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
               if (isSignatureFine) {
                 pf process failure.update
-                info.route.getEdgeForNode(originNodeId) match {
-                  case Some(edge) if edge.updExt.update.shortChannelId != failure.update.shortChannelId =>
+                // Edge is guaranteed to be present
+                info.route.getEdgeForNode(originNodeId).get match {
+                  case edge if edge.updExt.update.shortChannelId != failure.update.shortChannelId =>
                     // This is fine: remote node has used a different channel than the one we have initially requested
                     // But remote node may send such errors infinitely so increment this specific type of failure
                     // This most likely means an originally requested channel has also been tried and failed
@@ -512,17 +513,17 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
                     PaymentMaster doProcess NodeFailed(originNodeId, increment = 1)
                     resolveRemoteFail(data1, wait)
 
-                  case Some(edge) if edge.updExt.update.core == failure.update.core =>
+                  case edge if edge.updExt.update.core == failure.update.core =>
                     // Remote node returned the same update we used, channel is most likely imbalanced
                     // Note: we may have it disabled and new update comes enabled: still same update
                     PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
                     resolveRemoteFail(data1, wait)
 
-                  case _ =>
+                  case edge =>
                     // Something like new feerates or CLTV, can be retried after updating graph
                     // If fresh update is enabled: already refreshed in graph, not penalized here
                     // If fresh update is disabled: already removed from graph, not penalized here
-                    resolveRemoteFail(data1, wait)
+                    PaymentMaster doProcess ChannelFailed(edge.toDescAndCapacity, increment = 1)
                 }
               } else {
                 // Invalid sig is a severe violation, ban sender node for 6 next payments
