@@ -30,11 +30,12 @@ abstract class OpenHandler(ext: NodeAnnouncementExt, ourInit: Init, format: Stor
 
     override def onBecome: PartialFunction[Transition, Unit] = {
       case (_, _, newChannelData, WAIT_FOR_ACCEPT, OPEN | SUSPENDED) =>
-        // Hosted channel is now established and stored, may contain error
-        freshChannel.listeners = LNParams.channelMaster.operationalListeners // Add standard channel listeners to this channel
         CommsTower.listeners(newChannelData.announce.nodeSpecificPkap) -= this // Stop sending messages from this connection listener
-        LNParams.channelMaster.all = LNParams.channelMaster.all :+ freshChannel // Put this channel to vector of established channels
-        LNParams.channelMaster.initConnect // Add standard connection listeners for this peer
+        freshChannel.listeners = cm.operationalListeners // Add standard channel listeners to new established channel
+        cm.all :+= freshChannel // Put this channel to vector of established channels
+        cm.initConnect // Add standard connection listeners for this peer
+
+        // Inform user about new channel
         onEstablished(freshChannel)
     }
 
