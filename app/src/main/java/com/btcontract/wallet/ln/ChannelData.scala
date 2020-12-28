@@ -20,22 +20,27 @@ trait RemoteFailed {
 }
 
 case class FailAndAdd(theirFail: UpdateFailHtlc, ourAdd: UpdateAddHtlc) extends RemoteFailed
+
 case class MalformAndAdd(theirMalform: UpdateFailMalformedHtlc, ourAdd: UpdateAddHtlc) extends RemoteFailed
 
 case class CommitmentSpec(feeratePerKw: Long, toLocal: MilliSatoshi, toRemote: MilliSatoshi, htlcs: Set[Htlc] = Set.empty,
                           remoteFailed: Set[FailAndAdd] = Set.empty, remoteMalformed: Set[MalformAndAdd] = Set.empty,
-                          localFulfilled: Set[ByteVector32] = Set.empty) {
+                          localFulfilled: Set[UpdateAddHtlc] = Set.empty) {
 
-  lazy val incomingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(true, add) => add }
-  lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs collect { case Htlc(false, add) => add }
+  lazy val incomingAdds: Set[UpdateAddHtlc] = htlcs.collect { case Htlc(true, add) => add }
+
+  lazy val outgoingAdds: Set[UpdateAddHtlc] = htlcs.collect { case Htlc(false, add) => add }
+
   lazy val incomingAddsSum: MilliSatoshi = incomingAdds.foldLeft(0L.msat) { case (accumulator, inAdd) => accumulator + inAdd.amountMsat }
+
   lazy val outgoingAddsSum: MilliSatoshi = outgoingAdds.foldLeft(0L.msat) { case (accumulator, outAdd) => accumulator + outAdd.amountMsat }
+
   def findHtlcById(id: Long, isIncoming: Boolean): Option[Htlc] = htlcs.find(htlc => htlc.add.id == id && htlc.incoming == isIncoming)
 }
 
 object CommitmentSpec {
   def fulfill(cs: CommitmentSpec, isIncoming: Boolean, m: UpdateFulfillHtlc): CommitmentSpec = cs.findHtlcById(m.id, isIncoming) match {
-    case Some(their) if their.incoming => cs.copy(toLocal = cs.toLocal + their.add.amountMsat, localFulfilled = cs.localFulfilled + m.paymentHash, htlcs = cs.htlcs - their)
+    case Some(their) if their.incoming => cs.copy(toLocal = cs.toLocal + their.add.amountMsat, localFulfilled = cs.localFulfilled + their.add, htlcs = cs.htlcs - their)
     case Some(htlc) => cs.copy(toRemote = cs.toRemote + htlc.add.amountMsat, htlcs = cs.htlcs - htlc)
     case None => cs
   }
@@ -53,7 +58,9 @@ object CommitmentSpec {
   }
 
   def plusOutgoing(m: UpdateAddHtlc, cs: CommitmentSpec): CommitmentSpec = cs.copy(htlcs = cs.htlcs + Htlc(incoming = false, add = m), toLocal = cs.toLocal - m.amountMsat)
+
   def plusIncoming(m: UpdateAddHtlc, cs: CommitmentSpec): CommitmentSpec = cs.copy(htlcs = cs.htlcs + Htlc(incoming = true, add = m), toRemote = cs.toRemote - m.amountMsat)
+
   def reduce(local: Vector[LightningMessage], remote: Vector[LightningMessage], spec1: CommitmentSpec): CommitmentSpec = {
 
     val spec2 = spec1.copy(remoteFailed = Set.empty, remoteMalformed = Set.empty, localFulfilled = Set.empty)
@@ -77,7 +84,9 @@ object CommitmentSpec {
 }
 
 sealed trait ChannelData { val announce: NodeAnnouncementExt }
+
 case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: HostedCommits) extends ChannelData
+
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
 
 case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState,

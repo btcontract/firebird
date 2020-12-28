@@ -102,23 +102,25 @@ object HostedExcludedChannelTable extends ExcludedChannelTable("hosted_excluded_
 }
 
 object PaymentTable extends Table {
+  import com.btcontract.wallet.ln.PaymentStatus.{HIDDEN, SUCCEEDED}
   private val paymentTableFields = ("search", "payment", "nodeid", "pr", "preimage", "status", "stamp", "description", "action", "hash", "receivedmsat", "sentmsat", "feemsat", "balancesnap", "fiatratesnap", "incoming", "ext")
   val (search, table, nodeId, pr, preimage, status, stamp, description, action, hash, receivedMsat, sentMsat, feeMsat, balanceSnapMsat, fiatRateSnap, incoming, ext) = paymentTableFields
   val inserts = s"$nodeId, $pr, $preimage, $status, $stamp, $description, $action, $hash, $receivedMsat, $sentMsat, $feeMsat, $balanceSnapMsat, $fiatRateSnap, $incoming, $ext"
   val newSql = s"INSERT OR IGNORE INTO $table ($inserts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   val newVirtualSql = s"INSERT INTO $fts$table ($search, $hash) VALUES (?, ?)"
+  val deleteSql = s"DELETE FROM $table WHERE $hash = ?"
 
   // Selecting
   val selectOneSql = s"SELECT * FROM $table WHERE $hash = ?"
-  val selectRecentSql = s"SELECT * FROM $table ORDER BY $id DESC LIMIT 10"
-  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ? AND $status = ?"
-  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $stamp > ? AND $stamp < ? AND $status = ?"
-  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)"
+  val selectRecentSql = s"SELECT * FROM $table ORDER BY $id DESC LIMIT 10 WHERE ($stamp > 0 AND status <> $HIDDEN)"
+  val selectToNodeSummarySql = s"SELECT SUM($feeMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE $nodeId = ? AND $status = $SUCCEEDED"
+  val selectBetweenSummarySql = s"SELECT SUM($feeMsat), SUM($receivedMsat), SUM($sentMsat), COUNT($id) FROM $table WHERE ($stamp > ? AND $stamp < ? AND $status = $SUCCEEDED)"
+  val searchSql = s"SELECT * FROM $table WHERE $hash IN (SELECT $hash FROM $fts$table WHERE $search MATCH ? LIMIT 25)" // Only successful outgoing payments should be present here
 
   // Updating
-  val updOkOutgoingSql = s"UPDATE $table SET $status = ?, $preimage = ?, $sentMsat = ?, $feeMsat = ? WHERE $hash = ?"
-  val updOkIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ? WHERE $hash = ?"
-  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND $status <> ?"
+  val updOkOutgoingSql = s"UPDATE $table SET $status = $SUCCEEDED, $preimage = ?, $feeMsat = ? WHERE $hash = ? AND ($stamp > 0 AND status <> $SUCCEEDED) AND $incoming = 0"
+  val updParamsIncomingSql = s"UPDATE $table SET $status = ?, $receivedMsat = ?, $stamp = ? WHERE $hash = ? AND ($stamp > 0 AND status <> $SUCCEEDED) AND $incoming = 1"
+  val updStatusSql = s"UPDATE $table SET $status = ? WHERE $hash = ? AND ($stamp > 0 AND status <> $SUCCEEDED AND status <> $HIDDEN)"
 
   def createStatements: Seq[String] = {
     val createTable = s"""CREATE TABLE IF NOT EXISTS $table(

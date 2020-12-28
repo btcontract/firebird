@@ -5,7 +5,7 @@ import fr.acinq.eclair.wire._
 import scala.concurrent.duration._
 import com.softwaremill.quicklens._
 import com.btcontract.wallet.ln.crypto.Tools._
-import com.btcontract.wallet.ln.PaymentMaster._
+import com.btcontract.wallet.ln.ChannelMaster._
 import com.btcontract.wallet.ln.PaymentStatus._
 import com.btcontract.wallet.ln.PaymentFailure._
 
@@ -63,15 +63,6 @@ case class RemoteFailure(packet: Sphinx.DecryptedFailurePacket, route: Route) ex
 }
 
 
-object PaymentMaster {
-  val EXPECTING_PAYMENTS = "state-expecting-payments"
-  val WAITING_FOR_ROUTE = "state-waiting-for-route"
-
-  val CMDClearFailHistory = "cmd-clear-fail-history"
-  val CMDChanGotOnline = "cmd-chan-got-online"
-  val CMDAskForRoute = "cmd-ask-for-route"
-}
-
 sealed trait PartStatus {
   def tuple = Tuple2(partId, this)
   def partId: ByteVector
@@ -107,11 +98,20 @@ case class CMD_SEND_MPP(paymentHash: ByteVector32, totalAmount: MilliSatoshi,
                         targetNodeId: PublicKey, paymentSecret: ByteVector32 = ByteVector32.Zeroes,
                         targetExpiry: CltvExpiry = CltvExpiry(0), assistedEdges: Set[GraphEdge] = Set.empty)
 
+object ChannelMaster {
+  type HashToResolution = Map[ByteVector32, AddResolution]
+  val EXPECTING_PAYMENTS = "state-expecting-payments"
+  val WAITING_FOR_ROUTE = "state-waiting-for-route"
+
+  val CMDClearFailHistory = "cmd-clear-fail-history"
+  val CMDChanGotOnline = "cmd-chan-got-online"
+  val CMDAskForRoute = "cmd-ask-for-route"
+}
 
 abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener {
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, totalAmount = 0L.msat, invalidPubKey), Map.empty)
-  private[this] val preliminaryResolveMemo = memoize(preliminaryResolve)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
+  private[this] val initialResolveMemo = memoize(initialResolve)
 
   val sockBrandingBridge: ConnectionListener
   val sockChannelBridge: ConnectionListener
@@ -124,13 +124,10 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(paymentSenderData)
     override def outgoingSucceeded(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingSucceeded(paymentSenderData)
-    override def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = for (lst <- listeners) lst.incomingPending(paymentHashes)
 
-    override def incomingSucceeded(paymentHash: ByteVector32): Unit = {
-      // Clear for correct access to payments updated to PaymentInfo.SUCCESS
-      for (lst <- listeners) lst.incomingSucceeded(paymentHash)
-      preliminaryResolveMemo.clear
-      getPaymentInfoMemo.clear
+    override def incomingUpdated(succeeded: HashToResolution, pending: HashToResolution): Unit = {
+      succeeded.values.collect { case resolution: FinalPayloadSpec => resolution } foreach clearCaches
+      for (lst <- listeners) lst.incomingUpdated(succeeded, pending)
     }
   }
 
@@ -166,12 +163,12 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     val presentInDb = payBag.getPaymentInfo(paymentHash)
 
     (presentInSenderFSM, presentInDb) match {
-      case (_, Some(info)) if info.isIncoming => PaymentInfo.NOT_SENDABLE_INCOMING
-      case (_, Some(info)) if SUCCEEDED == info.status => PaymentInfo.NOT_SENDABLE_SUCCESS
-      case (Some(senderFSM), _) if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS
-      case (Some(senderFSM), _) if PENDING == senderFSM.state || INIT == senderFSM.state => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-      case _ if inChannelOutgoingHtlcs.exists(_.paymentHash == paymentHash) => PaymentInfo.NOT_SENDABLE_IN_FLIGHT
-      case _ if PaymentMaster.totalSendable < amount => PaymentInfo.NOT_SENDABLE_LOW_BALANCE
+      case (_, info) if info.exists(_.isIncoming) => PaymentInfo.NOT_SENDABLE_INCOMING // We have an incoming payment with such payment hash
+      case (_, info) if info.exists(SUCCEEDED == _.status) => PaymentInfo.NOT_SENDABLE_SUCCESS // This payment has been fulfilled a long time ago
+      case (Some(senderFSM), _) if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS // This payment has just been fulfilled in runtime
+      case (Some(senderFSM), _) if PENDING == senderFSM.state || INIT == senderFSM.state => PaymentInfo.NOT_SENDABLE_IN_FLIGHT // This payment is pending in FSM
+      case _ if inChannelOutgoingHtlcs.exists(_.paymentHash == paymentHash) => PaymentInfo.NOT_SENDABLE_IN_FLIGHT // This payment is pending in channels
+      case _ if PaymentMaster.totalSendable < amount => PaymentInfo.NOT_SENDABLE_LOW_BALANCE // Not enough money
       case _ => PaymentInfo.SENDABLE
     }
   }
@@ -182,7 +179,12 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   def failFinalPayloadSpec(fail: FailureMessage, finalPayloadSpec: FinalPayloadSpec): CMD_FAIL_HTLC = failHtlc(finalPayloadSpec.packet, fail, finalPayloadSpec.add)
   def failHtlc(packet: DecryptedPacket, fail: FailureMessage, add: UpdateAddHtlc): CMD_FAIL_HTLC = CMD_FAIL_HTLC(FailurePacket.create(packet.sharedSecret, fail), add)
 
-  private def preliminaryResolve(add: UpdateAddHtlc): AddResolution = {
+  private def clearCaches(resolve: FinalPayloadSpec) = {
+    getPaymentInfoMemo.remove(resolve.add.paymentHash)
+    initialResolveMemo.remove(resolve.add)
+  }
+
+  private def initialResolve(add: UpdateAddHtlc): AddResolution = {
     val invoiceKey = LNParams.format.keys.fakeInvoiceKey(add.paymentHash)
     PaymentPacket.peel(invoiceKey, add.paymentHash, add.onionRoutingPacket) match {
       case Left(parseError) => CMD_FAIL_MALFORMED_HTLC(parseError.onionHash, parseError.code, add)
@@ -222,28 +224,27 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     */
 
   override def stateUpdated(hc: HostedCommits): Unit = {
-    val allChansAndCommits: Set[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt).toSet
-    val allRevealedHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.revealedHashes) // Hashes where preimage is revealed, but state not yet updated
-    val allFulfilledHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled) // Shards which are fulfilled on last state update
-    val allIncomingHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(_.paymentHash) // Shards which are still pending
-    allFulfilledHashes.diff(allIncomingHashes).foreach(events.incomingSucceeded) // Notify about those where no pending shards left
-    events.incomingPending(allIncomingHashes)
+    val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
+    val allRevealedHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.revealedHashes).toSet // Payment hashes where preimage is revealed, but state is not updated yet
+    val allFulfilledAdds = toMapBy[ByteVector32, AddResolution](allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled).map(initialResolveMemo), _.add.paymentHash) // Settled shards
+    val allIncomingAdds = toMapBy[ByteVector32, AddResolution](allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(initialResolveMemo), _.add.paymentHash) // Unsettled shards
+    events.incomingUpdated(succeeded = allFulfilledAdds -- allIncomingAdds.keys, pending = allIncomingAdds)
 
-    val allIncomingResolves: Vector[AddResolution] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.unansweredIncoming).map(preliminaryResolveMemo)
+    val allIncomingResolves: Vector[AddResolution] = allChansAndCommits.flatMap(_.commits.unansweredIncoming).map(initialResolveMemo)
     val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
     val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
 
     // Grouping by payment hash assumes we never ask for two different payments with the same hash!
     val results = maybeGood.groupBy(_.add.paymentHash).map(_.swap).mapValues(getPaymentInfoMemo) map {
-      // No such payment in our database, looks like we have never asked for it, we don't have a preimage
-      case (payments, None) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      // These are multipart payments where preimage is revealed or shards partially fulfilled, proceed with fulfilling of the rest of shards
+      // No such payment in our database or this is an outgoing payment, in any case we better fail it right away
+      case (payments, info) if !info.exists(_.isIncoming) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // These are multipart payments where preimage is revealed or some shards are partially fulfilled, proceed with fulfilling of the rest of shards
+      case (payments, Some(info)) if allFulfilledAdds.contains(info.paymentHash) => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
       case (payments, Some(info)) if allRevealedHashes.contains(info.paymentHash) => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-      case (payments, Some(info)) if allFulfilledHashes.contains(info.paymentHash) => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
-      // This is a multipart payment where shards have different values for total payment amount, this is a spec violation so we proceed with failing right away
+      // This is a multipart payment where some shards have different total amount values, this is a spec violation so we proceed with failing right away
       case (payments, _) if payments.map(_.payload.totalAmount).toSet.size > 1 => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      // This is a payment where total amount is set to a value which is less than what we have requested, this is a spec violation so we proceed with failing right away
-      case (payments, Some(info)) if payments.exists(_.payload.totalAmount < info.amountOrZero) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
+      // This is a payment where total amount is set to a value which is less than what we have originally requested, this is a spec violation so we proceed with failing right away
+      case (payments, Some(info)) if info.pr.amount.exists(_ > payments.map(_.payload.totalAmount).min) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       // This is a payment where one of shards has a paymentSecret which is different from the one we have provided in invoice, this is a spec violation so we proceed with failing right away
       case (payments, Some(info)) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       // This is a payment which arrives too late, we would have too few blocks to prove that we have fulfilled it with an uncooperative host, not a spec violation but we still fail it to be on safe side
@@ -656,6 +657,5 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 trait ChannelMasterListener {
   def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = none
   def outgoingSucceeded(paymentSenderData: PaymentSenderData): Unit = none
-  def incomingPending(paymentHashes: Set[ByteVector32] = Set.empty): Unit = none
-  def incomingSucceeded(paymentHash: ByteVector32): Unit = none
+  def incomingUpdated(succeeded: HashToResolution, pending: HashToResolution): Unit = none
 }

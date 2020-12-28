@@ -1,6 +1,5 @@
 package com.btcontract.wallet.ln
 
-import fr.acinq.eclair._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.utils.{FiatRates, LNUrl}
 import fr.acinq.bitcoin.{ByteVector32, Satoshi}
@@ -22,10 +21,12 @@ object PaymentInfo {
 }
 
 object PaymentStatus {
-  val INIT = "state-init"
-  val PENDING = "state-pending"
-  val ABORTED = "state-aborted"
-  val SUCCEEDED = "state-succeeded"
+  final val INIT = "state-init"
+  final val PENDING = "state-pending"
+  final val ABORTED = "state-aborted"
+  final val SUCCEEDED = "state-succeeded"
+  // Not used in ChannelMaster, only in db
+  final val HIDDEN = "state-hidden"
 }
 
 case class PaymentInfo(payeeNodeIdString: String, prString: String, preimageString: String, status: String, stamp: Long, descriptionString: String,
@@ -34,7 +35,6 @@ case class PaymentInfo(payeeNodeIdString: String, prString: String, preimageStri
 
   def isIncoming: Boolean = 1 == incoming
   lazy val pr: PaymentRequest = PaymentRequest.read(prString)
-  lazy val amountOrZero: MilliSatoshi = pr.amount.getOrElse(0L.msat)
   lazy val payeeNodeId: PublicKey = PublicKey(ByteVector fromValidHex payeeNodeIdString)
   lazy val preimage: ByteVector32 = ByteVector32(ByteVector fromValidHex preimageString)
   lazy val paymentHash: ByteVector32 = ByteVector32(ByteVector fromValidHex paymentHashString)

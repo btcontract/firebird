@@ -36,8 +36,8 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
     if (LNParams.format.outstandingProviders.nonEmpty) {
       // Initialize this operation AFTER chain tip becomes known
       WalletApp.chainLink addAndMaybeInform new ChainLinkListener {
-        def onChainTipConfirmed: Unit = initChannelsOnTipKnown
-        def onCompleteChainDisconnect: Unit = none
+        override def onChainTipConfirmed: Unit = initChannelsOnTipKnown
+        override def onCompleteChainDisconnect: Unit = none
       }
     }
 
@@ -45,9 +45,9 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
     LNParams.format.outstandingProviders foreach {
       case ann if LNParams.channelMaster.fromNode(ann.nodeId).isEmpty =>
         new OpenHandler(NodeAnnouncementExt(ann), LNParams.hcInit, LNParams.format, LNParams.channelMaster) {
-          def onFailure(channel: HostedChannel, err: Throwable): Unit = UITask(WalletApp.app quickToast err.getMessage).run
-          def onEstablished(channel: HostedChannel): Unit = WalletApp.syncRmOutstanding(channel.data.announce.na)
-          def onDisconnect(worker: CommsTower.Worker): Unit = CommsTower.forget(worker.pkap)
+          override def onFailure(channel: HostedChannel, err: Throwable): Unit = UITask(WalletApp.app quickToast err.getMessage).run
+          override def onEstablished(channel: HostedChannel): Unit = WalletApp.syncRmOutstanding(channel.data.announce.na)
+          override def onDisconnect(worker: CommsTower.Worker): Unit = CommsTower.forget(worker.pkap)
         }
 
       case hasChannelAnn =>

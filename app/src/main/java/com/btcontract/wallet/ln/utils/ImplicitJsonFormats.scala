@@ -61,7 +61,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val htlcFmt: JsonFormat[Htlc] = jsonFormat[Boolean, UpdateAddHtlc, Htlc](Htlc.apply, "incoming", "add")
 
   implicit val commitmentSpecFmt: JsonFormat[CommitmentSpec] =
-    jsonFormat[Long, MilliSatoshi, MilliSatoshi, Set[Htlc], Set[FailAndAdd], Set[MalformAndAdd], Set[ByteVector32],
+    jsonFormat[Long, MilliSatoshi, MilliSatoshi, Set[Htlc], Set[FailAndAdd], Set[MalformAndAdd], Set[UpdateAddHtlc],
       CommitmentSpec](CommitmentSpec.apply, "feeratePerKw", "toLocal", "toRemote", "htlcs", "remoteFailed", "remoteMalformed", "localFulfilled")
 
   implicit val nodeAnnouncementExtFmt: JsonFormat[NodeAnnouncementExt] = jsonFormat[NodeAnnouncement, NodeAnnouncementExt](NodeAnnouncementExt.apply, "na")
