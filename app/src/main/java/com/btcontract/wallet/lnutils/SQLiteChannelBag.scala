@@ -7,9 +7,9 @@ import fr.acinq.bitcoin.ByteVector32
 
 
 class SQLiteChannelBag(db: SQLiteInterface) extends ChannelBag {
-  def delete(chanId: ByteVector32): Unit = db.change(ChannelTable.killSql, chanId.toHex)
+  def delete(channelId: ByteVector32): Unit = db.change(ChannelTable.killSql, channelId.toHex)
 
-  def all: List[HostedCommits] = db.select(ChannelTable.selectAllSql).list(_ string ChannelTable.data) map to[HostedCommits]
+  def all: List[HostedCommits] = db.select(ChannelTable.selectAllSql).iterable(_ string ChannelTable.data).toList map to[HostedCommits]
 
   def put(chanId: ByteVector32, data: HostedCommits): HostedCommits = {
     // Insert and then update because of INSERT IGNORE sqlite effects

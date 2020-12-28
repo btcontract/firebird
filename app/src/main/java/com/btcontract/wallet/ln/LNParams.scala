@@ -183,10 +183,10 @@ case class SwapInStateExt(state: SwapInState, nodeId: PublicKey)
 
 trait NetworkDataStore {
   def addChannelAnnouncement(ca: ChannelAnnouncement): Unit
-  def listChannelAnnouncements: List[ChannelAnnouncement]
+  def listChannelAnnouncements: Iterable[ChannelAnnouncement]
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit
-  def listChannelUpdates: List[ChannelUpdateExt]
+  def listChannelUpdates: Iterable[ChannelUpdateExt]
 
   // We disregard position and always exclude channel as a whole
   def addExcludedChannel(shortId: ShortChannelId, untilStamp: Long): Unit

@@ -46,8 +46,8 @@ class PathfinderSpec {
     normal.removeGhostChannels(Set(ShortChannelId(5L)), oneSideShortIds)
     val routingMap = normal.getRoutingData
     assertTrue(normal.listExcludedChannels.contains(6L))
-    assertTrue(!normal.listChannelAnnouncements.map(_.shortChannelId).contains(ShortChannelId(6L)))
-    assertTrue(!normal.listChannelUpdates.map(_.update.shortChannelId).contains(ShortChannelId(6L)))
+    assertTrue(!normal.listChannelAnnouncements.map(_.shortChannelId).toList.contains(ShortChannelId(6L)))
+    assertTrue(!normal.listChannelUpdates.map(_.update.shortChannelId).toList.contains(ShortChannelId(6L)))
     assertTrue(!routingMap.keySet.contains(ShortChannelId(5L)))
     assertTrue(routingMap.size == 4)
   }

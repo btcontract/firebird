@@ -20,7 +20,7 @@ class SQLiteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
   def incrementChannelScore(cu: ChannelUpdate): Unit = db.change(updateTable.updScoreSql, cu.shortChannelId.toJavaLong, cu.position)
   def removeChannelUpdate(shortId: ShortChannelId): Unit = db.change(updateTable.killSql, shortId.toJavaLong)
 
-  def listChannelAnnouncements: List[ChannelAnnouncement] = db select announceTable.selectAllSql list { rc =>
+  def listChannelAnnouncements: Iterable[ChannelAnnouncement] = db select announceTable.selectAllSql iterable { rc =>
     ChannelAnnouncement(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes, bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
       features = Features.empty, chainHash = LNParams.chainHash, shortChannelId = ShortChannelId(rc long announceTable.shortChannelId), nodeId1 = PublicKey(rc bytes announceTable.nodeId1),
       nodeId2 = PublicKey(rc bytes announceTable.nodeId2), bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
@@ -46,15 +46,15 @@ class SQLiteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
       feeBaseMsat, feeProportionalMillionths, htlcMaxMsat, crc32, cu.shortChannelId.toJavaLong, cu.position)
   }
 
-  def listChannelUpdates: List[ChannelUpdateExt] =
-    db select updateTable.selectAllSql list { rc =>
-      val messageFlags = rc int updateTable.msgFlags
-      val channelFlags = rc int updateTable.chanFlags
-      val feeBaseMsat = MilliSatoshi(rc long updateTable.base)
-      val shortChannelId = ShortChannelId(rc long updateTable.sid)
-      val htlcMaximumMsat = MilliSatoshi(rc long updateTable.maxMsat)
-      val htlcMinimumMsat = MilliSatoshi(rc long updateTable.minMsat)
+  def listChannelUpdates: Iterable[ChannelUpdateExt] =
+    db select updateTable.selectAllSql iterable { rc =>
       val cltvExpiryDelta = CltvExpiryDelta(rc int updateTable.cltvExpiryDelta)
+      val htlcMinimumMsat = MilliSatoshi(rc long updateTable.minMsat)
+      val htlcMaximumMsat = MilliSatoshi(rc long updateTable.maxMsat)
+      val shortChannelId = ShortChannelId(rc long updateTable.sid)
+      val feeBaseMsat = MilliSatoshi(rc long updateTable.base)
+      val channelFlags = rc int updateTable.chanFlags
+      val messageFlags = rc int updateTable.msgFlags
 
       val update = ChannelUpdate(signature = ByteVector64.Zeroes, chainHash = LNParams.chainHash, shortChannelId,
         timestamp = rc long updateTable.timestamp, messageFlags.toByte, channelFlags.toByte, cltvExpiryDelta,

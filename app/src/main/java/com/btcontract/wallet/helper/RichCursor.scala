@@ -9,7 +9,7 @@ import scala.util.Try
 
 case class RichCursor(c: Cursor) extends Iterable[RichCursor] { me =>
   def set[T](trans: RichCursor => T): Set[T] = try map(trans).toSet finally c.close
-  def list[T](trans: RichCursor => T): List[T] = try map(trans).toList finally c.close
+  def iterable[T](trans: RichCursor => T): Iterable[T] = try map(trans) finally c.close
   def headTry[T](fun: RichCursor => T): Try[T] = try Try(fun apply head) finally c.close
   def string(stringKey: String): String = c.getString(c getColumnIndex stringKey)
   def bytes(byteKey: String): Bytes = c.getBlob(c getColumnIndex byteKey)
@@ -27,11 +27,11 @@ abstract class ReactLoader[T](ct: Context) extends AsyncTaskLoader[Cursor](ct) {
 
   def loadInBackground: Cursor = {
     val currentCursor: Cursor = getCursor
-    consume(RichCursor(currentCursor) list createItem)
+    consume(RichCursor(currentCursor) iterable createItem)
     currentCursor
   }
 
-  val consume: List[T] => Unit
+  val consume: Iterable[T] => Unit
   def createItem(wrap: RichCursor): T
   def getCursor: Cursor
 }
