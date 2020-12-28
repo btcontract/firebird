@@ -165,7 +165,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     (presentInSenderFSM, presentInDb) match {
       case (_, info) if info.exists(_.isIncoming) => PaymentInfo.NOT_SENDABLE_INCOMING // We have an incoming payment with such payment hash
       case (_, info) if info.exists(SUCCEEDED == _.status) => PaymentInfo.NOT_SENDABLE_SUCCESS // This payment has been fulfilled a long time ago
-      case (Some(senderFSM), _) if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS // This payment has just been fulfilled in runtime
+      case (Some(senderFSM), _) if SUCCEEDED == senderFSM.state => PaymentInfo.NOT_SENDABLE_SUCCESS // This payment has just been fulfilled at runtime
       case (Some(senderFSM), _) if PENDING == senderFSM.state || INIT == senderFSM.state => PaymentInfo.NOT_SENDABLE_IN_FLIGHT // This payment is pending in FSM
       case _ if inChannelOutgoingHtlcs.exists(_.paymentHash == paymentHash) => PaymentInfo.NOT_SENDABLE_IN_FLIGHT // This payment is pending in channels
       case _ if PaymentMaster.totalSendable < amount => PaymentInfo.NOT_SENDABLE_LOW_BALANCE // Not enough money
@@ -221,6 +221,14 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     * 3. we close a wallet, at this point sender sees payment as sent because preimage is delivered through channel #2, we see payment as just pending and have a dangling shard in channel #1
     * 4. we re-open a wallet, channel #1 is still SLEEPING, channel #2 becomes OPEN, `stateUpdated` is called and sends CMD_FULFILL_HTLC to channel #1 becase it sees a fulfilled shard in channel #2
     * 5. channel #1 stores a preimage, then becomes OPEN, sends out a preimage and then updates a state, we get `incomingSucceeded` event and see payment as done
+    */
+
+  /**
+    * Normal incoming flow, a payment with 2 shards
+    * 1. we get shard #1 into channel #1, `stateUpdated` is called, shard is recognized as incoming and pending in listener
+    * 2. we get shard #2 into channel #2, `stateUpdated` is called, payment as a whole is recognized as fulfillable, 2 CMD_FULFILL_HTLC are sent to channels, both shards are pending in listener
+    * 3. channel #2 stores, sends out a preimage and updates a state, `stateUpdated` is called, because of shard #1 payment is not recognized as fulfilled yet, shard #1 is pending in listener
+    * 4. channel #1 stores, sends out a preimage and updates a state, `stateUpdated` is called, since shard #1 was the last one a payment as a whole is fulfilled in listener
     */
 
   override def stateUpdated(hc: HostedCommits): Unit = {
