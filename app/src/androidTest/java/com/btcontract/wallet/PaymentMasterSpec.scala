@@ -30,7 +30,7 @@ class PaymentMasterSpec {
     val init_hosted_channel = InitHostedChannel(UInt64(toLocal.underlying + 100000000L), 10.msat, 20, 200000000L.msat, 5000, Satoshi(1000000), 0.msat)
     val lcss: LastCrossSignedState = LastCrossSignedState(refundScriptPubKey = randomBytes(119), init_hosted_channel, blockDay = 100, localBalanceMsat = toLocal, remoteBalanceMsat = 100000000L.msat,
       localUpdates = 201, remoteUpdates = 101, incomingHtlcs = Nil, outgoingHtlcs = Nil, remoteSigOfLocal = ByteVector64.Zeroes, localSigOfRemote = ByteVector64.Zeroes)
-    HostedCommits(NodeAnnouncementExt(announce), lastCrossSignedState = lcss, nextLocalUpdates = Vector.empty, nextRemoteUpdates = Vector.empty, localSpec = spec,
+    HostedCommits(NodeAnnouncementExt(announce), lastCrossSignedState = lcss, nextLocalUpdates = Nil, nextRemoteUpdates = Nil, localSpec = spec,
       updateOpt = None, localError = None, remoteError = None, startedAt = System.currentTimeMillis)
   }
 
@@ -433,14 +433,15 @@ class PaymentMasterSpec {
     pf process PathFinder.CMDLoadGraph
     synchronized(wait(500L))
 
-    val (Vector(c1), Vector(c2)) = master.all.partition(_.data.announce.na.alias == "peer1")
+    val (List(c1), List(c2)) = master.all.partition(_.data.announce.na.alias == "peer1")
     val initSendable = master.PaymentMaster.feeFreeBalance(c1.chanAndCommitsOpt.get)
     c1.BECOME(c1.data, HostedChannel.SLEEPING)
     c2.BECOME(c2.data, HostedChannel.OPEN)
     synchronized(wait(500L))
 
     val edgeDSFromD = makeEdge(ShortChannelId(6L), d, s, 1.msat, 10, cltvDelta = CltvExpiryDelta(144), maxHtlc = Long.MaxValue.msat)
-    val cmd1 = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 570000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes, targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
+    val cmd1 = CMD_SEND_MPP(paymentHash = ByteVector32.Zeroes, totalAmount = 570000.msat, targetNodeId = s, paymentSecret = ByteVector32.Zeroes,
+      targetExpiry = CltvExpiry(9), assistedEdges = Set(edgeDSFromD))
     master.PaymentMaster process cmd1
     synchronized(wait(500L))
 

@@ -37,7 +37,7 @@ object Tools {
     override def apply(key: In): Out = getOrElseUpdate(key, fun apply key)
   }
 
-  def randomBest[T, B](bestItem: T, mapper: T => B, items: Vector[T] = Vector.empty): T = {
+  def randomBest[T, B](bestItem: T, mapper: T => B, items: Iterable[T] = Nil): T = {
     // Given a list and a best item from it, get random best if there are many equally good items
     val bestItems = items.filter(item => mapper(item) == mapper(bestItem) || item == bestItem)
     scala.util.Random.shuffle(bestItems).head

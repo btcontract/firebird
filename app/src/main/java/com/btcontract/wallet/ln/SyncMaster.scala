@@ -46,7 +46,7 @@ object SyncMaster {
 
   val maxPHCCapacity = MilliSatoshi(1000000000000000L) // 10 000 BTC
   val minPHCCapacity = MilliSatoshi(50000000000L) // 0.5 BTC
-  val minNormalChansForPHC = 10
+  val minNormalChansForPHC = 5
   val maxPHCPerNode = 2
 
   val minCapacity = MilliSatoshi(500000000L) // 500k sat

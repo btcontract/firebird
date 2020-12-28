@@ -85,8 +85,8 @@ case class WithdrawRequest(callback: String, k1: String, maxWithdrawable: Long, 
 }
 
 object PayRequest {
-  type TagAndContent = Vector[String]
-  type PayMetaData = Vector[TagAndContent]
+  type TagAndContent = List[String]
+  type PayMetaData = List[TagAndContent]
 }
 
 case class PayLinkInfo(image64: String, lnurl: LNUrl, text: String, lastMsat: MilliSatoshi, hash: String, lastDate: Long) {
@@ -102,12 +102,12 @@ case class PayRequest(callback: String, maxSendable: Long, minSendable: Long, me
 
   val callbackUri: Uri = LNUrl.checkHost(callback)
   val minCanSend: MilliSatoshi = minSendable.msat.max(LNParams.minPayment)
-  val metaDataTexts: Vector[String] = decodedMetadata.collect { case Vector("text/plain", txt) => txt }
+  val metaDataTexts: List[String] = decodedMetadata.collect { case List("text/plain", txt) => txt }
   require(metaDataTexts.size == 1, "There must be exactly one text/plain entry in metadata")
   require(minCanSend <= maxSendable.msat, s"max=$maxSendable while min=$minCanSend")
   val metaDataTextPlain: String = metaDataTexts.head
 }
 
-case class PayRequestFinal(successAction: Option[PaymentAction], routes: Vector[String], pr: String) extends LNUrlData {
+case class PayRequestFinal(successAction: Option[PaymentAction], routes: List[String], pr: String) extends LNUrlData {
   val paymentRequest: PaymentRequest = PaymentRequest.read(pr)
 }

@@ -44,7 +44,7 @@ abstract class SwapOutFeeratesHandler(ourInit: Init) extends StateMachine[Feerat
       me process YesSwapOutSupport(worker, msg)
   }
 
-  def onFound(offers: Vector[SwapOutResponseExt] = Vector.empty): Unit
+  def onFound(offers: List[SwapOutResponseExt] = Nil): Unit
   def onNoProviderSwapOutSupport: Unit
   def onTimeoutAndNoResponse: Unit
 
@@ -85,7 +85,7 @@ abstract class SwapOutFeeratesHandler(ourInit: Init) extends StateMachine[Feerat
 
   private def doSearch(force: Boolean): Unit = {
     // Remove yet unknown responses, unsupporting peers have been removed earlier
-    val responses: Vector[SwapOutResponseExt] = data.results.values.flatten.toVector
+    val responses: List[SwapOutResponseExt] = data.results.values.flatten.toList
 
     if (responses.size == data.results.size) {
       // All responses have been collected

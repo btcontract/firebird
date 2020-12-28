@@ -29,7 +29,7 @@ object HostedChannel {
 }
 
 case class ChanAndCommits(chan: HostedChannel, commits: HostedCommits)
-case class CommitsAndMax(commits: Vector[ChanAndCommits], maxReceivable: MilliSatoshi)
+case class CommitsAndMax(commits: List[ChanAndCommits], maxReceivable: MilliSatoshi)
 
 abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def isBlockDayOutOfSync(blockDay: Long): Boolean = math.abs(blockDay - currentBlockDay) > 1
@@ -225,8 +225,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (!isRemoteSigOk) localSuspend(hc1, ERR_HOSTED_WRONG_REMOTE_SIG)
         else if (!isLocalSigOk) localSuspend(hc1, ERR_HOSTED_WRONG_LOCAL_SIG)
         else if (weAreAhead || weAreEven) {
-          SEND(Vector(localLCSS) ++ hc1.resizeProposal ++ hc1.nextLocalUpdates:_*)
-          BECOME(hc1.copy(nextRemoteUpdates = Vector.empty), OPEN)
+          SEND(List(localLCSS) ++ hc1.resizeProposal ++ hc1.nextLocalUpdates:_*)
+          BECOME(hc1.copy(nextRemoteUpdates = Nil), OPEN)
         } else {
           val localUpdatesAcked = remoteLCSS.remoteUpdates - hc1.lastCrossSignedState.localUpdates
           val remoteUpdatesAcked = remoteLCSS.localUpdates - hc1.lastCrossSignedState.remoteUpdates
@@ -237,7 +237,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
           val hc2 = hc1.copy(nextLocalUpdates = localUpdatesAccounted, nextRemoteUpdates = remoteUpdatesAccounted)
           val syncedLCSS = hc2.nextLocalUnsignedLCSS(remoteLCSS.blockDay).copy(localSigOfRemote = remoteLCSS.remoteSigOfLocal, remoteSigOfLocal = remoteLCSS.localSigOfRemote)
-          val syncedCommits = hc2.copy(lastCrossSignedState = syncedLCSS, localSpec = hc2.nextLocalSpec, nextLocalUpdates = localUpdatesLeftover, nextRemoteUpdates = Vector.empty)
+          val syncedCommits = hc2.copy(lastCrossSignedState = syncedLCSS, localSpec = hc2.nextLocalSpec, nextLocalUpdates = localUpdatesLeftover, nextRemoteUpdates = Nil)
           if (syncedLCSS.reverse != remoteLCSS) STORESENDBECOME(restoreCommits(remoteLCSS.reverse, hc2.announce), OPEN, remoteLCSS.reverse) // We are too far behind, restore from their data
           else STORESENDBECOME(syncedCommits, OPEN, Vector(syncedLCSS) ++ hc2.resizeProposal ++ localUpdatesLeftover:_*) // We are behind but our own future cross-signed state is reachable
         }
@@ -298,7 +298,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
     val inHtlcs = for (updateAddHtlc <- localLCSS.incomingHtlcs) yield Htlc(incoming = true, updateAddHtlc)
     val outHtlcs = for (updateAddHtlc <- localLCSS.outgoingHtlcs) yield Htlc(incoming = false, updateAddHtlc)
     val localSpec = CommitmentSpec(feeratePerKw = 0L, localLCSS.localBalanceMsat, localLCSS.remoteBalanceMsat, htlcs = (inHtlcs ++ outHtlcs).toSet)
-    HostedCommits(ext, localLCSS, nextLocalUpdates = Vector.empty, nextRemoteUpdates = Vector.empty, localSpec, updateOpt = None, localError = None, remoteError = None)
+    HostedCommits(ext, localLCSS, nextLocalUpdates = Nil, nextRemoteUpdates = Nil, localSpec, updateOpt = None, localError = None, remoteError = None)
   }
 
   def localSuspend(hc: HostedCommits, errCode: String): Unit = {
@@ -309,7 +309,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
   def attemptStateUpdate(remoteSU: StateUpdate, hc: HostedCommits): Unit = {
     val lcss1 = hc.nextLocalUnsignedLCSS(remoteSU.blockDay).copy(remoteSigOfLocal = remoteSU.localSigOfRemoteLCSS).withLocalSigOfRemote(data.announce.nodeSpecificPrivKey)
-    val hc1 = hc.copy(lastCrossSignedState = lcss1, localSpec = hc.nextLocalSpec, nextLocalUpdates = Vector.empty, nextRemoteUpdates = Vector.empty)
+    val hc1 = hc.copy(lastCrossSignedState = lcss1, localSpec = hc.nextLocalSpec, nextLocalUpdates = Nil, nextRemoteUpdates = Nil)
     val isRemoteSigOk = lcss1.verifyRemoteSig(hc.announce.na.nodeId)
     val isBlockDayWrong = isBlockDayOutOfSync(remoteSU.blockDay)
 

@@ -42,7 +42,7 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
       me process YesSwapInSupport(worker, msg)
   }
 
-  def onFound(offers: Vector[SwapInResponseExt] = Vector.empty): Unit
+  def onFound(offers: List[SwapInResponseExt] = Nil): Unit
   def onNoProviderSwapInSupport: Unit
   def onTimeoutAndNoResponse: Unit
 
@@ -77,7 +77,7 @@ abstract class SwapInAddressHandler(ourInit: Init) extends StateMachine[AddressD
 
   private def doSearch(force: Boolean): Unit = {
     // Remove yet unknown responses, unsupporting peers have been removed earlier
-    val responses: Vector[SwapInResponseExt] = data.results.values.flatten.toVector
+    val responses: List[SwapInResponseExt] = data.results.values.flatten.toList
 
     if (responses.size == data.results.size) {
       // All responses have been collected

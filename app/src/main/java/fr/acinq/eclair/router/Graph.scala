@@ -34,7 +34,7 @@ object Graph {
    * @param length number of edges in the path
    * @param cltv   sum of each edge's cltv
    */
-  case class RichWeight(costs: Vector[MilliSatoshi], length: Int, cltv: CltvExpiryDelta, weight: Double) extends Ordered[RichWeight] {
+  case class RichWeight(costs: List[MilliSatoshi], length: Int, cltv: CltvExpiryDelta, weight: Double) extends Ordered[RichWeight] {
     override def compare(that: RichWeight): Int = this.weight.compareTo(that.weight)
   }
 
@@ -71,7 +71,7 @@ object Graph {
   def bestPath(graph: DirectedGraph, sourceNode: PublicKey, targetNode: PublicKey, amount: MilliSatoshi, ignoredEdges: Set[ChannelDesc],
                ignoredVertices: Set[PublicKey], currentBlockHeight: Long, boundaries: RichWeight => Boolean): Option[WeightedPath] = {
 
-    val targetWeight = RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)
+    val targetWeight = RichWeight(List(amount), 0, CltvExpiryDelta(0), 0)
     val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight)
     if (shortestPath.isEmpty) None else Some(WeightedPath(shortestPath, pathWeight(sourceNode, shortestPath, amount, currentBlockHeight)))
   }
@@ -102,7 +102,7 @@ object Graph {
     // because in the worst case scenario we will insert all the vertices.
     val initialCapacity = 100
 
-    val bestWeights = new DefaultHashMap[PublicKey, RichWeight](RichWeight(Vector(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue), initialCapacity)
+    val bestWeights = new DefaultHashMap[PublicKey, RichWeight](RichWeight(List(Long.MaxValue.msat), Int.MaxValue, CltvExpiryDelta(Int.MaxValue), Double.MaxValue), initialCapacity)
     val bestEdges = new java.util.HashMap[PublicKey, GraphEdge](initialCapacity)
 
     // NB: we want the elements with smallest weight first, hence the `reverse`
@@ -229,7 +229,7 @@ object Graph {
    * @param currentBlockHeight the height of the chain tip (latest block).
    */
   def pathWeight(sender: PublicKey, path: Seq[GraphEdge], amount: MilliSatoshi, currentBlockHeight: Long): RichWeight = {
-    path.foldRight(RichWeight(Vector(amount), 0, CltvExpiryDelta(0), 0)) { case (edge, prev) =>
+    path.foldRight(RichWeight(List(amount), 0, CltvExpiryDelta(0), 0)) { case (edge, prev) =>
       addEdgeWeight(sender, edge, prev, currentBlockHeight)
     }
   }

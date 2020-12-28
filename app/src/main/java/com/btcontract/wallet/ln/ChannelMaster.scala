@@ -32,13 +32,13 @@ import scodec.Attempt
 
 
 object PaymentFailure {
-  type FailureVector = Vector[PaymentFailure]
+  type Failures = List[PaymentFailure]
   final val NOT_ENOUGH_CAPACITY = "not-enough-capacity"
   final val RUN_OUT_OF_RETRY_ATTEMPTS = "run-out-of-retry-attempts"
   final val PEER_COULD_NOT_PARSE_ONION = "peer-could-not-parse-onion"
   final val NOT_RETRYING_NO_DETAILS = "not-retrying-no-details"
 
-  def groupByAmount(data: PaymentSenderData): Map[MilliSatoshi, FailureVector] = data.failures.groupBy {
+  def groupByAmount(data: PaymentSenderData): Map[MilliSatoshi, Failures] = data.failures.groupBy {
     case unreadableRemote: UnreadableRemoteFailure => unreadableRemote.route.weight.costs.last
     case readableRemote: RemoteFailure => readableRemote.route.weight.costs.last
     case local: LocalFailure => local.amount
@@ -79,7 +79,7 @@ case class WaitForRouteOrInFlight(partId: ByteVector, amount: MilliSatoshi, chan
   lazy val allFailedChans: List[HostedChannel] = chan :: localFailed
 }
 
-case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: FailureVector = Vector.empty) {
+case class PaymentSenderData(cmd: CMD_SEND_MPP, parts: Map[ByteVector, PartStatus], failures: Failures = Nil) {
   def withRemoteFailure(route: Route, pkt: Sphinx.DecryptedFailurePacket): PaymentSenderData = copy(failures = RemoteFailure(pkt, route) +: failures)
   def withLocalFailure(reason: String, amount: MilliSatoshi): PaymentSenderData = copy(failures = LocalFailure(reason, amount) +: failures)
   def withoutPartId(partId: ByteVector): PaymentSenderData = copy(parts = parts - partId)
@@ -117,7 +117,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val sockChannelBridge: ConnectionListener
 
   val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster) // All established channels must have these listeners
-  var all: Vector[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data) // All channels we have
+  var all: List[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data) // All channels we have
   var listeners: Set[ChannelMasterListener] = Set.empty // Listeners interested in LN payment lifecycle events
   var lastChainDisconnect: Option[Long] = None // Chain disconnect happened this many msecs ago
 
@@ -145,9 +145,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     doProcess(cd)
   }
 
-  def inChannelOutgoingHtlcs: Vector[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.allOutgoing)
-  def fromNode(nodeId: PublicKey): Vector[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
-  def findById(from: Vector[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
+  def inChannelOutgoingHtlcs: List[UpdateAddHtlc] = all.flatMap(_.chanAndCommitsOpt).flatMap(_.commits.allOutgoing)
+  def fromNode(nodeId: PublicKey): List[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
+  def findById(from: List[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(sockBrandingBridge, sockChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.hcInit)
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
@@ -232,15 +232,15 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     */
 
   override def stateUpdated(hc: HostedCommits): Unit = {
-    val allChansAndCommits: Vector[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
+    val allChansAndCommits: List[ChanAndCommits] = all.flatMap(_.chanAndCommitsOpt)
     val allRevealedHashes: Set[ByteVector32] = allChansAndCommits.flatMap(_.commits.revealedHashes).toSet // Payment hashes where preimage is revealed, but state is not updated yet
     val allFulfilledAdds = toMapBy[ByteVector32, AddResolution](allChansAndCommits.flatMap(_.commits.localSpec.localFulfilled).map(initialResolveMemo), _.add.paymentHash) // Settled shards
     val allIncomingAdds = toMapBy[ByteVector32, AddResolution](allChansAndCommits.flatMap(_.commits.localSpec.incomingAdds).map(initialResolveMemo), _.add.paymentHash) // Unsettled shards
     events.incomingUpdated(succeeded = allFulfilledAdds -- allIncomingAdds.keys, pending = allIncomingAdds)
 
-    val allIncomingResolves: Vector[AddResolution] = allChansAndCommits.flatMap(_.commits.unansweredIncoming).map(initialResolveMemo)
-    val badRightAway: Vector[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
-    val maybeGood: Vector[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
+    val allIncomingResolves: List[AddResolution] = allChansAndCommits.flatMap(_.commits.unansweredIncoming).map(initialResolveMemo)
+    val badRightAway: List[BadAddResolution] = allIncomingResolves collect { case badAddResolution: BadAddResolution => badAddResolution }
+    val maybeGood: List[FinalPayloadSpec] = allIncomingResolves collect { case finalPayloadSpec: FinalPayloadSpec => finalPayloadSpec }
 
     // Grouping by payment hash assumes we never ask for two different payments with the same hash!
     val results = maybeGood.groupBy(_.add.paymentHash).map(_.swap).mapValues(getPaymentInfoMemo) map {
@@ -262,7 +262,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       case (payments, Some(info)) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
       // This can happen either when incoming payments time out or when we restart and have partial unanswered incoming leftovers, fail all of them
       case (payments, _) if incomingTimeoutWorker.finishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
-      case _ => Vector.empty
+      case _ => Nil
     }
 
     // This method should always be executed in channel context
@@ -424,7 +424,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       getSendable(all filter isOperationalAndOpen diff wait.allFailedChans)
 
     // This gets what can be sent through given channels with waiting parts taken into account
-    def getSendable(chans: Vector[HostedChannel] = Vector.empty): mutable.Map[ChanAndCommits, MilliSatoshi] = {
+    def getSendable(chans: List[HostedChannel] = Nil): mutable.Map[ChanAndCommits, MilliSatoshi] = {
       val waits: mutable.Map[HostedChannel, MilliSatoshi] = mutable.Map.empty[HostedChannel, MilliSatoshi] withDefaultValue 0L.msat
       val finals: mutable.Map[ChanAndCommits, MilliSatoshi] = mutable.Map.empty[ChanAndCommits, MilliSatoshi] withDefaultValue 0L.msat
 

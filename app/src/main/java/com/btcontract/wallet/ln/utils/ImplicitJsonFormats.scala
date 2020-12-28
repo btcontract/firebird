@@ -67,7 +67,7 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val nodeAnnouncementExtFmt: JsonFormat[NodeAnnouncementExt] = jsonFormat[NodeAnnouncement, NodeAnnouncementExt](NodeAnnouncementExt.apply, "na")
 
   implicit val hostedCommitsFmt: JsonFormat[HostedCommits] =
-    jsonFormat[NodeAnnouncementExt, LastCrossSignedState, Vector[LightningMessage], Vector[LightningMessage],
+    jsonFormat[NodeAnnouncementExt, LastCrossSignedState, List[LightningMessage], List[LightningMessage],
       CommitmentSpec, Option[ChannelUpdate], Option[wire.Error], Option[wire.Error], Option[ResizeChannel], Long,
       HostedCommits](HostedCommits.apply, "announce", "lastCrossSignedState", "nextLocalUpdates", "nextRemoteUpdates",
       "localSpec", "updateOpt", "localError", "remoteError", "resizeProposal", "startedAt")
@@ -180,6 +180,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
   implicit val payRequestFmt: JsonFormat[PayRequest] = taggedJsonFmt(jsonFormat[String, Long, Long, String, Option[Int],
     PayRequest](PayRequest.apply, "callback", "maxSendable", "minSendable", "metadata", "commentAllowed"), tag = "payRequest")
 
-  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], Vector[String], String,
+  implicit val payRequestFinalFmt: JsonFormat[PayRequestFinal] = jsonFormat[Option[PaymentAction], List[String], String,
     PayRequestFinal](PayRequestFinal.apply, "successAction", "routes", "pr")
 }

@@ -7,6 +7,10 @@ import fr.acinq.bitcoin.ByteVector32
 
 
 class SQLiteChannelBag(db: SQLiteInterface) extends ChannelBag {
+  def delete(chanId: ByteVector32): Unit = db.change(ChannelTable.killSql, chanId.toHex)
+
+  def all: List[HostedCommits] = db.select(ChannelTable.selectAllSql).list(_ string ChannelTable.data) map to[HostedCommits]
+
   def put(chanId: ByteVector32, data: HostedCommits): HostedCommits = {
     // Insert and then update because of INSERT IGNORE sqlite effects
     val dataJson = data.toJson.compactPrint
@@ -16,7 +20,4 @@ class SQLiteChannelBag(db: SQLiteInterface) extends ChannelBag {
     db.change(ChannelTable.updSql, dataJson, chanIdJson)
     data
   }
-
-  def delete(chanId: ByteVector32): Unit = db.change(ChannelTable.killSql, chanId.toHex)
-  def all: Vector[HostedCommits] = db.select(ChannelTable.selectAllSql).vec(_ string ChannelTable.data) map to[HostedCommits]
 }

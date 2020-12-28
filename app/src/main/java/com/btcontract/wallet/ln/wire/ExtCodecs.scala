@@ -11,16 +11,16 @@ import scodec.Codec
 
 case class HostedState(nodeId1: PublicKey,
                        nodeId2: PublicKey,
-                       nextLocalUpdates: Vector[LightningMessage],
-                       nextRemoteUpdates: Vector[LightningMessage],
+                       nextLocalUpdates: List[LightningMessage],
+                       nextRemoteUpdates: List[LightningMessage],
                        lastCrossSignedState: LastCrossSignedState)
 
 object ExtCodecs {
   val hostedStateCodec: Codec[HostedState] = {
     (publicKey withContext "nodeId1") ::
       (publicKey withContext "nodeId2") ::
-      (vectorOfN(uint16, lightningMessageCodec) withContext "nextLocalUpdates") ::
-      (vectorOfN(uint16, lightningMessageCodec) withContext "nextRemoteUpdates") ::
+      (listOfN(uint16, lightningMessageCodec) withContext "nextLocalUpdates") ::
+      (listOfN(uint16, lightningMessageCodec) withContext "nextRemoteUpdates") ::
       (lastCrossSignedStateCodec withContext "lastCrossSignedState")
   }.as[HostedState]
 }

@@ -183,8 +183,8 @@ class WalletApp extends Application {
     CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
     if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
     if (null != LNParams.channelMaster) LNParams.channelMaster.listeners = Set.empty
-    if (null != LNParams.channelMaster) LNParams.channelMaster.all = Vector.empty
     if (null != WalletApp.chainLink) WalletApp.chainLink.listeners = Set.empty
+    if (null != LNParams.channelMaster) LNParams.channelMaster.all = Nil
     if (null != WalletApp.chainLink) WalletApp.chainLink.stop
     if (null != WalletApp.db) WalletApp.db.close
     // Make sure application is not alive

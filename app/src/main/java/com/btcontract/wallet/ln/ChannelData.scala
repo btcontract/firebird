@@ -61,7 +61,7 @@ object CommitmentSpec {
 
   def plusIncoming(m: UpdateAddHtlc, cs: CommitmentSpec): CommitmentSpec = cs.copy(htlcs = cs.htlcs + Htlc(incoming = true, add = m), toRemote = cs.toRemote - m.amountMsat)
 
-  def reduce(local: Vector[LightningMessage], remote: Vector[LightningMessage], spec1: CommitmentSpec): CommitmentSpec = {
+  def reduce(local: List[LightningMessage], remote: List[LightningMessage], spec1: CommitmentSpec): CommitmentSpec = {
 
     val spec2 = spec1.copy(remoteFailed = Set.empty, remoteMalformed = Set.empty, localFulfilled = Set.empty)
     val spec3 = local.foldLeft(spec2) { case (spec, add: UpdateAddHtlc) => plusOutgoing(add, spec) case (spec, _) => spec }
@@ -90,7 +90,7 @@ case class WaitRemoteHostedStateUpdate(announce: NodeAnnouncementExt, hc: Hosted
 case class WaitRemoteHostedReply(announce: NodeAnnouncementExt, refundScriptPubKey: ByteVector, secret: ByteVector) extends ChannelData
 
 case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: LastCrossSignedState,
-                         nextLocalUpdates: Vector[LightningMessage], nextRemoteUpdates: Vector[LightningMessage],
+                         nextLocalUpdates: List[LightningMessage], nextRemoteUpdates: List[LightningMessage],
                          localSpec: CommitmentSpec, updateOpt: Option[ChannelUpdate], localError: Option[Error], remoteError: Option[Error],
                          resizeProposal: Option[ResizeChannel] = None, startedAt: Long = System.currentTimeMillis) extends ChannelData { me =>
 
