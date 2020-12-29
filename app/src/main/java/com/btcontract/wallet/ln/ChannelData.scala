@@ -7,6 +7,7 @@ import com.btcontract.wallet.ln.ChanErrorCodes._
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import com.btcontract.wallet.ln.wire.{HostedState, UpdateAddTlv}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
+import fr.acinq.eclair.channel.HostedChannelVersion
 import scodec.bits.ByteVector
 
 
@@ -117,6 +118,7 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   def getError: Option[Error] = localError.orElse(remoteError)
   def addLocalProposal(update: LightningMessage): HostedCommits = copy(nextLocalUpdates = nextLocalUpdates :+ update)
   def addRemoteProposal(update: LightningMessage): HostedCommits = copy(nextRemoteUpdates = nextRemoteUpdates :+ update)
+  def isResizingSupported: Boolean = lastCrossSignedState.initHostedChannel.version.isSet(HostedChannelVersion.USE_RESIZE)
   def hostedState = HostedState(announce.nodeSpecificPubKey, announce.na.nodeId, nextLocalUpdates, nextRemoteUpdates, lastCrossSignedState)
 
   def sendAdd(cmd: CMD_ADD_HTLC): (HostedCommits, UpdateAddHtlc) = {

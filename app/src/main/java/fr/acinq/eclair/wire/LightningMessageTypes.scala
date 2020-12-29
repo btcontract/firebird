@@ -17,15 +17,16 @@
 package fr.acinq.eclair.wire
 
 import fr.acinq.eclair._
-import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
-import java.nio.ByteOrder
 import com.btcontract.wallet.ln.LNParams
 import com.btcontract.wallet.ln.wire.UpdateAddTlv
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Crypto, LexicographicalOrdering, Protocol, Satoshi}
-import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
+import java.net.{Inet4Address, Inet6Address, InetAddress, InetSocketAddress}
+import fr.acinq.eclair.channel.ChannelVersion
+import fr.acinq.eclair.router.Announcements
 import scodec.bits.ByteVector
+import java.nio.ByteOrder
 
 /**
  * Created by PM on 15/11/2016.
@@ -365,7 +366,8 @@ case class InitHostedChannel(maxHtlcValueInFlightMsat: UInt64,
                              channelCapacityMsat: MilliSatoshi,
                              liabilityDeadlineBlockdays: Int,
                              minimalOnchainRefundAmountSatoshis: Satoshi,
-                             initialClientBalanceMsat: MilliSatoshi) extends HostedChannelMessage
+                             initialClientBalanceMsat: MilliSatoshi,
+                             version: ChannelVersion) extends HostedChannelMessage
 
 case class HostedChannelBranding(rgbColor: Color,
                                  pngIcon: ByteVector,

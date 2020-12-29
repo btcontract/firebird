@@ -16,11 +16,13 @@
 
 package fr.acinq.eclair.wire
 
-import com.btcontract.wallet.ln.wire.UpdateAddTlv
+import scodec.codecs._
 import fr.acinq.eclair.wire.CommonCodecs._
 import fr.acinq.eclair.{Features, wire}
+
+import com.btcontract.wallet.ln.wire.UpdateAddTlv
+import fr.acinq.eclair.wire.ChannelCodecs.channelVersionCodec
 import scodec.bits.ByteVector
-import scodec.codecs._
 import scodec.Codec
 
 /**
@@ -351,14 +353,15 @@ object HostedMessagesCodecs {
       (varsizebinarydata withContext "secret")
   }.as[InvokeHostedChannel]
 
-  val initHostedChannelCodec = {
+  val initHostedChannelCodec: Codec[InitHostedChannel] = {
     (uint64 withContext "maxHtlcValueInFlightMsat") ::
       (millisatoshi withContext "htlcMinimumMsat") ::
       (uint16 withContext "maxAcceptedHtlcs") ::
       (millisatoshi withContext "channelCapacityMsat") ::
       (uint16 withContext "liabilityDeadlineBlockdays") ::
       (satoshi withContext "minimalOnchainRefundAmountSatoshis") ::
-      (millisatoshi withContext "initialClientBalanceMsat")
+      (millisatoshi withContext "initialClientBalanceMsat") ::
+      (channelVersionCodec withContext "version")
   }.as[InitHostedChannel]
 
   val hostedChannelBrandingCodec = {
