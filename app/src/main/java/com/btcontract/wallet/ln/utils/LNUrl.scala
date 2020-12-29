@@ -102,12 +102,19 @@ case class PayRequest(callback: String, maxSendable: Long, minSendable: Long, me
 
   val callbackUri: Uri = LNUrl.checkHost(callback)
   val minCanSend: MilliSatoshi = minSendable.msat.max(LNParams.minPayment)
+
   val metaDataTexts: List[String] = decodedMetadata.collect { case List("text/plain", txt) => txt }
   require(metaDataTexts.size == 1, "There must be exactly one text/plain entry in metadata")
   require(minCanSend <= maxSendable.msat, s"max=$maxSendable while min=$minCanSend")
   val metaDataTextPlain: String = metaDataTexts.head
+
+  val metaDataImageBase64s: Seq[String] = for {
+    List("image/png;base64" | "image/jpeg;base64", content) <- decodedMetadata
+    _ = require(content.length <= 136536, s"Image is too heavy, base64 length=${content.length}")
+  } yield content
 }
 
-case class PayRequestFinal(successAction: Option[PaymentAction], routes: List[String], pr: String) extends LNUrlData {
+case class PayRequestFinal(successAction: Option[PaymentAction], disposable: Option[Boolean], routes: List[String], pr: String) extends LNUrlData {
   val paymentRequest: PaymentRequest = PaymentRequest.read(pr)
+  val isThrowAway: Boolean = disposable.getOrElse(true)
 }
