@@ -118,8 +118,9 @@ case class HostedCommits(announce: NodeAnnouncementExt, lastCrossSignedState: La
   def getError: Option[Error] = localError.orElse(remoteError)
   def addLocalProposal(update: LightningMessage): HostedCommits = copy(nextLocalUpdates = nextLocalUpdates :+ update)
   def addRemoteProposal(update: LightningMessage): HostedCommits = copy(nextRemoteUpdates = nextRemoteUpdates :+ update)
-  def isResizingSupported: Boolean = lastCrossSignedState.initHostedChannel.version.isSet(HostedChannelVersion.USE_RESIZE)
   def hostedState = HostedState(announce.nodeSpecificPubKey, announce.na.nodeId, nextLocalUpdates, nextRemoteUpdates, lastCrossSignedState)
+  def isResizingSupported: Boolean = lastCrossSignedState.initHostedChannel.version.isSet(HostedChannelVersion.USE_RESIZE)
+  def currentCapacity: MilliSatoshi = lastCrossSignedState.initHostedChannel.channelCapacityMsat
 
   def sendAdd(cmd: CMD_ADD_HTLC): (HostedCommits, UpdateAddHtlc) = {
     val internalId: TlvStream[Tlv] = TlvStream(UpdateAddTlv.InternalId(cmd.internalId) :: Nil)

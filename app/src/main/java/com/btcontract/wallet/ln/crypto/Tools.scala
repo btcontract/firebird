@@ -20,7 +20,6 @@ import java.nio.ByteOrder
 
 object Tools {
   type Bytes = Array[Byte]
-  def log(info: Any): Unit = println(s"LN LOG: $info")
   def none: PartialFunction[Any, Unit] = { case _ => }
   def runAnd[T](result: T)(action: Any): T = result
 
@@ -92,6 +91,7 @@ object Tools {
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
 case class CMDAddImpossible(cmd: com.btcontract.wallet.ln.CMD_ADD_HTLC, code: Int) extends LightningException
 case class ResizingAlreadyInProgress(cmd: com.btcontract.wallet.ln.HC_CMD_RESIZE) extends LightningException
+case class CurrentCapacityIsLarger(cmd: com.btcontract.wallet.ln.HC_CMD_RESIZE) extends LightningException
 case class ResizingNotSupported(cmd: com.btcontract.wallet.ln.HC_CMD_RESIZE) extends LightningException
 
 trait CanBeRepliedTo {

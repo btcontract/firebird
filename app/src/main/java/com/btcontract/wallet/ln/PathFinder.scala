@@ -22,7 +22,7 @@ object PathFinder {
   val CMDLoadGraph = "cmd-load-graph"
   val CMDResync = "cmd-resync"
 
-  val RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 2
+  val RESYNC_PERIOD: Long = 1000L * 3600 * 24 * 3
 }
 
 abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDataStore, val routerConf: RouterConf) extends StateMachine[Data] { me =>
@@ -102,7 +102,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
       become(Data(normalShortIdToPubChan1, data.hostedChannels, data.extraEdges, searchGraph), OPERATIONAL)
       new PHCSyncMaster(getExtraNodes, data) { def onSyncComplete(pure: CompleteHostedRoutingData): Unit = me process pure }
       // Perform database cleaning in a different thread since it's relatively slow and we are operational now
-      Rx.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), log)
+      Rx.ioQueue.foreach(_ => normalStore.removeGhostChannels(ghostIds, oneSideShortIds), none)
       // Update normal checkpoint, if PHC sync fails this time we'll jump to it next time
       updateLastNormalResyncStamp(System.currentTimeMillis)
       listeners.foreach(_ process NotifyOperational)
@@ -142,7 +142,7 @@ abstract class PathFinder(normalStore: NetworkDataStore, hostedStore: NetworkDat
     val currentUpdateExtOpt: Option[ChannelUpdateExt] = pubChan.getChannelUpdateSameSideAs(newUpdate)
     val newUpdateIsOlder: Boolean = currentUpdateExtOpt.exists(_.update.timestamp >= newUpdate.timestamp)
     val newUpdateExt = currentUpdateExtOpt.map(_ withNewUpdate newUpdate) getOrElse ChannelUpdateExt(newUpdate, Sync.getChecksum(newUpdate), score = 1L, useHeuristics = false)
-    resolveKnownDesc(GraphEdge(Router.getDesc(newUpdate, pubChan.ann), newUpdateExt), Some(store), newUpdateIsOlder)
+    resolveKnownDesc(GraphEdge(Router.getDesc(newUpdate, pubChan.ann), newUpdateExt), storeOpt = Some(store), isOld = newUpdateIsOlder)
   }
 
   // Resolves channel updates which we obtain from node errors while trying to route payments

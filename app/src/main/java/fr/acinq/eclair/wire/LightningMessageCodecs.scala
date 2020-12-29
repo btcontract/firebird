@@ -353,7 +353,7 @@ object HostedMessagesCodecs {
       (varsizebinarydata withContext "secret")
   }.as[InvokeHostedChannel]
 
-  val initHostedChannelCodec: Codec[InitHostedChannel] = {
+  val initHostedChannelCodec = {
     (uint64 withContext "maxHtlcValueInFlightMsat") ::
       (millisatoshi withContext "htlcMinimumMsat") ::
       (uint16 withContext "maxAcceptedHtlcs") ::

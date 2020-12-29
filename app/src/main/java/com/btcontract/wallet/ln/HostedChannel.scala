@@ -249,6 +249,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
 
       case (hc: HostedCommits, cmd: HC_CMD_RESIZE, OPEN | SLEEPING) =>
+        if (hc.currentCapacity >= cmd.newCapacity) throw CurrentCapacityIsLarger(cmd)
         if (hc.resizeProposal.nonEmpty) throw ResizingAlreadyInProgress(cmd)
         if (!hc.isResizingSupported) throw ResizingNotSupported(cmd)
 
@@ -270,7 +271,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
 
       case (hc: HostedCommits, CMD_HOSTED_STATE_OVERRIDE(remoteSO), SUSPENDED) if isSocketConnected =>
         // User has manually accepted a proposed remote override, now make sure all provided parameters check out
-        val localBalance = hc.lastCrossSignedState.initHostedChannel.channelCapacityMsat - remoteSO.localBalanceMsat
+        val localBalance = hc.currentCapacity - remoteSO.localBalanceMsat
 
         val completeLocalLCSS =
           hc.lastCrossSignedState.copy(incomingHtlcs = Nil, outgoingHtlcs = Nil,
