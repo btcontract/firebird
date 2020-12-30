@@ -6,8 +6,8 @@ import fr.acinq.eclair.MilliSatoshi
 
 
 object ImplicitJsonFormatsExt {
-  implicit val totalStatSummaryFmt: JsonFormat[TotalStatSummary] = jsonFormat[MilliSatoshi, MilliSatoshi, MilliSatoshi, Long, TotalStatSummary](TotalStatSummary.apply, "fees", "received", "sent", "count")
-  implicit val totalStatSummaryExtFmt: JsonFormat[TotalStatSummaryExt] = jsonFormat[Option[TotalStatSummary], Long, Long, TotalStatSummaryExt](TotalStatSummaryExt.apply, "summary", "from", "to")
+  implicit val blockCypherHeightFmt: JsonFormat[BlockCypherHeight] = jsonFormat[Int, BlockCypherHeight](BlockCypherHeight.apply, "height")
+  implicit val blockChainHeightFmt: JsonFormat[BlockChainHeight] = jsonFormat[Int, BlockChainHeight](BlockChainHeight.apply, "height")
 
   // Addons
 
@@ -23,6 +23,9 @@ object ImplicitJsonFormatsExt {
     }
   }
 
-  implicit val exampleAddonFmt: JsonFormat[ExampleAddon] = taggedJsonFmt(jsonFormat[Option[String], String, String, ExampleAddon](ExampleAddon.apply, "authToken", "supportEmail", "domain"), tag = "ExampleAddon")
-  implicit val usedAddonsFmt: JsonFormat[UsedAddons] = jsonFormat[List[Addon], UsedAddons](UsedAddons.apply, "addons")
+  implicit val exampleAddonFmt: JsonFormat[ExampleAddon] = taggedJsonFmt(jsonFormat[Option[String], String, String,
+    ExampleAddon](ExampleAddon.apply, "authToken", "supportEmail", "domain"), tag = "ExampleAddon")
+
+  implicit val usedAddonsFmt: JsonFormat[UsedAddons] =
+    jsonFormat[List[Addon], UsedAddons](UsedAddons.apply, "addons")
 }

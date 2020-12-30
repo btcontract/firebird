@@ -30,19 +30,15 @@ import scala.concurrent.duration._
 
 object RouteCalculation {
   def handleRouteRequest(graph: DirectedGraph, routerConf: RouterConf, r: RouteRequest): RouteResponse =
-    findRouteInternal(graph, r.source, r.target, r.amount, r.ignoreChannels, r.ignoreNodes, r.routeParams, r.chainTip) match {
-      case Some(result) => RouteFound(r.paymentHash, r.partId, Route(result.weight, result.path))
+    findRouteInternal(graph, r.source, r.target, r.amount, r.ignoreChannels, r.ignoreNodes, r.routeParams) match {
+      case Some(searchResult) => RouteFound(r.paymentHash, r.partId, Route(searchResult.weight, searchResult.path))
       case _ => NoRouteAvailable(r.paymentHash, r.partId)
     }
 
   def makeExtraEdges(assistedRoutes: Seq[Seq[ExtraHop]], source: PublicKey, target: PublicKey): Set[GraphEdge] = {
-    // we convert extra routing info provided in the payment request to fake channel_update
-    val assistedChannels: Map[ShortChannelId, AssistedChannel] = assistedRoutes.flatMap(toAssistedChannels(_, target))
-      .filterNot { case (_, ac) => ac.extraHop.nodeId == source } // we ignore routing hints for our own channels, we have more accurate information
-      .toMap
-    assistedChannels.values.map(ac =>
-      GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop))
-    ).toSet
+    // we convert extra routing info provided in the payment request to fake channelUpdate, also we ingore routing hints for our own channels
+    val assistedChannels: Map[ShortChannelId, AssistedChannel] = assistedRoutes.flatMap(toAssistedChannels(_, target)).filterNot { case (_, ac) => ac.extraHop.nodeId == source }.toMap
+    assistedChannels.values.map(ac => GraphEdge(ChannelDesc(ac.extraHop.shortChannelId, ac.extraHop.nodeId, ac.nextNodeId), toFakeUpdate(ac.extraHop))).toSet
   }
 
   def toFakeUpdate(extraHop: ExtraHop): ChannelUpdateExt = {
@@ -75,8 +71,7 @@ object RouteCalculation {
                                 amount: MilliSatoshi,
                                 ignoredEdges: Set[ChannelDesc] = Set.empty,
                                 ignoredVertices: Set[PublicKey] = Set.empty,
-                                routeParams: RouteParams,
-                                currentBlockHeight: Long): Option[Graph.WeightedPath] = {
+                                routeParams: RouteParams): Option[Graph.WeightedPath] = {
 
     val maxFee: MilliSatoshi = routeParams.getMaxFee(amount)
 
@@ -88,12 +83,12 @@ object RouteCalculation {
 
     val boundaries: RichWeight => Boolean = { weight => feeOk(weight.costs.head - amount) && lengthOk(weight.length) && cltvOk(weight.cltv) }
 
-    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, currentBlockHeight, boundaries)
+    val res = Graph.bestPath(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, boundaries)
 
     if (res.isEmpty && routeParams.routeMaxLength < ROUTE_MAX_LENGTH) {
       // if route not found within the constraints we relax and repeat the search
       val relaxedRouteParams = routeParams.copy(routeMaxLength = ROUTE_MAX_LENGTH, routeMaxCltv = DEFAULT_ROUTE_MAX_CLTV)
-      findRouteInternal(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, relaxedRouteParams, currentBlockHeight)
+      findRouteInternal(g, localNodeId, targetNodeId, amount, ignoredEdges, ignoredVertices, relaxedRouteParams)
     } else {
       res
     }

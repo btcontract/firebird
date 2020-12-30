@@ -76,8 +76,7 @@ object GraphSpec {
       target = d,
       amount = 100000.msat,
       localEdge = fromLocalEdge,
-      routeParams = getParams,
-      chainTip = 40000)
+      routeParams = getParams)
   }
 
   def fillBasicGraph(store: SQLiteNetworkDataStore): Unit = {
@@ -151,7 +150,7 @@ class GraphSpec {
 
     assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
 
-    assertTrue(route.weight.costs == Vector(100002.msat, 100000.msat))
+    assertTrue(route.weight.costs == List(100002.msat, 100000.msat))
 
     val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
 
@@ -212,15 +211,14 @@ class GraphSpec {
   @Test
   def channelAgeAffectsResult(): Unit = {
     val g = DirectedGraph(List(
-      makeEdge(ShortChannelId("900000x1x1"), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
-      makeEdge(ShortChannelId("900000x1x1"), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
-      makeEdge(ShortChannelId("790000x1x1"), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat), // Used despite higher fee because it's ~2 years old
-      makeEdge(ShortChannelId("900000x1x1"), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
-      makeEdge(ShortChannelId("900000x1x1"), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
+      makeEdge(ShortChannelId("600000x1x1"), s, a, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("600000x1x1"), a, b, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("500000x1x1"), a, c, 1000.msat, 150, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat), // Used despite higher fee because it's very old
+      makeEdge(ShortChannelId("600000x1x1"), b, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 5000000000L.msat),
+      makeEdge(ShortChannelId("600000x1x1"), c, d, 1000.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 6000000000L.msat)
     ))
 
-    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, chainTip = 900000L, amount = 500000000L.msat))
-
+    val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
     assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
   }
 

@@ -35,7 +35,7 @@ object Graph {
    * @param cltv   sum of each edge's cltv
    */
   case class RichWeight(costs: List[MilliSatoshi], length: Int, cltv: CltvExpiryDelta, weight: Double) extends Ordered[RichWeight] {
-    override def compare(that: RichWeight): Int = this.weight.compareTo(that.weight)
+    override def compare(that: RichWeight): Int = weight.compareTo(that.weight)
   }
 
   case class WeightedNode(key: PublicKey, weight: RichWeight)
@@ -59,21 +59,30 @@ object Graph {
   }
 
   /**
-   * @param graph              the graph on which will be performed the search
-   * @param sourceNode         the starting node of the path we're looking for (payer)
-   * @param targetNode         the destination node of the path (recipient)
-   * @param amount             amount to send to the last node
-   * @param ignoredEdges       channels that should be avoided
-   * @param ignoredVertices    nodes that should be avoided
-   * @param currentBlockHeight the height of the chain tip (latest block)
-   * @param boundaries         a predicate function that can be used to impose limits on the outcome of the search
+   * @param graph                         the graph on which will be performed the search
+   * @param sourceNode                    the starting node of the path we're looking for (payer)
+   * @param targetNode                    the destination node of the path (recipient)
+   * @param amount                        amount to send to the last node
+   * @param ignoredEdges                  channels that should be avoided
+   * @param ignoredVertices               nodes that should be avoided
+   * @param boundaries                    a predicate function that can be used to impose limits on the outcome of the search
    */
-  def bestPath(graph: DirectedGraph, sourceNode: PublicKey, targetNode: PublicKey, amount: MilliSatoshi, ignoredEdges: Set[ChannelDesc],
-               ignoredVertices: Set[PublicKey], currentBlockHeight: Long, boundaries: RichWeight => Boolean): Option[WeightedPath] = {
+  def bestPath(graph: DirectedGraph,
+               sourceNode: PublicKey, targetNode: PublicKey, amount: MilliSatoshi, ignoredEdges: Set[ChannelDesc],
+               ignoredVertices: Set[PublicKey], boundaries: RichWeight => Boolean): Option[WeightedPath] = {
 
-    val targetWeight = RichWeight(List(amount), 0, CltvExpiryDelta(0), 0)
-    val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, currentBlockHeight)
-    if (shortestPath.isEmpty) None else Some(WeightedPath(shortestPath, pathWeight(sourceNode, shortestPath, amount, currentBlockHeight)))
+    val latestBlockExpectedStampMsecs = System.currentTimeMillis
+    val targetWeight = RichWeight(List(amount), length = 0, CltvExpiryDelta(0), weight = 0)
+    val shortestPath = dijkstraShortestPath(graph, sourceNode, sourceNode, targetNode, ignoredEdges, ignoredVertices, targetWeight, boundaries, latestBlockExpectedStampMsecs)
+
+    if (shortestPath.nonEmpty) {
+      val weight = shortestPath.foldRight(targetWeight) { case (edge, prev) =>
+        addEdgeWeight(sourceNode, edge, prev, latestBlockExpectedStampMsecs)
+      }
+
+      val weightedPath = WeightedPath(shortestPath, weight)
+      Some(weightedPath)
+    } else None
   }
 
   /**
@@ -81,18 +90,19 @@ object Graph {
    * path from the target to the source (this is because we want to calculate the weight of the edges correctly). The
    * graph @param g is optimized for querying the incoming edges given a vertex.
    *
-   * @param g                  the graph on which will be performed the search
-   * @param sender             node sending the payment (may be different from sourceNode when calculating partial paths)
-   * @param sourceNode         the starting node of the path we're looking for
-   * @param targetNode         the destination node of the path
-   * @param ignoredEdges       channels that should be avoided
-   * @param ignoredVertices    nodes that should be avoided
-   * @param initialWeight      weight that will be applied to the target node
-   * @param boundaries         a predicate function that can be used to impose limits on the outcome of the search
-   * @param currentBlockHeight the height of the chain tip (latest block)
+   * @param g                             the graph on which will be performed the search
+   * @param sender                        node sending the payment (may be different from sourceNode when calculating partial paths)
+   * @param sourceNode                    the starting node of the path we're looking for
+   * @param targetNode                    the destination node of the path
+   * @param ignoredEdges                  channels that should be avoided
+   * @param ignoredVertices               nodes that should be avoided
+   * @param initialWeight                 weight that will be applied to the target node
+   * @param boundaries                    a predicate function that can be used to impose limits on the outcome of the search
    */
-  private def dijkstraShortestPath(g: DirectedGraph, sender: PublicKey, sourceNode: PublicKey, targetNode: PublicKey, ignoredEdges: Set[ChannelDesc],
-                                   ignoredVertices: Set[PublicKey], initialWeight: RichWeight, boundaries: RichWeight => Boolean, currentBlockHeight: Long): Seq[GraphEdge] = {
+  private def dijkstraShortestPath(g: DirectedGraph, sender: PublicKey, sourceNode: PublicKey, targetNode: PublicKey,
+                                   ignoredEdges: Set[ChannelDesc], ignoredVertices: Set[PublicKey], initialWeight: RichWeight,
+                                   boundaries: RichWeight => Boolean, latestBlockExpectedStampMsecs: Long): Seq[GraphEdge] = {
+
     // The graph does not contain source/destination nodes
     val sourceNotInGraph = !g.containsVertex(sourceNode)
     val targetNotInGraph = !g.containsVertex(targetNode)
@@ -113,6 +123,7 @@ object Graph {
     toExplore.enqueue(WeightedNode(targetNode, initialWeight))
 
     var targetFound = false
+
     while (toExplore.nonEmpty && !targetFound) {
       // node with the smallest distance from the target
       val current = toExplore.dequeue() // O(log(n))
@@ -122,9 +133,8 @@ object Graph {
         val neighborEdges = g.getIncomingEdgesOf(current.key)
         neighborEdges.foreach { edge =>
           val neighbor = edge.desc.a
-          // NB: this contains the amount (including fees) that will need to be sent to `neighbor`, but the amount that
-          // will be relayed through that edge is the one in `currentWeight`.
-          val neighborWeight = addEdgeWeight(sender, edge, currentWeight, currentBlockHeight)
+
+          val neighborWeight = addEdgeWeight(sender, edge, currentWeight, latestBlockExpectedStampMsecs)
 
           val currentCost = currentWeight.costs.head
 
@@ -164,20 +174,21 @@ object Graph {
   /**
    * Add the given edge to the path and compute the new weight.
    *
-   * @param sender             node sending the payment
-   * @param edge               the edge we want to cross
-   * @param prev               weight of the rest of the path
-   * @param currentBlockHeight the height of the chain tip (latest block).
+   * @param sender                        node sending the payment
+   * @param edge                          the edge we want to cross
+   * @param prev                          weight of the rest of the path
+   * @param latestBlockExpectedStampMsecs expected timestamp of latest block
    */
-  private def addEdgeWeight(sender: PublicKey, edge: GraphEdge, prev: RichWeight, currentBlockHeight: Long): RichWeight = {
+  private def addEdgeWeight(sender: PublicKey, edge: GraphEdge, prev: RichWeight, latestBlockExpectedStampMsecs: Long): RichWeight = {
     import RoutingHeuristics._
 
     // Every edge is weighted by its routing success score, higher score adds less weight
     val successFactor = 1 - normalize(edge.updExt.score, SCORE_LOW, SCORE_HIGH)
 
     val factor = if (edge.updExt.useHeuristics) {
-      // Every edge is weighted by funding block height where older blocks add less weight, the window considered is 2 months.
-      val ageFactor = normalize(ShortChannelId.blockHeight(edge.desc.shortChannelId), min = currentBlockHeight - BLOCK_TIME_8_YEARS, max = currentBlockHeight)
+      val blockNum = ShortChannelId.blockHeight(edge.desc.shortChannelId)
+      val chanStampMsecs = BLOCK_300K_STAMP_MSEC + (blockNum - BLOCK_300K) * AVG_BLOCK_INTERVAL_MSEC
+      val ageFactor = normalize(chanStampMsecs, BLOCK_300K_STAMP_MSEC, latestBlockExpectedStampMsecs)
 
       // Every edge is weighted by channel capacity, larger channels add less weight
       val capFactor = 1 - normalize(edge.capacity.toLong, CAPACITY_CHANNEL_LOW.toLong, CAPACITY_CHANNEL_HIGH.toLong)
@@ -219,23 +230,12 @@ object Graph {
     edge.updExt.update.feeBaseMsat.toLong == 0 && edge.updExt.update.feeProportionalMillionths == 0
   }
 
-  /**
-   * Calculates the total weighted cost of a path.
-   * Note that the first hop from the sender is ignored: we don't pay a routing fee to ourselves.
-   *
-   * @param sender             node sending the payment
-   * @param path               candidate path.
-   * @param amount             amount to send to the last node.
-   * @param currentBlockHeight the height of the chain tip (latest block).
-   */
-  def pathWeight(sender: PublicKey, path: Seq[GraphEdge], amount: MilliSatoshi, currentBlockHeight: Long): RichWeight = {
-    path.foldRight(RichWeight(List(amount), 0, CltvExpiryDelta(0), 0)) { case (edge, prev) =>
-      addEdgeWeight(sender, edge, prev, currentBlockHeight)
-    }
-  }
-
   object RoutingHeuristics {
-    val BLOCK_TIME_8_YEARS: Int = 4320 * 12 * 8
+    val BLOCK_300K: Int = 300000
+
+    val BLOCK_300K_STAMP_MSEC: Long = 1399680000000L
+
+    val AVG_BLOCK_INTERVAL_MSEC: Long = 10 * 60 * 1000L
 
     val CAPACITY_CHANNEL_LOW: MilliSatoshi = MilliBtc(10).toMilliSatoshi
 
@@ -276,8 +276,6 @@ object Graph {
 
     /** A graph data structure that uses an adjacency list, stores the incoming edges of the neighbors */
     case class DirectedGraph(vertices: Map[PublicKey, List[GraphEdge]]) {
-      def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)((acc, edge) => acc.addEdge(edge))
-
       /**
        * Adds an edge to the graph. If one of the two vertices is not found it will be created.
        *
@@ -308,17 +306,15 @@ object Graph {
         case false => this
       }
 
-      def removeEdges(descList: Iterable[ChannelDesc]): DirectedGraph = {
-        descList.foldLeft(this)((acc, edge) => acc.removeEdge(edge))
-      }
+      def removeEdges(descList: Iterable[ChannelDesc]): DirectedGraph = descList.foldLeft(this)(_ removeEdge _)
+
+      def addEdges(edges: Iterable[GraphEdge]): DirectedGraph = edges.foldLeft(this)(_ addEdge _)
 
       /**
        * @param keyB the key associated with the target vertex
        * @return all edges incoming to that vertex
        */
-      def getIncomingEdgesOf(keyB: PublicKey): Seq[GraphEdge] = {
-        vertices.getOrElse(keyB, List.empty)
-      }
+      def getIncomingEdgesOf(keyB: PublicKey): Seq[GraphEdge] = vertices.getOrElse(keyB, List.empty)
 
       /**
        * Adds a new vertex to the graph, starting with no edges

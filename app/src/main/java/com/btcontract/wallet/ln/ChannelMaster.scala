@@ -475,7 +475,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
           val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.format.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
           val params = RouteParams(pf.routerConf.searchMaxFeeBase, pf.routerConf.searchMaxFeePct, pf.routerConf.firstPassMaxRouteLength, pf.routerConf.firstPassMaxCltv)
-          PaymentMaster process RouteRequest(data.cmd.paymentHash, wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, fakeLocalEdge, params, cl.currentChainTip)
+          PaymentMaster process RouteRequest(data.cmd.paymentHash, partId = wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, fakeLocalEdge, params)
         }
 
       case (fail: NoRouteAvailable, PENDING) =>
@@ -653,8 +653,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
   pf.listeners += PaymentMaster
   cl addAndMaybeInform new ChainLinkListener {
-    override def onCompleteChainDisconnect: Unit =
+    override def onCompleteChainDisconnect: Unit = {
       lastChainDisconnect = Some(System.currentTimeMillis)
+    }
 
     override def onChainTipConfirmed: Unit = {
       for (chan <- all) chan process CMD_CHAIN_TIP_KNOWN

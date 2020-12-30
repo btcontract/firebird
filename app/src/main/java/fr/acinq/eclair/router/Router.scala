@@ -47,8 +47,9 @@ object Router {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = maxFeeBase.max(amount * maxFeePct)
   }
 
-  case class RouteRequest(paymentHash: ByteVector32, partId: ByteVector, source: PublicKey, target: PublicKey, amount: MilliSatoshi, localEdge: GraphEdge,
-                          routeParams: RouteParams, chainTip: Long, ignoreNodes: Set[PublicKey] = Set.empty, ignoreChannels: Set[ChannelDesc] = Set.empty) {
+  case class RouteRequest(paymentHash: ByteVector32, partId: ByteVector, source: PublicKey,
+                          target: PublicKey, amount: MilliSatoshi, localEdge: GraphEdge, routeParams: RouteParams,
+                          ignoreNodes: Set[PublicKey] = Set.empty, ignoreChannels: Set[ChannelDesc] = Set.empty) {
 
     lazy val reserve: MilliSatoshi = amount / 10 // Used for "failed at amount" to avoid small delta retries such as: 1003 sat, 1002 sat, and so on
   }
