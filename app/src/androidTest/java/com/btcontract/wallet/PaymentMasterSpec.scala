@@ -132,8 +132,8 @@ class PaymentMasterSpec {
 
     // First route is now overloaded, so another one is chosen
     val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList.map(_.asInstanceOf[WaitForRouteOrInFlight])
-    assertTrue(w1.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
-    assertTrue(w2.flight.get.route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
+    assertTrue(w1.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
+    assertTrue(w2.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
 
     val finalSendable = master.PaymentMaster.getSendable(master.all).values.head
     // Sendable was decreased by total payment amount with fees, but slightly increased relatively because 1% of the rest of sendable is smaller than initial 1% of balance

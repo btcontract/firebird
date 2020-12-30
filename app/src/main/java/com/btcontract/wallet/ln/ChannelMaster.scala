@@ -565,7 +565,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
           } getOrElse {
             val failure = UnreadableRemoteFailure(info.route)
-            val nodesInBetween = info.route.hops.map(_.desc.b).drop(1).dropRight(1)
+            // Select nodes between our peer and final payee, they are least likely to send garbage
+            val nodesInBetween = info.route.hops.map(_.desc.to).drop(1).dropRight(1)
 
             if (nodesInBetween.isEmpty) {
               // Garbage is sent by our peer or final payee, fail a payment

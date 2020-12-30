@@ -132,7 +132,7 @@ class GraphSpec {
     ))
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(target = b))
-    assert(route.hops.size == 1 && route.hops.head.desc.a == a && route.hops.head.desc.b == b)
+    assert(route.hops.size == 1 && route.hops.head.desc.from == a && route.hops.head.desc.to == b)
   }
 
   @Test
@@ -146,19 +146,19 @@ class GraphSpec {
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r)
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(a, c))
+    assertTrue(route.hops.map(_.desc.from) == Seq(a, c))
 
-    assertTrue(route.hops.map(_.desc.b) == Seq(c, d))
+    assertTrue(route.hops.map(_.desc.to) == Seq(c, d))
 
     assertTrue(route.weight.costs == List(100002.msat, 100000.msat))
 
     val RouteFound(_, _, route1) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(ignoreChannels = Set(ChannelDesc(ShortChannelId(2L), a, c))))
 
-    assertTrue(route1.hops.map(_.desc.a) == Seq(a, b))
+    assertTrue(route1.hops.map(_.desc.from) == Seq(a, b))
 
     val RouteFound(_, _, route2) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(ignoreNodes = Set(c)))
 
-    assertTrue(route2.hops.map(_.desc.a) == Seq(a, b))
+    assertTrue(route2.hops.map(_.desc.from) == Seq(a, b))
 
     val NoRouteAvailable(_, _) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(amount = 500000.msat)) // Can't handle fees
   }
@@ -175,7 +175,7 @@ class GraphSpec {
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+    assertTrue(route.hops.map(_.desc.from) == Seq(s, a, c))
   }
 
   @Test
@@ -190,7 +190,7 @@ class GraphSpec {
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+    assertTrue(route.hops.map(_.desc.from) == Seq(s, a, c))
   }
 
   @Test
@@ -205,7 +205,7 @@ class GraphSpec {
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+    assertTrue(route.hops.map(_.desc.from) == Seq(s, a, c))
   }
 
   @Test
@@ -219,7 +219,7 @@ class GraphSpec {
     ))
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
-    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, c))
+    assertTrue(route.hops.map(_.desc.from) == Seq(s, a, c))
   }
 
   @Test
@@ -235,6 +235,6 @@ class GraphSpec {
 
     val RouteFound(_, _, route) = RouteCalculation.handleRouteRequest(g, LNParams.routerConf, r.copy(source = s, amount = 500000000L.msat))
 
-    assertTrue(route.hops.map(_.desc.a) == Seq(s, a, b))
+    assertTrue(route.hops.map(_.desc.from) == Seq(s, a, b))
   }
 }

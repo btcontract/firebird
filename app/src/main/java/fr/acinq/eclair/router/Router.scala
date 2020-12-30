@@ -35,7 +35,7 @@ object Router {
                         firstPassMaxCltv: CltvExpiryDelta, mppMinPartAmount: MilliSatoshi, maxChannelFailures: Int,
                         maxStrangeNodeFailures: Int, maxRemoteAttempts: Int)
 
-  case class ChannelDesc(shortChannelId: ShortChannelId, a: PublicKey, b: PublicKey)
+  case class ChannelDesc(shortChannelId: ShortChannelId, from: PublicKey, to: PublicKey)
 
   case class PublicChannel(update1Opt: Option[ChannelUpdateExt], update2Opt: Option[ChannelUpdateExt], ann: ChannelAnnouncement) {
     def getChannelUpdateSameSideAs(cu: ChannelUpdate): Option[ChannelUpdateExt] = if (cu.position == ChannelUpdate.POSITION1NODE) update1Opt else update2Opt
@@ -63,7 +63,7 @@ object Router {
 
     lazy val amountPerDescAndCap: Seq[PaymentDescCapacity] = weight.costs.tail zip hops.tail.map(_.toDescAndCapacity) // We don't care about first route and amount since it belongs to local channel
 
-    def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.a == nodeId) // This method retrieves the edge that we used when we built the route
+    def getEdgeForNode(nodeId: PublicKey): Option[GraphEdge] = hops.find(_.desc.from == nodeId) // This method retrieves the edge that we used when we built the route
   }
 
   sealed trait RouteResponse { def paymentHash: ByteVector32 }

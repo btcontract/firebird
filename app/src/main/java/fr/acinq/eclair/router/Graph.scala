@@ -132,7 +132,7 @@ object Graph {
         // build the neighbors with optional extra edges
         val neighborEdges = g.getIncomingEdgesOf(current.key)
         neighborEdges.foreach { edge =>
-          val neighbor = edge.desc.a
+          val neighbor = edge.desc.from
 
           val neighborWeight = addEdgeWeight(sender, edge, currentWeight, latestBlockExpectedStampMsecs)
 
@@ -163,7 +163,7 @@ object Graph {
       var current = bestEdges.get(sourceNode)
       while (null != current) {
         edgePath += current
-        current = bestEdges.get(current.desc.b)
+        current = bestEdges.get(current.desc.to)
       }
       edgePath
     } else {
@@ -203,12 +203,12 @@ object Graph {
       1 + 1 + 1 + successFactor
     }
 
-    val totalCost = if (edge.desc.a == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
+    val totalCost = if (edge.desc.from == sender) prev.costs else addEdgeFees(edge, prev.costs.head) +: prev.costs
 
-    val totalCltv = if (edge.desc.a == sender) prev.cltv else prev.cltv + edge.updExt.update.cltvExpiryDelta
+    val totalCltv = if (edge.desc.from == sender) prev.cltv else prev.cltv + edge.updExt.update.cltvExpiryDelta
 
     // Every heuristic adds 0 - 100 imgainary SAT to edge weight (which is based on fee cost in msat), the better heuristic is the less SAT it adds
-    val totalWeight = if (edge.desc.a == sender) prev.weight else prev.weight + totalCost.head.toLong + factor * 100000L
+    val totalWeight = if (edge.desc.from == sender) prev.weight else prev.weight + totalCost.head.toLong + factor * 100000L
 
     RichWeight(totalCost, prev.length + 1, totalCltv, totalWeight)
   }
@@ -283,8 +283,8 @@ object Graph {
        * @return a new graph containing this edge
        */
       def addEdge(edge: GraphEdge, checkIfContains: Boolean = true): DirectedGraph = {
-        val vertexIn = edge.desc.a
-        val vertexOut = edge.desc.b
+        val vertexIn = edge.desc.from
+        val vertexOut = edge.desc.to
         // the graph is allowed to have multiple edges between the same vertices but only one per channel
         if (checkIfContains && containsEdge(edge.desc)) {
           removeEdge(edge.desc).addEdge(edge) // the recursive call will have the original params
@@ -302,7 +302,7 @@ object Graph {
        * @return a new graph without this edge
        */
       def removeEdge(desc: ChannelDesc): DirectedGraph = containsEdge(desc) match {
-        case true => DirectedGraph(vertices.updated(desc.b, vertices(desc.b).filterNot(_.desc == desc)))
+        case true => DirectedGraph(vertices.updated(desc.to, vertices(desc.to).filterNot(_.desc == desc)))
         case false => this
       }
 
@@ -333,9 +333,9 @@ object Graph {
        * @return true if this edge desc is in the graph. For edges to be considered equal they must have the same in/out vertices AND same shortChannelId
        */
       def containsEdge(desc: ChannelDesc): Boolean = {
-        vertices.get(desc.b) match {
+        vertices.get(desc.to) match {
           case None => false
-          case Some(adj) => adj.exists(neighbor => neighbor.desc.shortChannelId == desc.shortChannelId && neighbor.desc.a == desc.a)
+          case Some(adj) => adj.exists(neighbor => neighbor.desc.shortChannelId == desc.shortChannelId && neighbor.desc.from == desc.from)
         }
       }
     }
@@ -365,11 +365,11 @@ object Graph {
         channels.values.foreach { channel =>
           channel.update1Opt.foreach { u1 =>
             val desc1 = Router.getDesc(u1.update, channel.ann)
-            mutableMap.put(desc1.b, GraphEdge(desc1, u1) :: mutableMap.getOrDefaultValue(desc1.b))
+            mutableMap.put(desc1.to, GraphEdge(desc1, u1) :: mutableMap.getOrDefaultValue(desc1.to))
           }
           channel.update2Opt.foreach { u2 =>
             val desc2 = Router.getDesc(u2.update, channel.ann)
-            mutableMap.put(desc2.b, GraphEdge(desc2, u2) :: mutableMap.getOrDefaultValue(desc2.b))
+            mutableMap.put(desc2.to, GraphEdge(desc2, u2) :: mutableMap.getOrDefaultValue(desc2.to))
           }
         }
 

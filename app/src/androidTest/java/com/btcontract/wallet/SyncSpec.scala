@@ -56,7 +56,7 @@ class SyncSpec {
         println(s"Total sync complete, we have ${map1.keys.size} purified channels")
         val a3 = System.currentTimeMillis
         val graph = DirectedGraph.makeGraph(map1)
-        assert(graph.vertices.forall { case (nodeId, incomingEdges) => incomingEdges.forall(_.desc.b == nodeId) })
+        assert(graph.vertices.forall { case (nodeId, incomingEdges) => incomingEdges.forall(_.desc.to == nodeId) })
         println(s"making graph took ${System.currentTimeMillis - a3} msec")
         assert(map1.nonEmpty)
         run

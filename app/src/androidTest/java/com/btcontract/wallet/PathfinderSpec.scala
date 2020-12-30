@@ -102,7 +102,8 @@ class PathfinderSpec {
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge))
     synchronized(wait(2000L))
     assertTrue(response1 == PathFinder.NotifyOperational)
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.head.desc.to == a)
   }
 
   @Test
@@ -129,15 +130,15 @@ class PathfinderSpec {
     pf process PathFinder.CMDLoadGraph
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.b).take(4) == Seq(a, c, d, s))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.to).take(4) == Seq(a, c, d, s))
 
     // Assisted channel has been updated
     val updateDSFromD = makeEdge(ShortChannelId(6L), d, s, 2.msat, 100, cltvDelta = CltvExpiryDelta(144), maxHtlc = 500000.msat)
     pf process updateDSFromD
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
     assertTrue(response2.asInstanceOf[RouteFound].route.hops.last.updExt.update.feeBaseMsat == 2.msat)
 
     // Public channel has been updated
@@ -145,7 +146,7 @@ class PathfinderSpec {
     pf process updateACFromA1
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
 
     // Another public channel has been updated
     val disabled = Announcements.makeChannelFlags(isNode1 = Announcements.isNode1(a, b), enable = false)
@@ -153,7 +154,7 @@ class PathfinderSpec {
     pf process updateABFromA1
     pf process Tuple2(sender, makeRouteRequest(fromNode = LNParams.format.keys.routingPubKey, fakeLocalEdge).copy(target = s))
     synchronized(wait(1000L))
-    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.a) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
+    assertTrue(response2.asInstanceOf[RouteFound].route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
 
     // The only assisted channel got disabled, payee is now unreachable
     val disabled1 = Announcements.makeChannelFlags(isNode1 = Announcements.isNode1(d, s), enable = false)

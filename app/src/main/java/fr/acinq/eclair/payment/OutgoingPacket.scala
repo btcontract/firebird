@@ -66,7 +66,7 @@ object OutgoingPacket {
   def buildPayloads(hops: Seq[GraphEdge], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Seq[Onion.PerHopPayload]) = {
     hops.reverse.foldLeft((finalPayload.amount, finalPayload.expiry, Seq[Onion.PerHopPayload](finalPayload))) {
       case ((amount, expiry, payloads), hop) =>
-        val payload = Onion.createNodeRelayPayload(amount, expiry, hop.desc.a)
+        val payload = Onion.createNodeRelayPayload(amount, expiry, hop.desc.from)
         (amount + hop.fee(amount), expiry + hop.updExt.update.cltvExpiryDelta, payload +: payloads)
     }
   }
@@ -83,7 +83,7 @@ object OutgoingPacket {
     */
   def buildPacket[T <: Onion.PacketType](packetType: Sphinx.OnionRoutingPacket[T])(paymentHash: ByteVector32, hops: Seq[GraphEdge], finalPayload: Onion.FinalPayload): (MilliSatoshi, CltvExpiry, Sphinx.PacketAndSecrets) = {
     val (firstAmount, firstExpiry, payloads) = buildPayloads(hops.drop(1), finalPayload)
-    val nodes = hops.map(_.desc.b)
+    val nodes = hops.map(_.desc.to)
     // BOLT 2 requires that associatedData == paymentHash
     val onion = buildOnion(packetType)(nodes, payloads, paymentHash)
     (firstAmount, firstExpiry, onion)

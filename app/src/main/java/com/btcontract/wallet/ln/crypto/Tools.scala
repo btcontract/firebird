@@ -69,7 +69,7 @@ object Tools {
 
     val zeroCltvDelta = CltvExpiryDelta(0)
     val randomShortChannelId = ShortChannelId(secureRandom.nextLong)
-    val fakeDesc = ChannelDesc(randomShortChannelId, a = from, b = toPeer)
+    val fakeDesc = ChannelDesc(randomShortChannelId, from, to = toPeer)
     val fakeHop = ExtraHop(from, randomShortChannelId, MilliSatoshi(0L), 0L, zeroCltvDelta)
     GraphEdge(updExt = RouteCalculation.toFakeUpdate(fakeHop), desc = fakeDesc)
   }
