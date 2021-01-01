@@ -2,7 +2,6 @@ package com.btcontract.wallet.ln.utils
 
 import scala.concurrent.duration._
 import rx.lang.scala.schedulers.IOScheduler
-import scala.concurrent.duration.Duration
 import rx.lang.scala.Observable
 
 
