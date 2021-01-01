@@ -1,12 +1,11 @@
 package com.btcontract.wallet.ln
 
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
-import com.btcontract.wallet.ln.utils.{FiatRates, LNUrl}
+import com.btcontract.wallet.ln.crypto.Tools.{Bytes, Fiat2Btc}
 import fr.acinq.bitcoin.{ByteVector32, Satoshi}
-
-import com.btcontract.wallet.ln.crypto.Tools.Bytes
 import com.btcontract.wallet.ln.utils.uri.Uri
 import fr.acinq.eclair.payment.PaymentRequest
+import com.btcontract.wallet.ln.utils.LNUrl
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.eclair.MilliSatoshi
 import scodec.bits.ByteVector
@@ -39,7 +38,7 @@ case class PaymentInfo(payeeNodeIdString: String, prString: String, preimageStri
   lazy val preimage: ByteVector32 = ByteVector32(ByteVector fromValidHex preimageString)
   lazy val paymentHash: ByteVector32 = ByteVector32(ByteVector fromValidHex paymentHashString)
 
-  lazy val fiatRateSnapshot: FiatRates.Rates = to[FiatRates.Rates](fiatRateSnapshotString)
+  lazy val fiatRateSnapshot: Fiat2Btc = to[Fiat2Btc](fiatRateSnapshotString)
   lazy val description: PaymentDescription = to[PaymentDescription](descriptionString)
   lazy val action: PaymentAction = to[PaymentAction](actionString)
 }

@@ -46,8 +46,7 @@ class ChooseProviders(host: FirebirdActivity, title: String) extends Step[Provid
   override def createStepContentLayout: View = {
     val view = host.getLayoutInflater.inflate(R.layout.frag_step_choose, null).asInstanceOf[LinearLayout]
     val adapter = new ArrayAdapter(host, R.layout.multi_choice_item_left, for (provider <- availableProviders) yield provider.alias)
-    val scanNodeQrCode = view.findViewById(R.id.scanNodeQrCode).asInstanceOf[NoboButton]
-    scanNodeQrCode setOnClickListener host.onButtonTap(host callScanner me)
+    view.findViewById(R.id.scanNodeQrCode).asInstanceOf[NoboButton] setOnClickListener host.onButtonTap(host callScanner me)
 
     list = view.findViewById(R.id.list).asInstanceOf[ListView]
     list.setChoiceMode(AbsListView.CHOICE_MODE_MULTIPLE)

@@ -5,12 +5,12 @@ import com.btcontract.wallet.ln._
 import scala.concurrent.duration._
 import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
-
-import scala.util.{Success, Try}
-import android.content.{Context, Intent}
-import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
-import android.net.{ConnectivityManager, NetworkCapabilities}
 import info.guardianproject.netcipher.proxy.{OrbotHelper, StatusCallback}
+import android.net.{ConnectivityManager, NetworkCapabilities}
+import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import android.content.{Context, Intent}
+import scala.util.{Success, Try}
+
 import org.ndeftools.util.activity.NfcReaderActivity
 import com.btcontract.wallet.ln.utils.Rx
 import com.ornach.nobobutton.NoboButton
@@ -22,11 +22,11 @@ import android.view.View
 
 object MainActivity {
   val mainActivityClass: Class[MainActivity] = classOf[MainActivity]
-
   def makeOperational(host: FirebirdActivity, format: StorageFormat): Unit = {
+    require(WalletApp.isAlive, "Not alive while trying to make a wallet operational")
+
     val normalNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, NormalChannelUpdateTable, NormalChannelAnnouncementTable, NormalExcludedChannelTable)
     val hostedNetworkDataStore = new SQLiteNetworkDataStore(WalletApp.db, HostedChannelUpdateTable, HostedChannelAnnouncementTable, HostedExcludedChannelTable)
-    val channelBag = new SQLiteChannelBag(WalletApp.db)
 
     val pf: PathFinder =
       new PathFinder(normalNetworkDataStore, hostedNetworkDataStore, LNParams.routerConf) {
@@ -37,8 +37,11 @@ object MainActivity {
         def updateLastNormalResyncStamp(stamp: Long): Unit = WalletApp.app.prefs.edit.putLong(WalletApp.LAST_NORMAL_GOSSIP_SYNC, stamp).commit
       }
 
+    val jChainLink = new BitcoinJChainLink(WalletApp.params)
+    val channelBag = new SQLiteChannelBag(WalletApp.db)
+
     val channelMaster: ChannelMaster =
-      new ChannelMaster(WalletApp.paymentBag, channelBag, pf, WalletApp.chainLink) {
+      new ChannelMaster(WalletApp.paymentBag, channelBag, pf, jChainLink) {
         override val sockBrandingBridge: ConnectionListener = new ConnectionListener {
           override def onBrandingMessage(worker: CommsTower.Worker, msg: HostedChannelBranding): Unit =
             WalletApp.dataBag.putBranding(worker.ann.nodeId, msg)
@@ -53,16 +56,66 @@ object MainActivity {
           override def onDisconnect(worker: CommsTower.Worker): Unit = {
             fromNode(worker.ann.nodeId).foreach(_ process CMD_SOCKET_OFFLINE)
             val mustHalt = WalletApp.app.prefs.getBoolean(WalletApp.ENSURE_TOR, false) && !isVPNOn
-            if (mustHalt) interruptWallet else Rx.ioQueue.delay(5.seconds).foreach(_ => initConnect)
+            if (mustHalt) haltOnOnionDisconnect else Rx.ioQueue.delay(5.seconds).foreach(_ => initConnect)
           }
         }
       }
 
+    // Make wallet operational
+
     LNParams.format = format
     LNParams.channelMaster = channelMaster
+    WalletApp.fiatRates = new FiatRates(WalletApp.app.prefs)
     require(WalletApp.isOperational, "Not operational")
 
+    // Make a jChainLink listener which falls back to HTTP API chainLink
+
+    def useFallbackChainLink: Unit = {
+      val apiLinkListener = new ChainLinkListener {
+        override def onTrustedChainTipKnown: Unit = {
+          channelMaster.all.foreach(_ process CMD_CHAIN_TIP_KNOWN)
+          // Send channels offline since API does not get called again
+          channelMaster.scheduleDelayedOffline
+        }
+      }
+
+      val fallbackChainLink = new HttpApiChainLink
+      // Users may add listeners of their own, we must keep those when replacing
+      val listenersToTransfer = jChainLink.listeners.filter(_.isTransferrable)
+      fallbackChainLink.listeners = listenersToTransfer + apiLinkListener
+      channelMaster.cl = fallbackChainLink
+      fallbackChainLink.start
+      jChainLink.stop
+    }
+
+    // BitcoinJ listener may not be able to find peers in time if ports are blocked for example
+    val timeout = Rx.ioQueue.delay(10.seconds).subscribe(_ => useFallbackChainLink, none)
+
+    val jCancelTimeoutListener = new ChainLinkListener {
+      override def onTrustedChainTipKnown: Unit = {
+        jChainLink.listeners -= this
+        timeout.unsubscribe
+      }
+    }
+
+    val jTellChansListener = new ChainLinkListener {
+      override def onCompleteChainDisconnect: Unit = {
+        // Do not send channels into offline right away
+        channelMaster.scheduleDelayedOffline
+      }
+
+      override def onTrustedChainTipKnown: Unit = {
+        channelMaster.all.foreach(_ process CMD_CHAIN_TIP_KNOWN)
+        channelMaster.cancelDelayedOffline
+      }
+    }
+
+    jChainLink.addAndMaybeInform(jCancelTimeoutListener)
+    jChainLink.addAndMaybeInform(jTellChansListener)
+    jChainLink.start
+
     channelMaster.initConnect
+    pf.listeners += channelMaster.PaymentMaster
     host exitTo classOf[HubActivity]
   }
 
@@ -71,7 +124,7 @@ object MainActivity {
     cm.getAllNetworks.exists(cm getNetworkCapabilities _ hasTransport NetworkCapabilities.TRANSPORT_VPN)
   } getOrElse false
 
-  def interruptWallet: Unit = if (WalletApp.isAlive) {
+  def haltOnOnionDisconnect: Unit = if (WalletApp.isAlive) {
     // This may be called multiple times from different threads
     // execute once if app is alive, otherwise do nothing
 

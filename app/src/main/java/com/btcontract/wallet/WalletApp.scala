@@ -6,17 +6,17 @@ import com.btcontract.wallet.lnutils._
 import com.btcontract.wallet.R.string._
 import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
+import com.github.kevinsawicki.http.HttpRequest._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
-
-import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, FiatRates, LNUrl, RatesInfo, SatDenomination}
-import android.app.{AlarmManager, Application, NotificationChannel, NotificationManager, PendingIntent}
-import com.btcontract.wallet.ln.{ChainLink, CommsTower, LNParams, PaymentRequestExt, utils}
+import com.btcontract.wallet.lnutils.ImplicitJsonFormatsExt._
+import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, LNUrl, Rx, SatDenomination}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
-import com.btcontract.wallet.helper.{AwaitService, Notificator, WebSocketBus}
+import android.app.{Application, NotificationChannel, NotificationManager}
+import com.btcontract.wallet.ln.{CommsTower, LNParams, PaymentRequestExt}
+import com.btcontract.wallet.helper.{AwaitService, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement}
 import scala.util.{Success, Try}
 
-import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import androidx.appcompat.app.AppCompatDelegate
 import fr.acinq.eclair.payment.PaymentRequest
 import scala.util.matching.UnanchoredRegex
@@ -27,6 +27,7 @@ import com.blockstream.libwally.Wally
 import fr.acinq.eclair.MilliSatoshi
 import org.bitcoinj.uri.BitcoinURI
 import androidx.multidex.MultiDex
+import rx.lang.scala.Subscription
 import fr.acinq.bitcoin.Crypto
 import scodec.bits.ByteVector
 import android.widget.Toast
@@ -41,7 +42,7 @@ object WalletApp {
   var dataBag: SQLiteDataBag = _
   var paymentBag: SQlitePaymentBag = _
   var usedAddons: UsedAddons = _
-  var chainLink: ChainLink = _
+  var fiatRates: FiatRates = _
   var value: Any = new String
 
   val params: MainNetParams = org.bitcoinj.params.MainNetParams.get
@@ -64,8 +65,8 @@ object WalletApp {
   case object DoNotEraseValue
   type Checker = PartialFunction[Any, Any]
   def checkAndMaybeErase(checkerMethod: Checker): Unit = checkerMethod(value) match { case DoNotEraseValue => case _ => value = null }
-  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != paymentBag && null != usedAddons && null != chainLink
-  def isOperational: Boolean = isAlive && null != LNParams.format && null != LNParams.channelMaster
+  def isAlive: Boolean = null != app && null != fiatCode && null != denom && null != db && null != dataBag && null != paymentBag && null != usedAddons
+  def isOperational: Boolean = isAlive && null != fiatRates && null != LNParams.format && null != LNParams.channelMaster && null != LNParams.channelMaster.cl
 
   def bitcoinUri(bitcoinUriLink: String): BitcoinURI = {
     val bitcoinURI = new BitcoinURI(params, bitcoinUriLink)
@@ -86,10 +87,10 @@ object WalletApp {
 
   // Fiat conversion
 
-  def currentRate(rates: Rates, code: String): Try[Double] = Try(rates apply code)
-  def msatInFiat(rates: Rates, code: String)(msat: MilliSatoshi): Try[Double] = currentRate(rates, code) map { ratePerOneBtc => msat.toLong * ratePerOneBtc / BtcDenomination.factor }
-  def msatInFiatHuman(rates: Rates, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code)(msat) match { case Success(amt) => s"≈ ${Denomination.formatFiat format amt} $code" case _ => s"≈ ? $code" }
-  val currentMsatInFiatHuman: MilliSatoshi => String = msat => msatInFiatHuman(FiatRates.ratesInfo.rates, fiatCode, msat)
+  def currentRate(rates: Fiat2Btc, code: String): Try[Double] = Try(rates apply code)
+  def msatInFiat(rates: Fiat2Btc, code: String)(msat: MilliSatoshi): Try[Double] = currentRate(rates, code) map { ratePerOneBtc => msat.toLong * ratePerOneBtc / BtcDenomination.factor }
+  def msatInFiatHuman(rates: Fiat2Btc, code: String, msat: MilliSatoshi): String = msatInFiat(rates, code)(msat) match { case Success(amt) => s"≈ ${Denomination.formatFiat format amt} $code" case _ => s"≈ ? $code" }
+  val currentMsatInFiatHuman: MilliSatoshi => String = msat => msatInFiatHuman(fiatRates.ratesInfo.rates, fiatCode, msat)
 
   // Mnemonic
 
@@ -116,17 +117,6 @@ object WalletApp {
     dataBag.put(SQLiteDataBag.LABEL_FORMAT, LNParams.format.toJson.compactPrint)
   }
 
-  object Notificator {
-    val NOTIFICATION_ID = 15
-    val CHANNEL_ID = "delayedChannelId"
-    private[this] val notificatorClass = classOf[Notificator]
-    private[this] def getDelayPeriod: Long = System.currentTimeMillis + 1000 * 60 * 30
-    private[this] def getAlarmManager: AlarmManager = app.getSystemService(Context.ALARM_SERVICE).asInstanceOf[AlarmManager]
-    private[this] def getIntent: PendingIntent = PendingIntent.getBroadcast(app, NOTIFICATION_ID, new Intent(app, notificatorClass), 0)
-    def reSchedule: Unit = runAnd(cancel)(try getAlarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, getDelayPeriod, getIntent) catch none)
-    def cancel: Unit = getAlarmManager.cancel(getIntent)
-  }
-
   object Vibrator {
     private var lastVibrated = 0L
     private val vibrator = app.getSystemService(Context.VIBRATOR_SERVICE).asInstanceOf[android.os.Vibrator]
@@ -136,6 +126,60 @@ object WalletApp {
       lastVibrated = System.currentTimeMillis
       vibrator.vibrate(Array(0L, 85, 200), -1)
     }
+  }
+}
+
+object FiatRates {
+  type BitpayItemList = List[BitpayItem]
+  type CoinGeckoItemMap = Map[String, CoinGeckoItem]
+  type BlockchainInfoItemMap = Map[String, BlockchainInfoItem]
+}
+
+class FiatRates(preferences: SharedPreferences) {
+  def reloadData: Fiat2Btc = fr.acinq.eclair.secureRandom nextInt 3 match {
+    case 0 => to[CoinGecko](get("https://api.coingecko.com/api/v3/exchange_rates").body).rates.map { case (code, item) => code.toLowerCase -> item.value }
+    case 1 => to[FiatRates.BlockchainInfoItemMap](get("https://blockchain.info/ticker").body).map { case (code, item) => code.toLowerCase -> item.last }
+    case _ => to[Bitpay](get("https://bitpay.com/rates").body).data.map { case BitpayItem(code, rate) => code.toLowerCase -> rate }.toMap
+  }
+
+  var ratesInfo: RatesInfo = Try {
+    preferences.getString(WalletApp.FIAT_RATES_DATA, new String)
+  } map to[RatesInfo] getOrElse RatesInfo(Map.empty, Map.empty, stamp = 0L)
+
+  private[this] val periodSecs = 60 * 1000 * 30
+
+  private[this] val retryRepeatDelayedCall = {
+    val retry = Rx.retry(Rx.ioQueue.map(_ => reloadData), Rx.pickInc, 3 to 18 by 3)
+    val repeat = Rx.repeat(retry, Rx.pickInc, periodSecs to Int.MaxValue by periodSecs)
+    Rx.initDelay(repeat, ratesInfo.stamp, periodSecs)
+  }
+
+  val listeners: Set[FiatRatesListener] = Set.empty
+
+  val subscription: Subscription = retryRepeatDelayedCall.subscribe(newRates => {
+    val newRatesInfo = RatesInfo(newRates, oldRates = ratesInfo.rates, stamp = System.currentTimeMillis)
+    preferences.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.compactPrint).commit
+    for (lst <- listeners) lst.onFiatRates(newRatesInfo)
+    ratesInfo = newRatesInfo
+  }, none)
+}
+
+trait FiatRatesListener {
+  def onFiatRates(rates: RatesInfo): Unit
+}
+
+case class CoinGeckoItem(value: Double)
+case class BlockchainInfoItem(last: Double)
+case class BitpayItem(code: String, rate: Double)
+
+case class Bitpay(data: FiatRates.BitpayItemList)
+case class CoinGecko(rates: FiatRates.CoinGeckoItemMap)
+
+case class RatesInfo(rates: Fiat2Btc, oldRates: Fiat2Btc, stamp: Long) {
+  def pctDifference(code: String): String = List(rates get code, oldRates get code) match {
+    case Some(fresh) :: Some(old) :: Nil if fresh > old => s"<font color=#5B8F36>▲ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
+    case Some(fresh) :: Some(old) :: Nil if fresh < old => s"<font color=#E35646>▼ ${Denomination.formatFiat format Denomination.pctChange(fresh, old).abs}%</font>"
+    case _ => new String
   }
 }
 
@@ -161,36 +205,46 @@ class WalletApp extends Application {
       else phraseOptions(3)
   }
 
+  override def onCreate: Unit = runAnd(super.onCreate) {
+    // Currently night theme is the only option, should be set by default
+    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+
+    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+      val manager = this getSystemService classOf[NotificationManager]
+      val chan = new NotificationChannel(AwaitService.CHANNEL_ID, "NC", NotificationManager.IMPORTANCE_DEFAULT)
+      manager.createNotificationChannel(chan)
+    }
+  }
+
   override protected def attachBaseContext(base: Context): Unit = {
     super.attachBaseContext(base)
     MultiDex.install(this)
     WalletApp.app = this
+  }
 
-    // Currently night theme is the only option, should be set by default
-    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-    makeAlive
-
-    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-      val manager = this getSystemService classOf[NotificationManager]
-      manager createNotificationChannel new NotificationChannel(AwaitService.CHANNEL_ID, "NC1", NotificationManager.IMPORTANCE_DEFAULT)
-      manager createNotificationChannel new NotificationChannel(WalletApp.Notificator.CHANNEL_ID, "NC2", NotificationManager.IMPORTANCE_DEFAULT)
-    }
+  def showStickyPaymentNotification(titleRes: Int, amount: MilliSatoshi): Unit = {
+    val bodyText = getString(incoming_notify_body).format(WalletApp.denom parsedWithSign amount)
+    foregroundServiceIntent.putExtra(AwaitService.TITLE_TO_DISPLAY, this getString titleRes).putExtra(AwaitService.BODY_TO_DISPLAY, bodyText).setAction(AwaitService.ACTION_SHOW)
+    androidx.core.content.ContextCompat.startForegroundService(this, foregroundServiceIntent)
   }
 
   def freePossiblyUsedResouces: Unit = {
-    // Safely disconnect from possibly remaining sockets
+    Option(LNParams.channelMaster) foreach { cm =>
+      if (null != cm.cl) cm.cl.listeners = Set.empty
+      if (null != cm.cl) cm.cl.stop
+      cm.listeners = Set.empty
+      cm.all = List.empty
+    }
+
+    // Safely disconnect from remaining sockets
     WebSocketBus.workers.keys.foreach(WebSocketBus.forget)
     CommsTower.workers.values.map(_.pkap).foreach(CommsTower.forget)
-    if (null != FiatRates.subscription) FiatRates.subscription.unsubscribe
-    if (null != LNParams.channelMaster) LNParams.channelMaster.listeners = Set.empty
-    if (null != WalletApp.chainLink) WalletApp.chainLink.listeners = Set.empty
-    if (null != LNParams.channelMaster) LNParams.channelMaster.all = Nil
-    if (null != WalletApp.chainLink) WalletApp.chainLink.stop
+    if (null != WalletApp.fiatRates) WalletApp.fiatRates.subscription.unsubscribe
     if (null != WalletApp.db) WalletApp.db.close
     // Make sure application is not alive
     LNParams.channelMaster = null
     WalletApp.usedAddons = null
-    WalletApp.chainLink = null
+    WalletApp.fiatRates = null
     WalletApp.db = null
   }
 
@@ -199,24 +253,11 @@ class WalletApp extends Application {
     WalletApp.db = new SQLiteInterface(this, "firebird.db")
     WalletApp.fiatCode = prefs.getString(WalletApp.FIAT_TYPE, "usd")
     WalletApp.denom = WalletApp denoms prefs.getInt(WalletApp.DENOM_TYPE, 0)
-    WalletApp.chainLink = new BitcoinJChainLink(WalletApp.params)
-    // Start looking for chain height asap
-    WalletApp.chainLink.start
 
     WalletApp.dataBag = new SQLiteDataBag(WalletApp.db)
     WalletApp.paymentBag = new SQlitePaymentBag(WalletApp.db)
     // Set up used addons, but do nothing more here, initialize connection-enabled later
     WalletApp.usedAddons = WalletApp.dataBag.tryGetUsedAddons getOrElse UsedAddons(Nil)
-
-    FiatRates.ratesInfo = Try {
-      prefs.getString(WalletApp.FIAT_RATES_DATA, new String)
-    } map to[RatesInfo] getOrElse utils.RatesInfo(Map.empty, Map.empty, stamp = 0L)
-
-    FiatRates.subscription = FiatRates.makeObservable(FiatRates.ratesInfo.stamp).subscribe(newFiatRates => {
-      val newRatesInfo = RatesInfo(newFiatRates, FiatRates.ratesInfo.rates, System.currentTimeMillis)
-      prefs.edit.putString(WalletApp.FIAT_RATES_DATA, newRatesInfo.toJson.compactPrint).commit
-      FiatRates.ratesInfo = newRatesInfo
-    }, none)
   }
 
   def quickToast(code: Int): Unit = quickToast(this getString code)

@@ -208,6 +208,11 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         BECOME(hc, SLEEPING)
 
 
+      case (hc: HostedCommits, CMD_CHAIN_TIP_LOST, OPEN) =>
+        isChainHeightKnown = false
+        BECOME(hc, SLEEPING)
+
+
       case (hc: HostedCommits, _: InitHostedChannel, SLEEPING) =>
         // Peer has lost this channel, they may re-sync from our LCSS
         SEND(hc.lastCrossSignedState)

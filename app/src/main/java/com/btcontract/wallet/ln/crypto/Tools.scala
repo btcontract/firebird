@@ -20,6 +20,8 @@ import java.nio.ByteOrder
 
 object Tools {
   type Bytes = Array[Byte]
+  type Fiat2Btc = Map[String, Double]
+
   def none: PartialFunction[Any, Unit] = { case _ => }
   def runAnd[T](result: T)(action: Any): T = result
 

@@ -18,7 +18,7 @@ import android.os.Bundle
 
 class SetupActivity extends FirebirdActivity with StepperFormListener { me =>
   lazy val stepper: VerticalStepperFormView = findViewById(R.id.stepper).asInstanceOf[VerticalStepperFormView]
-  lazy val providers: ChooseProviders = new ChooseProviders(me, me getString step_title_choose)
+  lazy val providers: ChooseProviders = new ChooseProviders(me, me getString step_title_choose_provider)
   lazy val account: SetupAccount = new SetupAccount(me, me getString step_title_account)
   lazy val open: OpenWallet = new OpenWallet(me, me getString step_title_open, account)
   def onCancelledForm: Unit = stepper.cancelFormCompletionOrCancellationAttempt

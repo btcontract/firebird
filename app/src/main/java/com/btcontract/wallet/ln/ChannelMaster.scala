@@ -9,6 +9,7 @@ import com.btcontract.wallet.ln.ChannelMaster._
 import com.btcontract.wallet.ln.PaymentStatus._
 import com.btcontract.wallet.ln.PaymentFailure._
 
+import rx.lang.scala.{Observable, Subscription}
 import com.btcontract.wallet.ln.utils.{Rx, ThrottledWork}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import fr.acinq.eclair.router.Graph.GraphStructure.{DescAndCapacity, GraphEdge}
@@ -26,7 +27,6 @@ import fr.acinq.bitcoin.ByteVector32
 import fr.acinq.eclair.crypto.Sphinx
 import scala.util.Random.shuffle
 import scala.collection.mutable
-import rx.lang.scala.Observable
 import scodec.bits.ByteVector
 import scodec.Attempt
 
@@ -108,7 +108,7 @@ object ChannelMaster {
   val CMDAskForRoute = "cmd-ask-for-route"
 }
 
-abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, cl: ChainLink) extends ChannelListener {
+abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFinder, var cl: ChainLink) extends ChannelListener {
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, totalAmount = 0L.msat, invalidPubKey), Map.empty)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
   private[this] val initialResolveMemo = memoize(initialResolve)
@@ -119,7 +119,6 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   val operationalListeners: Set[ChannelListener] = Set(this, PaymentMaster) // All established channels must have these listeners
   var all: List[HostedChannel] = for (data <- chanBag.all) yield mkHostedChannel(operationalListeners, data) // All channels we have
   var listeners: Set[ChannelMasterListener] = Set.empty // Listeners interested in LN payment lifecycle events
-  var lastChainDisconnect: Option[Long] = None // Chain disconnect happened this many msecs ago
 
   val events: ChannelMasterListener = new ChannelMasterListener {
     override def outgoingFailed(paymentSenderData: PaymentSenderData): Unit = for (lst <- listeners) lst.outgoingFailed(paymentSenderData)
@@ -137,6 +136,19 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
     def error(canNotHappen: Throwable): Unit = none
   }
 
+  // CHANNEL MANAGEMENT
+
+  private[this] var delayedOfflineTask: Option[Subscription] = None
+  def cancelDelayedOffline: Unit = delayedOfflineTask.foreach(_.unsubscribe)
+
+  // One we lose current chain tip source we EVENTUALLY need to put channels into SLEEPING state
+  // but we do not need to do this immediately since a small block lag is allowed by protocol
+
+  def scheduleDelayedOffline: Unit = runAnd(cancelDelayedOffline) {
+    def disconnectAll: Unit = for (chan <- all) chan process CMD_CHAIN_TIP_LOST
+    delayedOfflineTask = Rx.ioQueue.delay(3.hours).subscribe(_ => disconnectAll, none).toSome
+  }
+
   def mkHostedChannel(initListeners: Set[ChannelListener], cd: ChannelData): HostedChannel = new HostedChannel {
     def SEND(msg: LightningMessage *): Unit = for (work <- CommsTower.workers get data.announce.nodeSpecificPkap) msg foreach work.handler.process
     def STORE(channelData: HostedCommits): HostedCommits = chanBag.put(channelData.announce.nodeSpecificHostedChanId, channelData)
@@ -149,6 +161,8 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   def fromNode(nodeId: PublicKey): List[HostedChannel] = for (chan <- all if chan.data.announce.na.nodeId == nodeId) yield chan
   def findById(from: List[HostedChannel], chanId: ByteVector32): Option[HostedChannel] = from.find(_.data.announce.nodeSpecificHostedChanId == chanId)
   def initConnect: Unit = for (chan <- all) CommsTower.listen(Set(sockBrandingBridge, sockChannelBridge), chan.data.announce.nodeSpecificPkap, chan.data.announce.na, LNParams.hcInit)
+
+  // RECEIVE/SEND UTILITIES
 
   def maxReceivableInfo: Option[CommitsAndMax] = {
     val canReceive = all.flatMap(_.chanAndCommitsOpt).filter(_.commits.updateOpt.isDefined).sortBy(_.commits.nextLocalSpec.toRemote)
@@ -257,8 +271,6 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       case (payments, Some(info)) if !payments.flatMap(_.payload.paymentSecret).forall(info.pr.paymentSecret.contains) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       // This is a payment which arrives too late, we would have too few blocks to prove that we have fulfilled it with an uncooperative host, not a spec violation but we still fail it to be on safe side
       case (payments, _) if payments.exists(_.add.cltvExpiry.toLong < cl.currentChainTip + LNParams.cltvRejectThreshold) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
-      // Not related to payment itself, but we have disconnected from chain a long time ago and do not know whether this payment is too late, not a spec violation but we still fail it to be on safe side
-      case (payments, _) if lastChainDisconnect.exists(_ < System.currentTimeMillis - 1000 * 3600 * 3) => for (pay <- payments) yield failFinalPayloadSpec(incorrectDetails(pay.add), pay)
       case (payments, Some(info)) if payments.map(_.add.amountMsat).sum >= payments.head.payload.totalAmount => for (pay <- payments) yield CMD_FULFILL_HTLC(info.preimage, pay.add)
       // This can happen either when incoming payments time out or when we restart and have partial unanswered incoming leftovers, fail all of them
       case (payments, _) if incomingTimeoutWorker.finishedOrNeverStarted => for (pay <- payments) yield failFinalPayloadSpec(PaymentTimeout, pay)
@@ -647,20 +659,6 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
       val notInChannel = inChannelOutgoingHtlcs.forall(_.paymentHash != data1.cmd.paymentHash)
       if (notInChannel && data1.inFlights.isEmpty) events.outgoingFailed(data1)
       become(data1, ABORTED)
-    }
-  }
-
-  // Wire up everything here
-
-  pf.listeners += PaymentMaster
-  cl addAndMaybeInform new ChainLinkListener {
-    override def onCompleteChainDisconnect: Unit = {
-      lastChainDisconnect = Some(System.currentTimeMillis)
-    }
-
-    override def onChainTipConfirmed: Unit = {
-      for (chan <- all) chan process CMD_CHAIN_TIP_KNOWN
-      lastChainDisconnect = None
     }
   }
 }

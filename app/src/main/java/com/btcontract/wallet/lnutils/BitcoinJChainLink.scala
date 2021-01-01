@@ -7,12 +7,12 @@ import com.btcontract.wallet.ln.ChainLink
 
 
 class BitcoinJChainLink(params: NetworkParameters) extends ChainLink {
-  val peerGroup = new PeerGroup(params)
-  val maxPeers = 3
+  private[this] val peerGroup = new PeerGroup(params)
+  private[this] val maxPeers = 3
 
   private val peersListener = new PeerConnectedEventListener with PeerDisconnectedEventListener {
     def onPeerDisconnected(peer: Peer, leftPeers: Int): Unit = if (leftPeers < 1) for (lst <- listeners) lst.onCompleteChainDisconnect
-    def onPeerConnected(peer: Peer, nowPeers: Int): Unit = if (chainTipCanBeTrusted) for (lst <- listeners) lst.onChainTipConfirmed
+    def onPeerConnected(peer: Peer, nowPeers: Int): Unit = if (chainTipCanBeTrusted) for (lst <- listeners) lst.onTrustedChainTipKnown
   }
 
   override def chainTipCanBeTrusted: Boolean = peerGroup.numConnectedPeers >= maxPeers

@@ -9,12 +9,11 @@ import android.graphics.Color.{BLACK, WHITE}
 import android.content.{DialogInterface, Intent}
 import android.widget.{EditText, LinearLayout, TextView}
 import android.text.{Editable, Html, Spanned, TextWatcher}
-import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd}
+import com.btcontract.wallet.ln.crypto.Tools.{none, runAnd, Fiat2Btc}
 import com.google.android.material.snackbar.{BaseTransientBottomBar, Snackbar}
 import com.cottacush.android.currencyedittext.CurrencyEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.btcontract.wallet.FirebirdActivity.StringOps
-import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import concurrent.ExecutionContext.Implicits.global
 import com.btcontract.wallet.ln.utils.Denomination
 import androidx.appcompat.app.AppCompatActivity
@@ -194,7 +193,7 @@ trait FirebirdActivity extends AppCompatActivity { me =>
   // Fiat / BTC converter
 
   val bigDecimalValue: CurrencyEditText => BigDecimal = _.getNumericValueBigDecimal
-  class RateManager(val content: View, extraHint: Option[String], rates: Rates, fiatCode: String) {
+  class RateManager(val content: View, extraHint: Option[String], rates: Fiat2Btc, fiatCode: String) {
     val inputAmount: CurrencyEditText = content.findViewById(R.id.inputAmount).asInstanceOf[CurrencyEditText]
     val fiatInputAmount: CurrencyEditText = content.findViewById(R.id.fiatInputAmount).asInstanceOf[CurrencyEditText]
     val hintFiatDenom: TextView = clickableTextField(content findViewById R.id.hintFiatDenom)

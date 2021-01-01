@@ -8,26 +8,26 @@
 
     <string name="working">Please wait a bit&#8230;</string>
     <string name="working_note">It may take up to 30 seconds</string>
-    <string name="step_title_choose">Choose payment providers</string>
+    <string name="step_title_choose_provider">Choose providers</string>
     <string name="step_title_account">Setup an account</string>
     <string name="step_title_open">Go to wallet</string>
 
+    <string name="step_choose_or_scan">You can also choose your own by scanning a provider QR code.</string>
     <string name="welcome_subtitle">Truly <b>fast</b>, <b>private</b> and <b>cheap</b> Bitcoin payments</string>
-    <string name="step_choose_or_scan">Start with choosing some providers or scan a QR code to set up your own.</string>
-    <string name="step_account_email_pass">Payment providers will know an email and will be able to provide an assistance in case of password loss.</string>
+    <string name="step_account_email_pass">Providers will know an email and will be able to provide an assistance in case of password loss.</string>
     <string name="step_account_recovery_phrase">Fully anonymous option, but make sure that recovery phrase is written down and stored in a safe place.</string>
     <string name="step_open_note">Everything is set up, the wallet is ready to be used. Thanks for choosing <b>Firebird</b>!</string>
 
     <string name="check_no_account"><![CDATA[
         No matching account exists, here are possible reasons why:<br><br>
         - <b>Incorrect credentials</b>. Please make sure your email and password combination (or recovery phrase) is exactly the same you used when creating a wallet.<br><br>
-        - <b>Missing payment provider</b>. You could have used a provider which is not on default list, in that case please choose that provider by scanning its QR code and try again.
+        - <b>Missing a provider</b>. You could have used a provider which is not on default list, in that case please choose that provider by scanning its QR code and try again.
     ]]></string>
 
     <string name="check_failed"><![CDATA[
         Account checking could not be performed, here are possible reasons why:<br><br>
         - <b>Connectivity issues</b>. Please make sure internet connection is available on your device and Firebird has permissions for network access.<br><br>
-        - <b>Unreachable payment providers</b>. Remote provider services may be on maintenance at the moment, please try a bit later or contact provider support.
+        - <b>Unreachable providers</b>. Remote provider services may be on maintenance at the moment, please try a bit later or contact provider support.
     ]]></string>
 
     <string name="action_scan_qr">Scan QR code</string>
@@ -44,7 +44,7 @@
     <string name="action_recovery_phrase_existing">Your own recovery phrase</string>
     <string name="error_short_phrase">Recovery phrase must be 12 words long</string>
     <string name="step_account_recovery_phrase_new_note">Use this phrase to restore balance if wallet gets lost or deleted. Please make sure to write it down sooner rather than later.</string>
-    <string name="step_account_recovery_phrase_existing_note">Firebird will not store a provided phrase, will only use it once to derive payment keys.</string>
+    <string name="step_account_recovery_phrase_existing_note">Firebird will not store a provided phrase, it is only used once to derive payment keys.</string>
 
     <string name="action_open_restore">Restore existing account</string>
     <string name="action_open_restore_disabled_random_pass">Disabled since random password is chosen</string>
@@ -77,11 +77,13 @@
     <string name="amount_hint_can_receive">Can receive %1$s</string>
     <string name="amount_hint_can_send">Can send %1$s</string>
 
-    <string name="buffer_invoice_found">An invoice is found in clipboard</string>
-    <string name="buffer_address_found">An address is found in clipboard</string>
+    <string name="buffer_invoice_found">Lighting invoice is found in clipboard</string>
+    <string name="buffer_address_found">Bitcoin address is found in clipboard</string>
+    <string name="buffer_link_found">Payment link is found in clipboard</string>
 
-    <string name="wait_incoming_notify_title">Waiting for incoming payment</string>
-    <string name="wait_incoming_notify_body">Keeping an app open to receive %1$s</string>
+    <string name="incoming_notify_title_wait">Waiting for incoming payment</string>
+    <string name="incoming_notify_title_process">Payment is being processed</string>
+    <string name="incoming_notify_body">Keep wallet running to get %1$s</string>
 
     <string name="in_flight_notify_title">Incoming payment is pending</string>
     <string name="in_flight_notify_body">Please open an app to finalize it</string>

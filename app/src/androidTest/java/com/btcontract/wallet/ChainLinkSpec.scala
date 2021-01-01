@@ -1,9 +1,9 @@
 package com.btcontract.wallet
 
 import org.junit.Assert._
+import com.btcontract.wallet.lnutils.{BitcoinJChainLink, HttpApiChainLink}
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.btcontract.wallet.ln.ChainLinkListener
-import com.btcontract.wallet.lnutils.{BitcoinJChainLink, FallbackChainLink}
 import com.btcontract.wallet.ln.crypto.Tools.none
 import org.junit.runner.RunWith
 import org.junit.Test
@@ -13,14 +13,14 @@ import org.junit.Test
 class ChainLinkSpec {
   @Test
   def chainLinksWork(): Unit = {
-    val cl1 = new FallbackChainLink
+    val cl1 = new HttpApiChainLink
     val cl2 = new BitcoinJChainLink(org.bitcoinj.params.MainNetParams.get)
     var cl1Result: Int = 1
     var cl2Result: Int = 2
 
     cl1 addAndMaybeInform new ChainLinkListener {
       override def onCompleteChainDisconnect: Unit = none
-      override def onChainTipConfirmed: Unit = {
+      override def onTrustedChainTipKnown: Unit = {
         println(s"Fallback: ${cl1.currentChainTip}")
         cl1Result = cl1.currentChainTip
       }
@@ -28,7 +28,7 @@ class ChainLinkSpec {
 
     cl2 addAndMaybeInform new ChainLinkListener {
       override def onCompleteChainDisconnect: Unit = none
-      override def onChainTipConfirmed: Unit = {
+      override def onTrustedChainTipKnown: Unit = {
         println(s"Chain: ${cl2.currentChainTip}")
         cl2Result = cl2.currentChainTip
       }

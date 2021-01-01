@@ -4,14 +4,12 @@ import spray.json._
 import fr.acinq.eclair.wire._
 import com.btcontract.wallet.ln._
 import fr.acinq.eclair.wire.LightningMessageCodecs._
-
-import scodec.bits.{BitVector, ByteVector}
-import fr.acinq.eclair.{MilliSatoshi, wire}
-import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
 import fr.acinq.eclair.wire.CommonCodecs.{bytes32, privateKey, varsizebinarydata, satoshi, millisatoshi, publicKey}
-import com.btcontract.wallet.ln.utils.FiatRates.{BitpayItemList, CoinGeckoItemMap, Rates}
+import fr.acinq.bitcoin.DeterministicWallet.{ExtendedPrivateKey, KeyPath}
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, Satoshi}
+import fr.acinq.eclair.{MilliSatoshi, wire}
+import scodec.bits.{BitVector, ByteVector}
 import scodec.Codec
 
 
@@ -71,15 +69,6 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
       CommitmentSpec, Option[ChannelUpdate], Option[wire.Error], Option[wire.Error], Option[ResizeChannel], Long,
       HostedCommits](HostedCommits.apply, "announce", "lastCrossSignedState", "nextLocalUpdates", "nextRemoteUpdates",
       "localSpec", "updateOpt", "localError", "remoteError", "resizeProposal", "startedAt")
-
-  // Fiat feerates
-
-  implicit val ratesInfoFmt: JsonFormat[RatesInfo] = jsonFormat[Rates, Rates, Long, RatesInfo](RatesInfo.apply, "rates", "oldRates", "stamp")
-  implicit val BlockchainInfoItemFmt: JsonFormat[BlockchainInfoItem] = jsonFormat[Double, BlockchainInfoItem](BlockchainInfoItem.apply, "last")
-  implicit val bitpayItemFmt: JsonFormat[BitpayItem] = jsonFormat[String, Double, BitpayItem](BitpayItem.apply, "code", "rate")
-  implicit val coinGeckoItemFmt: JsonFormat[CoinGeckoItem] = jsonFormat[Double, CoinGeckoItem](CoinGeckoItem.apply, "value")
-  implicit val coinGeckoFmt: JsonFormat[CoinGecko] = jsonFormat[CoinGeckoItemMap, CoinGecko](CoinGecko.apply, "rates")
-  implicit val bitpayFmt: JsonFormat[Bitpay] = jsonFormat[BitpayItemList, Bitpay](Bitpay.apply, "data")
 
   // Wallet keys
 

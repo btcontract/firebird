@@ -5,6 +5,7 @@ import com.btcontract.wallet.R.string._
 import com.aurelhubert.ahbottomnavigation._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.fsm.OpenHandler
+import com.btcontract.wallet.ln.utils.LNUrl
 import org.bitcoinj.uri.BitcoinURI
 import android.widget.FrameLayout
 import android.content.ClipData
@@ -36,9 +37,10 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
   def initChannelsOnTipKnownIfHasOutstanding: Unit =
     if (LNParams.format.outstandingProviders.nonEmpty) {
       // Initialize this operation AFTER chain tip becomes known
-      WalletApp.chainLink addAndMaybeInform new ChainLinkListener {
-        override def onChainTipConfirmed: Unit = initChannelsOnTipKnown
+      LNParams.channelMaster.cl addAndMaybeInform new ChainLinkListener {
+        override def onTrustedChainTipKnown: Unit = initChannelsOnTipKnown
         override def onCompleteChainDisconnect: Unit = none
+        override val isTransferrable = true
       }
     }
 
@@ -67,6 +69,11 @@ class HubActivity extends FirebirdActivity with AHBottomNavigation.OnTabSelected
 
         case _: BitcoinURI =>
           val message = getString(buffer_address_found)
+          snack(contentWindow, message, dialog_view, _.dismiss)
+          clearClipboard
+
+        case _: LNUrl =>
+          val message = getString(buffer_link_found)
           snack(contentWindow, message, dialog_view, _.dismiss)
           clearClipboard
 

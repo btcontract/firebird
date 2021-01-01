@@ -10,7 +10,6 @@ import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
 import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
-import com.btcontract.wallet.ln.utils.FiatRates.Rates
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
 import fr.acinq.eclair.payment.PaymentRequest
@@ -203,18 +202,18 @@ trait NetworkDataStore {
 }
 
 trait PaymentDBUpdater {
-  def replaceOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: PaymentDescription, action: Option[PaymentAction], finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit
-  def replaceIncomingPayment(prex: PaymentRequestExt, preimage: ByteVector32, description: PaymentDescription, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit
+  def replaceOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: PaymentDescription, action: Option[PaymentAction], finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Fiat2Btc): Unit
+  def replaceIncomingPayment(prex: PaymentRequestExt, preimage: ByteVector32, description: PaymentDescription, balanceSnap: MilliSatoshi, fiatRateSnap: Fiat2Btc): Unit
   // These MUST be the only two methods capable of updating payment state to SUCCEEDED
   def updOkOutgoing(upd: UpdateFulfillHtlc, fee: MilliSatoshi): Unit
   def updStatusIncoming(add: UpdateAddHtlc, status: String): Unit
 }
 
 trait ChainLink {
-  var listeners = Set.empty[ChainLinkListener]
+  var listeners: Set[ChainLinkListener] = Set.empty
 
   def addAndMaybeInform(listener: ChainLinkListener): Unit = {
-    if (chainTipCanBeTrusted) listener.onChainTipConfirmed
+    if (chainTipCanBeTrusted) listener.onTrustedChainTipKnown
     listeners += listener
   }
 
@@ -225,8 +224,9 @@ trait ChainLink {
 }
 
 trait ChainLinkListener {
-  def onChainTipConfirmed: Unit
-  def onCompleteChainDisconnect: Unit
+  def onTrustedChainTipKnown: Unit = none
+  def onCompleteChainDisconnect: Unit = none
+  val isTransferrable: Boolean = false
 }
 
 trait ChannelBag {

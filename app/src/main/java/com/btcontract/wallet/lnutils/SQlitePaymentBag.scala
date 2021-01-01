@@ -6,7 +6,7 @@ import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import fr.acinq.eclair.wire.{UpdateAddHtlc, UpdateFulfillHtlc}
 import fr.acinq.eclair.{MilliSatoshi, invalidPubKey}
 
-import com.btcontract.wallet.ln.utils.FiatRates.Rates
+import com.btcontract.wallet.ln.crypto.Tools.Fiat2Btc
 import com.btcontract.wallet.helper.RichCursor
 import com.btcontract.wallet.ln.PaymentStatus
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -39,7 +39,7 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentDBUpd
   def abortPayment(paymentHash: ByteVector32): Unit = db.change(PaymentTable.updStatusSql, PaymentStatus.ABORTED, paymentHash.toHex)
 
   def replaceOutgoingPayment(nodeId: PublicKey, prex: PaymentRequestExt, description: PaymentDescription, action: Option[PaymentAction],
-                             finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit = db txWrap {
+                             finalAmount: MilliSatoshi, balanceSnap: MilliSatoshi, fiatRateSnap: Fiat2Btc): Unit = db txWrap {
 
     db.change(PaymentTable.deleteSql, prex.paymentHashStr)
     db.change(PaymentTable.newSql, nodeId.toString, prex.raw, ByteVector32.Zeroes.toHex, PaymentStatus.PENDING, System.currentTimeMillis: java.lang.Long, description.toJson.compactPrint,
@@ -48,7 +48,7 @@ class SQlitePaymentBag(db: SQLiteInterface) extends PaymentBag with PaymentDBUpd
   }
 
   def replaceIncomingPayment(prex: PaymentRequestExt, preimage: ByteVector32, description: PaymentDescription,
-                             balanceSnap: MilliSatoshi, fiatRateSnap: Rates): Unit = db txWrap {
+                             balanceSnap: MilliSatoshi, fiatRateSnap: Fiat2Btc): Unit = db txWrap {
 
     val finalReceived = prex.pr.amount.map(_.toLong: java.lang.Long).getOrElse(0L: java.lang.Long)
     val finalStatus = if (prex.pr.amount.isDefined) PaymentStatus.PENDING else PaymentStatus.HIDDEN

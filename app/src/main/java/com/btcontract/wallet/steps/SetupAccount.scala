@@ -23,7 +23,7 @@ import android.os.Build
 trait AccountType {
   def toFormat(providers: Set[wire.NodeAnnouncement] = Set.empty): StorageFormat = throw new RuntimeException
   def accountCheckBlock: Option[Int] = throw new RuntimeException
-  def asString: String = throw new RuntimeException
+  def asString: String = new String
 }
 
 case object NoAccountType extends AccountType
