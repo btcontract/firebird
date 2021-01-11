@@ -112,6 +112,7 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
   private[this] val dummyPaymentSenderData = PaymentSenderData(CMD_SEND_MPP(ByteVector32.Zeroes, totalAmount = 0L.msat, invalidPubKey), Map.empty)
   private[this] val getPaymentInfoMemo = memoize(payBag.getPaymentInfo)
   private[this] val initialResolveMemo = memoize(initialResolve)
+  pf.listeners += PaymentMaster
 
   val sockBrandingBridge: ConnectionListener
   val sockChannelBridge: ConnectionListener

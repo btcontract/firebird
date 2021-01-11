@@ -115,7 +115,6 @@ object MainActivity {
     jChainLink.start
 
     channelMaster.initConnect
-    pf.listeners += channelMaster.PaymentMaster
     host exitTo classOf[HubActivity]
   }
 
