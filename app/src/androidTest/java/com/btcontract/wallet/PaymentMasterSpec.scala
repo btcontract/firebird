@@ -29,7 +29,7 @@ class PaymentMasterSpec {
     val announce = Tools.mkNodeAnnouncement(nodeId, NodeAddress.unresolved(9735, host = 45, 20, 67, 1), alias)
     val spec = CommitmentSpec(feeratePerKw = 0L, toLocal = toLocal, toRemote = 100000000L.msat)
     val init_hosted_channel = InitHostedChannel(UInt64(toLocal.underlying + 100000000L), 10.msat, 20, 200000000L.msat, 5000, Satoshi(1000000), 0.msat, ChannelVersion.STANDARD)
-    val lcss: LastCrossSignedState = LastCrossSignedState(refundScriptPubKey = randomBytes(119), init_hosted_channel, blockDay = 100, localBalanceMsat = toLocal, remoteBalanceMsat = 100000000L.msat,
+    val lcss: LastCrossSignedState = LastCrossSignedState(isHost = false, refundScriptPubKey = randomBytes(119), init_hosted_channel, blockDay = 100, localBalanceMsat = toLocal, remoteBalanceMsat = 100000000L.msat,
       localUpdates = 201, remoteUpdates = 101, incomingHtlcs = Nil, outgoingHtlcs = Nil, remoteSigOfLocal = ByteVector64.Zeroes, localSigOfRemote = ByteVector64.Zeroes)
     HostedCommits(NodeAnnouncementExt(announce), lastCrossSignedState = lcss, nextLocalUpdates = Nil, nextRemoteUpdates = Nil, localSpec = spec,
       updateOpt = None, localError = None, remoteError = None, startedAt = System.currentTimeMillis)
