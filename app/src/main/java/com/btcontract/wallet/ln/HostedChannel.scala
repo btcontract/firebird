@@ -91,7 +91,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (init.maxAcceptedHtlcs < 1) throw new LightningException("They can accept too few payments")
 
         val localHalfSignedHC =
-          restoreCommits(LastCrossSignedState(refundScriptPubKey, init, currentBlockDay, init.initialClientBalanceMsat,
+          restoreCommits(LastCrossSignedState(isHost = false, refundScriptPubKey, init, currentBlockDay, init.initialClientBalanceMsat,
             init.channelCapacityMsat - init.initialClientBalanceMsat, localUpdates = 0L, remoteUpdates = 0L, incomingHtlcs = Nil, outgoingHtlcs = Nil,
             localSigOfRemote = ByteVector64.Zeroes, remoteSigOfLocal = ByteVector64.Zeroes).withLocalSigOfRemote(data.announce.nodeSpecificPrivKey), announceExt)
 
@@ -302,8 +302,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   }
 
   def restoreCommits(localLCSS: LastCrossSignedState, ext: NodeAnnouncementExt): HostedCommits = {
-    val inHtlcs = for (updateAddHtlc <- localLCSS.incomingHtlcs) yield Htlc(incoming = true, updateAddHtlc)
-    val outHtlcs = for (updateAddHtlc <- localLCSS.outgoingHtlcs) yield Htlc(incoming = false, updateAddHtlc)
+    val inHtlcs = for (incomingHtlc <- localLCSS.incomingHtlcs) yield Htlc(incoming = true, incomingHtlc)
+    val outHtlcs = for (outgoingHtlc <- localLCSS.outgoingHtlcs) yield Htlc(incoming = false, outgoingHtlc)
     val localSpec = CommitmentSpec(feeratePerKw = 0L, localLCSS.localBalanceMsat, localLCSS.remoteBalanceMsat, htlcs = (inHtlcs ++ outHtlcs).toSet)
     HostedCommits(ext, localLCSS, nextLocalUpdates = Nil, nextRemoteUpdates = Nil, localSpec, updateOpt = None, localError = None, remoteError = None)
   }

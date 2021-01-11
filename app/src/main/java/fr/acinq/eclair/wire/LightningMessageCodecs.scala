@@ -370,8 +370,9 @@ object HostedMessagesCodecs {
       (variableSizeBytes(uint16, utf8) withContext "contactInfo")
   }.as[HostedChannelBranding]
 
-  val lastCrossSignedStateCodec = {
-    (varsizebinarydata withContext "refundScriptPubKey") ::
+  val lastCrossSignedStateCodec: Codec[LastCrossSignedState] = {
+    (bool withContext "isHost") ::
+      (varsizebinarydata withContext "refundScriptPubKey") ::
       (initHostedChannelCodec withContext "initHostedChannel") ::
       (uint32 withContext "blockDay") ::
       (millisatoshi withContext "localBalanceMsat") ::
