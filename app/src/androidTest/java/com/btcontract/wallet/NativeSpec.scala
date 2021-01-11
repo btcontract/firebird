@@ -5,7 +5,7 @@ import java.math.BigInteger
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.blockstream.libwally.Wally
 import com.btcontract.wallet.ln.crypto.Tools
-import com.btcontract.wallet.ln.{LightningNodeKeys, MnemonicStorageFormat}
+import com.btcontract.wallet.ln.{LightningNodeKeys, MnemonicExtStorageFormat}
 import fr.acinq.bitcoin.Base58.Prefix
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey, curve, one}
 import fr.acinq.bitcoin.{Base58, Base58Check, ByteVector32, ByteVector64, Crypto}
@@ -85,7 +85,7 @@ class NativeSpec {
   @Test
   def generatedAddressIsValid(): Unit = {
     val nodeId = PrivateKey(ByteVector.fromValidHex("18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725")).publicKey
-    val format = MnemonicStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+    val format = MnemonicExtStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
     assertTrue(Tools.isValidFinalScriptPubkey(format.keys.refundPubKey(nodeId)))
   }
 

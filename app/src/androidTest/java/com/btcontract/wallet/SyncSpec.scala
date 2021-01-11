@@ -71,7 +71,7 @@ class SyncSpec {
   }
 
   def synchronizedRemoval(): Unit = {
-    LNParams.format = MnemonicStorageFormat(SyncMaster.syncNodes ++ SyncMaster.hostedChanNodes, keys = null)
+    LNParams.format = MnemonicExtStorageFormat(SyncMaster.syncNodes ++ SyncMaster.hostedChanNodes, keys = null)
     for (ann <- Random.shuffle(LNParams.format.outstandingProviders.toList)) Future {
       Thread.sleep(secureRandom.nextInt(2))
       WalletApp syncRmOutstanding ann

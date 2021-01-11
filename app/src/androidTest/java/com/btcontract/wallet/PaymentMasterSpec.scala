@@ -23,7 +23,7 @@ import scodec.bits.ByteVector
 @RunWith(classOf[AndroidJUnit4])
 class PaymentMasterSpec {
   LNParams.routerConf = LNParams.routerConf.copy(mppMinPartAmount = MilliSatoshi(30000L), firstPassMaxCltv = CltvExpiryDelta(1008 + 504))
-  LNParams.format = MnemonicStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
+  LNParams.format = MnemonicExtStorageFormat(outstandingProviders = Set.empty, LightningNodeKeys.makeFromSeed(randomBytes(32).toArray))
 
   def makeHostedCommits(nodeId: PublicKey, alias: String, toLocal: MilliSatoshi = 100000000L.msat): HostedCommits = {
     val announce = Tools.mkNodeAnnouncement(nodeId, NodeAddress.unresolved(9735, host = 45, 20, 67, 1), alias)
@@ -132,8 +132,8 @@ class PaymentMasterSpec {
 
     // First route is now overloaded, so another one is chosen
     val List(w1, w2) = master.PaymentMaster.data.payments(cmd.paymentHash).data.parts.values.toList.map(_.asInstanceOf[WaitForRouteOrInFlight])
-    assertTrue(w1.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, c, d))
-    assertTrue(w2.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.routingPubKey, a, b, d))
+    assertTrue(w1.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.ourNodePubKey, a, c, d))
+    assertTrue(w2.flight.get.route.hops.map(_.desc.from) == Seq(LNParams.format.keys.ourNodePubKey, a, b, d))
 
     val finalSendable = master.PaymentMaster.getSendable(master.all).values.head
     // Sendable was decreased by total payment amount with fees, but slightly increased relatively because 1% of the rest of sendable is smaller than initial 1% of balance

@@ -87,7 +87,8 @@ object LightningNodeKeys {
 }
 
 case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: String, hashingKey: PrivateKey) {
-  lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
+  lazy val ourNodePrivateKey: PrivateKey = extendedNodeKey.privateKey
+  lazy val ourNodePubKey: PublicKey = extendedNodeKey.publicKey
 
   // Used for separate key per domain
   def makeLinkingKey(domain: String): PrivateKey = {
@@ -127,12 +128,16 @@ sealed trait StorageFormat {
   def keys: LightningNodeKeys
 }
 
-case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: Option[ByteVector] = None) extends StorageFormat {
-  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.extendedNodeKey.secretkeybytes, theirNodeId.value)
+case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: ByteVector) extends StorageFormat {
+  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.ourNodePubKey.value, theirNodeId.value)
+}
+
+case class MnemonicExtStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: Option[ByteVector] = None) extends StorageFormat {
+  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.ourFakeNodeIdKey(theirNodeId).value, theirNodeId.value)
 }
 
 case class PasswordStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
-  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(user getBytes "UTF-8", theirNodeId.value)
+  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(user.getBytes("UTF-8"), theirNodeId.value)
 }
 
 object ChanErrorCodes {

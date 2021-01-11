@@ -78,20 +78,24 @@ object ImplicitJsonFormats extends DefaultJsonProtocol { me =>
 
   implicit object StorageFormatFmt extends JsonFormat[StorageFormat] {
     def write(internal: StorageFormat): JsValue = internal match {
-      case mnemonicFormat: MnemonicStorageFormat => mnemonicFormat.toJson
+      case mnemonicFormat: MnemonicExtStorageFormat => mnemonicFormat.toJson
       case passwordFormat: PasswordStorageFormat => passwordFormat.toJson
       case _ => throw new Exception
     }
 
     def read(raw: JsValue): StorageFormat = raw.asJsObject fields TAG match {
       case JsString("MnemonicStorageFormat") => raw.convertTo[MnemonicStorageFormat]
+      case JsString("MnemonicExtStorageFormat") => raw.convertTo[MnemonicExtStorageFormat]
       case JsString("PasswordStorageFormat") => raw.convertTo[PasswordStorageFormat]
       case tag => throw new Exception(s"Unknown wallet key format=$tag")
     }
   }
 
-  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, Option[ByteVector],
+  implicit val mnemonicStorageFormatFmt: JsonFormat[MnemonicStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, ByteVector,
     MnemonicStorageFormat](MnemonicStorageFormat.apply, "outstandingProviders", "keys", "seed"), tag = "MnemonicStorageFormat")
+
+  implicit val mnemonicExtStorageFormatFmt: JsonFormat[MnemonicExtStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, Option[ByteVector],
+    MnemonicExtStorageFormat](MnemonicExtStorageFormat.apply, "outstandingProviders", "keys", "seed"), tag = "MnemonicExtStorageFormat")
 
   implicit val passwordStorageFormatFmt: JsonFormat[PasswordStorageFormat] = taggedJsonFmt(jsonFormat[Set[NodeAnnouncement], LightningNodeKeys, String, Option[String],
     PasswordStorageFormat](PasswordStorageFormat.apply, "outstandingProviders", "keys", "user", "password"), tag = "PasswordStorageFormat")

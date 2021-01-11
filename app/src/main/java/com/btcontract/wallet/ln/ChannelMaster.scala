@@ -485,9 +485,9 @@ abstract class ChannelMaster(payBag: PaymentBag, chanBag: ChannelBag, pf: PathFi
 
       case (CMDAskForRoute, PENDING) =>
         data.parts.values collectFirst { case wait: WaitForRouteOrInFlight if wait.flight.isEmpty =>
-          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.format.keys.routingPubKey, toPeer = wait.chan.data.announce.na.nodeId)
+          val fakeLocalEdge = Tools.mkFakeLocalEdge(from = LNParams.format.keys.ourNodePubKey, toPeer = wait.chan.data.announce.na.nodeId)
           val params = RouteParams(pf.routerConf.searchMaxFeeBase, pf.routerConf.searchMaxFeePct, pf.routerConf.firstPassMaxRouteLength, pf.routerConf.firstPassMaxCltv)
-          PaymentMaster process RouteRequest(data.cmd.paymentHash, partId = wait.partId, LNParams.format.keys.routingPubKey, data.cmd.targetNodeId, wait.amount, fakeLocalEdge, params)
+          PaymentMaster process RouteRequest(data.cmd.paymentHash, partId = wait.partId, LNParams.format.keys.ourNodePubKey, data.cmd.targetNodeId, wait.amount, fakeLocalEdge, params)
         }
 
       case (fail: NoRouteAvailable, PENDING) =>
