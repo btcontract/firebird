@@ -279,10 +279,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         val localBalance = hc.currentCapacity - remoteSO.localBalanceMsat
 
         val completeLocalLCSS =
-          hc.lastCrossSignedState.copy(incomingHtlcs = Nil, outgoingHtlcs = Nil,
-            localBalanceMsat = localBalance, remoteBalanceMsat = remoteSO.localBalanceMsat,
-            localUpdates = remoteSO.remoteUpdates, remoteUpdates = remoteSO.localUpdates,
-            blockDay = remoteSO.blockDay, remoteSigOfLocal = remoteSO.localSigOfRemoteLCSS)
+          hc.lastCrossSignedState.copy(incomingHtlcs = Nil, outgoingHtlcs = Nil, localBalanceMsat = localBalance, remoteBalanceMsat = remoteSO.localBalanceMsat,
+            localUpdates = remoteSO.remoteUpdates, remoteUpdates = remoteSO.localUpdates, blockDay = remoteSO.blockDay, remoteSigOfLocal = remoteSO.localSigOfRemoteLCSS)
             .withLocalSigOfRemote(data.announce.nodeSpecificPrivKey)
 
         if (localBalance < 0L.msat) throw new LightningException("Provided updated local balance is larger than capacity")

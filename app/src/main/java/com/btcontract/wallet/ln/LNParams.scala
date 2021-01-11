@@ -8,7 +8,7 @@ import com.btcontract.wallet.ln.crypto.Tools._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
 import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
-import fr.acinq.bitcoin.{Block, ByteVector32, DeterministicWallet, Protocol, Satoshi, Script}
+import fr.acinq.bitcoin.{Block, ByteVector32, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
@@ -75,18 +75,18 @@ object LightningNodeKeys {
     val master: ExtendedPrivateKey = generate(ByteVector view seed)
     val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
     val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-    LightningNodeKeys(extendedNodeKey, buildXPub(master), hashingKey)
+    LightningNodeKeys(extendedNodeKey, xPub(master), hashingKey)
   }
 
   // Compatible with Electrum/Phoenix/BLW
-  def buildXPub(parent: ExtendedPrivateKey): (String, String) = {
-    val derivationPath: KeyPath = DeterministicWallet KeyPath "m/84'/0'/0'"
-    val pub = DeterministicWallet publicKey DeterministicWallet.derivePrivateKey(parent, derivationPath)
-    (DeterministicWallet.encode(pub, DeterministicWallet.zpub), derivationPath.toString)
+  def xPub(parent: ExtendedPrivateKey): String = {
+    val derivationPath: KeyPath = KeyPath("m/84'/0'/0'")
+    val privateKey = derivePrivateKey(parent, derivationPath)
+    encode(publicKey(privateKey), zpub)
   }
 }
 
-case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: (String, String), hashingKey: PrivateKey) {
+case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: String, hashingKey: PrivateKey) {
   lazy val routingPubKey: PublicKey = extendedNodeKey.publicKey
 
   // Used for separate key per domain

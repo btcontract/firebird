@@ -88,6 +88,23 @@ object Tools {
     case Success(OP_0 :: OP_PUSHDATA(scriptHash, _) :: Nil) if scriptHash.length == 32 => true
     case _ => false
   }
+
+  // HC alarm utils
+
+  def bitDistance(v1: IndexedSeq[Boolean], v2: PublicKey): Int =
+    v1.zip(v2.value.toBitVector.toIndexedSeq).map {
+      case (false, true) => 1
+      case (true, false) => 1
+      case _ => 0
+    }.sum
+
+  def closestNodes(point: IndexedSeq[Boolean], nodeIds: Set[PublicKey] = Set.empty): List[PublicKey] = {
+    val distances = for (nodeId <- nodeIds.par) yield (bitDistance(point, nodeId), nodeId)
+    distances.toList.sortBy(_._1).take(nodeIds.size / 20 max 21).map(_._2)
+  }
+
+  def alarmSignature(nodeKey: PrivateKey, blockHash: ByteVector32, preimage: ByteVector32): ByteVector64 =
+    Crypto.sign(Crypto.sha256(blockHash ++ preimage), nodeKey)
 }
 
 class LightningException(reason: String = "Lightning related failure") extends RuntimeException(reason)
