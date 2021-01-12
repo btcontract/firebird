@@ -4,7 +4,6 @@ import fr.acinq.eclair._
 import com.btcontract.wallet.ln._
 import fr.acinq.eclair.router.{ChannelUpdateExt, Sync}
 import fr.acinq.eclair.wire.{ChannelAnnouncement, ChannelUpdate}
-import com.btcontract.wallet.ln.crypto.Tools.bytes2VecView
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import fr.acinq.eclair.router.Router.PublicChannel
 import fr.acinq.bitcoin.Crypto.PublicKey
@@ -22,8 +21,8 @@ class SQLiteNetworkDataStore(val db: SQLiteInterface, updateTable: ChannelUpdate
 
   def listChannelAnnouncements: Iterable[ChannelAnnouncement] = db select announceTable.selectAllSql iterable { rc =>
     ChannelAnnouncement(nodeSignature1 = ByteVector64.Zeroes, nodeSignature2 = ByteVector64.Zeroes, bitcoinSignature1 = ByteVector64.Zeroes, bitcoinSignature2 = ByteVector64.Zeroes,
-      features = Features.empty, chainHash = LNParams.chainHash, shortChannelId = ShortChannelId(rc long announceTable.shortChannelId), nodeId1 = PublicKey(rc bytes announceTable.nodeId1),
-      nodeId2 = PublicKey(rc bytes announceTable.nodeId2), bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
+      features = Features.empty, chainHash = LNParams.chainHash, shortChannelId = ShortChannelId(rc long announceTable.shortChannelId), nodeId1 = PublicKey(rc byteVec announceTable.nodeId1),
+      nodeId2 = PublicKey(rc byteVec announceTable.nodeId2), bitcoinKey1 = invalidPubKey, bitcoinKey2 = invalidPubKey)
   }
 
   def addChannelUpdateByPosition(cu: ChannelUpdate): Unit = {

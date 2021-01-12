@@ -3,9 +3,9 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import com.btcontract.wallet.ln.crypto._
+import com.btcontract.wallet.ln.HCErrorCodes._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.HostedChannel._
-import com.btcontract.wallet.ln.ChanErrorCodes._
 import com.btcontract.wallet.ln.ChannelListener._
 import java.util.concurrent.Executors
 import fr.acinq.bitcoin.ByteVector64
@@ -244,7 +244,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
           val syncedLCSS = hc2.nextLocalUnsignedLCSS(remoteLCSS.blockDay).copy(localSigOfRemote = remoteLCSS.remoteSigOfLocal, remoteSigOfLocal = remoteLCSS.localSigOfRemote)
           val syncedCommits = hc2.copy(lastCrossSignedState = syncedLCSS, localSpec = hc2.nextLocalSpec, nextLocalUpdates = localUpdatesLeftover, nextRemoteUpdates = Nil)
           if (syncedLCSS.reverse != remoteLCSS) STOREBECOMESEND(restoreCommits(remoteLCSS.reverse, hc2.announce), OPEN, remoteLCSS.reverse) // We are too far behind, restore from their data
-          else STOREBECOMESEND(syncedCommits, OPEN, Vector(syncedLCSS) ++ hc2.resizeProposal ++ localUpdatesLeftover:_*) // We are behind but our own future cross-signed state is reachable
+          else STOREBECOMESEND(syncedCommits, OPEN, List(syncedLCSS) ++ hc2.resizeProposal ++ localUpdatesLeftover:_*) // We are behind but our own future cross-signed state is reachable
         }
 
 

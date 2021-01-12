@@ -3,7 +3,7 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import com.softwaremill.quicklens._
-import com.btcontract.wallet.ln.ChanErrorCodes._
+import com.btcontract.wallet.ln.HCErrorCodes._
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64}
 import com.btcontract.wallet.ln.crypto.{CMDAddImpossible, LightningException}
 import fr.acinq.eclair.channel.HostedChannelVersion

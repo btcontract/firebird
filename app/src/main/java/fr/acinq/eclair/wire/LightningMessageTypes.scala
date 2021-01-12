@@ -393,8 +393,8 @@ case class LastCrossSignedState(isHost: Boolean,
       incomingHtlcs = outgoingHtlcs, outgoingHtlcs = incomingHtlcs)
 
   lazy val hostedSigHash: ByteVector32 = {
-    val inPayments = incomingHtlcs.map(LightningMessageCodecs.updateAddHtlcCodec.encode(_).require.toByteVector).sortWith(LexicographicalOrdering.isLessThan)
-    val outPayments = outgoingHtlcs.map(LightningMessageCodecs.updateAddHtlcCodec.encode(_).require.toByteVector).sortWith(LexicographicalOrdering.isLessThan)
+    val inPayments = incomingHtlcs.map(add => LightningMessageCodecs.updateAddHtlcCodec.encode(add).require.toByteVector).sortWith(LexicographicalOrdering.isLessThan)
+    val outPayments = outgoingHtlcs.map(add => LightningMessageCodecs.updateAddHtlcCodec.encode(add).require.toByteVector).sortWith(LexicographicalOrdering.isLessThan)
     val hostFlag = if (isHost) 1 else 0
 
     Crypto.sha256(refundScriptPubKey ++
@@ -435,7 +435,7 @@ case class ResizeChannel(newCapacity: Satoshi, clientSig: ByteVector64 = ByteVec
 
   def sign(priv: PrivateKey): ResizeChannel = ResizeChannel(clientSig = Crypto.sign(Crypto.sha256(sigMaterial), priv), newCapacity = newCapacity)
 
-  def verifyClientSig(pubKey: PublicKey): Boolean = Crypto.verifySignature(data = Crypto.sha256(sigMaterial), clientSig, pubKey)
+  def verifyClientSig(pubKey: PublicKey): Boolean = Crypto.verifySignature(Crypto.sha256(sigMaterial), clientSig, pubKey)
 
   lazy val sigMaterial: ByteVector = Protocol.writeUInt64(newCapacity.toLong, ByteOrder.LITTLE_ENDIAN)
 

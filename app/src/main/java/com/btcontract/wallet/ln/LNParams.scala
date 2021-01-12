@@ -3,20 +3,15 @@ package com.btcontract.wallet.ln
 import fr.acinq.eclair._
 import fr.acinq.eclair.wire._
 import fr.acinq.eclair.Features._
-import fr.acinq.bitcoin.DeterministicWallet._
 import com.btcontract.wallet.ln.crypto.Tools._
 import fr.acinq.bitcoin.Crypto.{PrivateKey, PublicKey}
+import fr.acinq.bitcoin.{Block, ByteVector32, Satoshi}
 import fr.acinq.eclair.router.Router.{PublicChannel, RouterConf}
 import fr.acinq.eclair.{ActivatedFeature, CltvExpiryDelta, FeatureSupport, Features}
-import fr.acinq.bitcoin.{Block, ByteVector32, Protocol, Satoshi, Script}
 import com.btcontract.wallet.ln.SyncMaster.ShortChanIdSet
 import com.btcontract.wallet.ln.crypto.Noise.KeyPair
 import fr.acinq.eclair.router.ChannelUpdateExt
 import fr.acinq.eclair.payment.PaymentRequest
-import java.io.ByteArrayInputStream
-import fr.acinq.eclair.crypto.Mac32
-import scodec.bits.ByteVector
-import java.nio.ByteOrder
 
 
 object LNParams {
@@ -68,95 +63,6 @@ object LNParams {
     val hc = Init(Features(hcFeatures), tlvStream)
     (sync, phcSync, hc)
   }
-}
-
-object LightningNodeKeys {
-  def makeFromSeed(seed: Bytes): LightningNodeKeys = {
-    val master: ExtendedPrivateKey = generate(ByteVector view seed)
-    val extendedNodeKey: ExtendedPrivateKey = derivePrivateKey(master, hardened(46L) :: hardened(0L) :: Nil)
-    val hashingKey: PrivateKey = derivePrivateKey(master, hardened(138L) :: 0L :: Nil).privateKey
-    LightningNodeKeys(extendedNodeKey, xPub(master), hashingKey)
-  }
-
-  // Compatible with Electrum/Phoenix/BLW
-  def xPub(parent: ExtendedPrivateKey): String = {
-    val derivationPath: KeyPath = KeyPath("m/84'/0'/0'")
-    val privateKey = derivePrivateKey(parent, derivationPath)
-    encode(publicKey(privateKey), zpub)
-  }
-}
-
-case class LightningNodeKeys(extendedNodeKey: ExtendedPrivateKey, xpub: String, hashingKey: PrivateKey) {
-  lazy val ourNodePrivateKey: PrivateKey = extendedNodeKey.privateKey
-  lazy val ourNodePubKey: PublicKey = extendedNodeKey.publicKey
-
-  // Used for separate key per domain
-  def makeLinkingKey(domain: String): PrivateKey = {
-    val domainBytes = ByteVector.view(domain getBytes "UTF-8")
-    val pathMaterial = Mac32.hmac256(hashingKey.value, domainBytes)
-    val chain = hardened(138) :: makeKeyPath(pathMaterial)
-    derivePrivateKey(extendedNodeKey, chain).privateKey
-  }
-
-  def fakeInvoiceKey(paymentHash: ByteVector): PrivateKey = {
-    val chain = hardened(184) :: makeKeyPath(paymentHash)
-    derivePrivateKey(extendedNodeKey, chain).privateKey
-  }
-
-  def ourFakeNodeIdKey(theirNodeId: PublicKey): PrivateKey = {
-    val chain = hardened(230) :: makeKeyPath(theirNodeId.value)
-    derivePrivateKey(extendedNodeKey, chain).privateKey
-  }
-
-  def refundPubKey(theirNodeId: PublicKey): ByteVector = {
-    val derivationChain = hardened(276) :: makeKeyPath(theirNodeId.value)
-    val p2wpkh = Script.pay2wpkh(derivePrivateKey(extendedNodeKey, derivationChain).publicKey)
-    Script.write(p2wpkh)
-  }
-
-  def makeKeyPath(material: ByteVector): List[Long] = {
-    require(material.size > 15, "Material size must be at least 16")
-    val stream = new ByteArrayInputStream(material.slice(0, 16).toArray)
-    def getChunk = Protocol.uint32(stream, ByteOrder.BIG_ENDIAN)
-    List.fill(4)(getChunk)
-  }
-}
-
-sealed trait StorageFormat {
-  def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32
-  def outstandingProviders: Set[NodeAnnouncement]
-  def keys: LightningNodeKeys
-}
-
-case class MnemonicStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: ByteVector) extends StorageFormat {
-  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.ourNodePubKey.value, theirNodeId.value)
-}
-
-case class MnemonicExtStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, seed: Option[ByteVector] = None) extends StorageFormat {
-  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(keys.ourFakeNodeIdKey(theirNodeId).value, theirNodeId.value)
-}
-
-case class PasswordStorageFormat(outstandingProviders: Set[NodeAnnouncement], keys: LightningNodeKeys, user: String, password: Option[String] = None) extends StorageFormat {
-  override def attachedChannelSecret(theirNodeId: PublicKey): ByteVector32 = Mac32.hmac256(user.getBytes("UTF-8"), theirNodeId.value)
-}
-
-object ChanErrorCodes {
-  final val ERR_HOSTED_WRONG_BLOCKDAY = "0001"
-  final val ERR_HOSTED_WRONG_LOCAL_SIG = "0002"
-  final val ERR_HOSTED_WRONG_REMOTE_SIG = "0003"
-  final val ERR_HOSTED_CLOSED_BY_REMOTE_PEER = "0004"
-  final val ERR_HOSTED_TIMED_OUT_OUTGOING_HTLC = "0005"
-  final val ERR_HOSTED_HTLC_EXTERNAL_FULFILL = "0006"
-  final val ERR_HOSTED_CHANNEL_DENIED = "0007"
-  final val ERR_HOSTED_MANUAL_SUSPEND = "0008"
-  final val ERR_HOSTED_INVALID_RESIZE = "0009"
-  final val ERR_MISSING_CHANNEL = "0010"
-
-  val ERR_NOT_ENOUGH_BALANCE = 1
-  val ERR_TOO_MUCH_IN_FLIGHT = 2
-  val ERR_AMOUNT_TOO_SMALL = 3
-  val ERR_TOO_MANY_HTLC = 4
-  val ERR_NOT_OPEN = 5
 }
 
 // Extension wrappers
