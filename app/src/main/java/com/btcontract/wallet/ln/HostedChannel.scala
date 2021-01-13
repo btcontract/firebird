@@ -47,7 +47,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
     events.onBecome(trans)
   }
 
-  def STOREBECOMESEND(data1: HostedCommits, state1: String, lnMessage: LightningMessage *): Unit = {
+  def STORE_BECOME_SEND(data1: HostedCommits, state1: String, lnMessage: LightningMessage *): Unit = {
     // store goes first to ensure we retain an updated data before revealing it if anything goes wrong
 
     STORE(data1)
@@ -123,7 +123,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (!isRemoteSigOk) localSuspend(hc, ERR_HOSTED_WRONG_REMOTE_SIG)
         else if (!isLocalSigOk) localSuspend(hc, ERR_HOSTED_WRONG_LOCAL_SIG)
         else {
-          STOREBECOMESEND(hc, OPEN, hc.lastCrossSignedState)
+          STORE_BECOME_SEND(hc, OPEN, hc.lastCrossSignedState)
           // We may have incoming HTLCs to fail or fulfill
           events.stateUpdated(hc)
         }
@@ -178,19 +178,19 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
       // In SLEEPING | SUSPENDED state we still send a preimage to get it resolved, then notify user on UI because normal resolution is impossible
       case (hc: HostedCommits, CMD_FULFILL_HTLC(preimage, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFulfill = UpdateFulfillHtlc(hc.announce.nodeSpecificHostedChanId, add.id, preimage)
-        STOREBECOMESEND(hc.addLocalProposal(updateFulfill), state, updateFulfill)
+        STORE_BECOME_SEND(hc.addLocalProposal(updateFulfill), state, updateFulfill)
 
 
       // In SLEEPING | SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `unansweredIncoming` method
       case (hc: HostedCommits, CMD_FAIL_MALFORMED_HTLC(onionHash, code, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFailMalformed = UpdateFailMalformedHtlc(hc.announce.nodeSpecificHostedChanId, add.id, onionHash, code)
-        STOREBECOMESEND(hc.addLocalProposal(updateFailMalformed), state, updateFailMalformed)
+        STORE_BECOME_SEND(hc.addLocalProposal(updateFailMalformed), state, updateFailMalformed)
 
 
       // In SLEEPING | SUSPENDED state this will not be accepted by peer, but will make pending shard invisible to `unansweredIncoming` method
       case (hc: HostedCommits, CMD_FAIL_HTLC(reason, add), SLEEPING | OPEN | SUSPENDED) if hc.unansweredIncoming.contains(add) =>
         val updateFail = UpdateFailHtlc(hc.announce.nodeSpecificHostedChanId, add.id, reason)
-        STOREBECOMESEND(hc.addLocalProposal(updateFail), state, updateFail)
+        STORE_BECOME_SEND(hc.addLocalProposal(updateFail), state, updateFail)
 
 
       case (hc: HostedCommits, CMD_SOCKET_ONLINE, SLEEPING | SUSPENDED) =>
@@ -243,8 +243,8 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
           val hc2 = hc1.copy(nextLocalUpdates = localUpdatesAccounted, nextRemoteUpdates = remoteUpdatesAccounted)
           val syncedLCSS = hc2.nextLocalUnsignedLCSS(remoteLCSS.blockDay).copy(localSigOfRemote = remoteLCSS.remoteSigOfLocal, remoteSigOfLocal = remoteLCSS.localSigOfRemote)
           val syncedCommits = hc2.copy(lastCrossSignedState = syncedLCSS, localSpec = hc2.nextLocalSpec, nextLocalUpdates = localUpdatesLeftover, nextRemoteUpdates = Nil)
-          if (syncedLCSS.reverse != remoteLCSS) STOREBECOMESEND(restoreCommits(remoteLCSS.reverse, hc2.announce), OPEN, remoteLCSS.reverse) // We are too far behind, restore from their data
-          else STOREBECOMESEND(syncedCommits, OPEN, List(syncedLCSS) ++ hc2.resizeProposal ++ localUpdatesLeftover:_*) // We are behind but our own future cross-signed state is reachable
+          if (syncedLCSS.reverse != remoteLCSS) STORE_BECOME_SEND(restoreCommits(remoteLCSS.reverse, hc2.announce), OPEN, remoteLCSS.reverse) // We are too far behind, restore from their data
+          else STORE_BECOME_SEND(syncedCommits, OPEN, List(syncedLCSS) ++ hc2.resizeProposal ++ localUpdatesLeftover:_*) // We are behind but our own future cross-signed state is reachable
         }
 
 
@@ -253,13 +253,9 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (shortIdMatches) data = me STORE hc.copy(updateOpt = upd.toSome)
 
 
-      case (hc: HostedCommits, cmd: HC_CMD_RESIZE, OPEN | SLEEPING) =>
-        if (hc.currentCapacity >= cmd.newCapacity) throw CurrentCapacityIsLarger(cmd)
-        if (hc.resizeProposal.nonEmpty) throw ResizingAlreadyInProgress(cmd)
-        if (!hc.isResizingSupported) throw ResizingNotSupported(cmd)
-
-        val resize = ResizeChannel(cmd.newCapacity).sign(data.announce.nodeSpecificPrivKey)
-        STOREBECOMESEND(hc.copy(resizeProposal = resize.toSome), state, resize)
+      case (hc: HostedCommits, cmd: HC_CMD_RESIZE, OPEN | SLEEPING) if hc.resizeProposal.isEmpty =>
+        val resize = ResizeChannel(hc.currentCapacity.truncateToSatoshi + cmd.delta).sign(data.announce.nodeSpecificPrivKey)
+        STORE_BECOME_SEND(hc.copy(resizeProposal = resize.toSome), state, resize)
         doProcess(CMD_SIGN)
 
 
@@ -288,7 +284,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
         if (remoteSO.remoteUpdates < hc.lastCrossSignedState.localUpdates) throw new LightningException("Provided remote update number from remote host is wrong")
         if (remoteSO.blockDay < hc.lastCrossSignedState.blockDay) throw new LightningException("Provided override blockday from remote host is not acceptable")
         require(completeLocalLCSS.verifyRemoteSig(hc.announce.na.nodeId), "Provided override signature from remote host is wrong")
-        STOREBECOMESEND(restoreCommits(completeLocalLCSS, hc.announce), OPEN, completeLocalLCSS.stateUpdate)
+        STORE_BECOME_SEND(restoreCommits(completeLocalLCSS, hc.announce), OPEN, completeLocalLCSS.stateUpdate)
 
 
       case (null, wait: WaitRemoteHostedReply, null) => super.become(wait, WAIT_FOR_INIT)
@@ -311,7 +307,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
   def localSuspend(hc: HostedCommits, errCode: String): Unit = {
     val localError = Error(hc.announce.nodeSpecificHostedChanId, ByteVector fromValidHex errCode)
     val hc1 = if (hc.localError.isDefined) hc else hc.copy(localError = localError.toSome)
-    STOREBECOMESEND(hc1, SUSPENDED, localError)
+    STORE_BECOME_SEND(hc1, SUSPENDED, localError)
   }
 
   def attemptStateUpdate(remoteSU: StateUpdate, hc: HostedCommits): Unit = {
@@ -333,7 +329,7 @@ abstract class HostedChannel extends StateMachine[ChannelData] { me =>
       }
     } else {
       // Send an unconditional reply state update
-      STOREBECOMESEND(hc1, OPEN, lcss1.stateUpdate)
+      STORE_BECOME_SEND(hc1, OPEN, lcss1.stateUpdate)
       // Another update once we have anything to resolve
       events.stateUpdated(hc1)
     }
