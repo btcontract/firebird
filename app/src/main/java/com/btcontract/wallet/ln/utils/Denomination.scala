@@ -9,8 +9,8 @@ object Denomination {
   val formatFiat = new DecimalFormat("#,###,###.##")
   formatFiat setDecimalFormatSymbols symbols
 
-  def pctChange(fresh: Double, old: Double): Double = (fresh - old) / old * 100
-  def btcBigDecimal2MSat(btc: BigDecimal): MilliSatoshi = (btc * BtcDenomination.factor).toLong.msat
+  def btcBigDecimal2MSat(btc: BigDecimal): MilliSatoshi =
+    (btc * BtcDenomination.factor).toLong.msat
 }
 
 trait Denomination { me =>
