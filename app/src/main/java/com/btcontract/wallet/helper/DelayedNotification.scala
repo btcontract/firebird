@@ -10,21 +10,22 @@ import fr.acinq.eclair.secureRandom
 
 
 object DelayedNotification {
-  final val WORK_TAG = "delayedNotification"
+  final val WATCH_TOWER_TAG = "watchTower"
+  final val IN_FLIGHT_HTLC_TAG = "inFlightHtlc"
   final val CHANNEL_ID = "delayedNotificationChannelId"
 
-  def schedule(context: Context, delayMsecs: Long, title: String, body: String): Operation = {
+  def schedule(context: Context, tag: String, delayMsecs: Long, title: String, body: String): Operation = {
     val constraintBuilder = (new Constraints.Builder).setTriggerContentMaxDelay(1, TimeUnit.MILLISECONDS).build
     val dataBuilder = (new Data.Builder).putString("title", title).putString("body", body)
     val targetClass = classOf[NotificationSchedule]
     val manager = WorkManager.getInstance(context)
 
-    manager.cancelAllWorkByTag(WORK_TAG)
+    manager.cancelAllWorkByTag(tag)
     manager.enqueue(new OneTimeWorkRequest.Builder(targetClass)
       .setInitialDelay(delayMsecs, TimeUnit.MILLISECONDS)
       .setConstraints(constraintBuilder)
       .setInputData(dataBuilder.build)
-      .addTag(WORK_TAG)
+      .addTag(tag)
       .build)
   }
 
