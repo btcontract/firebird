@@ -1,7 +1,7 @@
 package com.btcontract.wallet.helper
 
 import android.content.{Context, Intent}
-import android.app.{Notification, NotificationManager, PendingIntent, Service}
+import android.app.{NotificationManager, PendingIntent, Service}
 import androidx.core.app.NotificationCompat
 import com.btcontract.wallet.MainActivity
 import com.btcontract.wallet.R
@@ -10,14 +10,14 @@ import com.btcontract.wallet.R
 object AwaitService {
   val awaitServiceClass: Class[AwaitService] = classOf[AwaitService]
 
-  val TITLE_TO_DISPLAY = "titleToDisplay"
-  val BODY_TO_DISPLAY = "bodyToDisplay"
+  final val TITLE_TO_DISPLAY = "titleToDisplay"
+  final val BODY_TO_DISPLAY = "bodyToDisplay"
 
-  val CHANNEL_ID = "awaitChannelId"
-  val NOTIFICATION_ID = 14
+  final val CHANNEL_ID = "awaitChannelId"
+  final val NOTIFICATION_ID = 14
 
-  val ACTION_CANCEL = "actionCancel"
-  val ACTION_SHOW = "actionShow"
+  final val ACTION_CANCEL = "actionCancel"
+  final val ACTION_SHOW = "actionShow"
 }
 
 class AwaitService extends Service { me =>
@@ -39,10 +39,10 @@ class AwaitService extends Service { me =>
       val awaitedBodyText = intent.getStringExtra(AwaitService.BODY_TO_DISPLAY)
       val awaitedTitleText = intent.getStringExtra(AwaitService.TITLE_TO_DISPLAY)
 
-      val disaplyIntent: PendingIntent = PendingIntent.getActivity(me, 0, new Intent(me, MainActivity.mainActivityClass), 0)
-      val cancelIntent: PendingIntent = PendingIntent.getService(me, 0, new Intent(me, AwaitService.awaitServiceClass).setAction(AwaitService.ACTION_CANCEL), 0)
+      val disaplyIntent = PendingIntent.getActivity(me, 0, new Intent(me, MainActivity.mainActivityClass), 0)
+      val cancelIntent = PendingIntent.getService(me, 0, new Intent(me, AwaitService.awaitServiceClass).setAction(AwaitService.ACTION_CANCEL), 0)
 
-      val notification: Notification =
+      val notification =
         new NotificationCompat.Builder(me, AwaitService.CHANNEL_ID).setContentTitle(awaitedTitleText).setContentText(awaitedBodyText)
           .addAction(android.R.drawable.ic_menu_close_clear_cancel, getResources.getString(R.string.dialog_cancel), cancelIntent)
           .setSmallIcon(R.drawable.ic_history_black_24dp).setContentIntent(disaplyIntent).build

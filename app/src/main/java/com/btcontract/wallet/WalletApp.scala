@@ -8,10 +8,10 @@ import scala.collection.JavaConverters._
 import com.btcontract.wallet.ln.crypto.Tools._
 import com.btcontract.wallet.ln.utils.ImplicitJsonFormats._
 import com.btcontract.wallet.ln.utils.{BtcDenomination, Denomination, LNUrl, SatDenomination}
+import com.btcontract.wallet.helper.{AwaitService, DelayedNotification, WebSocketBus}
 import android.content.{ClipboardManager, Context, Intent, SharedPreferences}
 import android.app.{Application, NotificationChannel, NotificationManager}
 import com.btcontract.wallet.ln.{CommsTower, LNParams, PaymentRequestExt}
-import com.btcontract.wallet.helper.{AwaitService, WebSocketBus}
 import fr.acinq.eclair.wire.{NodeAddress, NodeAnnouncement}
 import scala.util.{Success, Try}
 
@@ -155,8 +155,10 @@ class WalletApp extends Application {
 
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
       val manager = this getSystemService classOf[NotificationManager]
-      val chan = new NotificationChannel(AwaitService.CHANNEL_ID, "NC", NotificationManager.IMPORTANCE_DEFAULT)
-      manager.createNotificationChannel(chan)
+      val chan1 = new NotificationChannel(AwaitService.CHANNEL_ID, "NC1", NotificationManager.IMPORTANCE_DEFAULT)
+      val chan2 = new NotificationChannel(DelayedNotification.CHANNEL_ID, "NC2", NotificationManager.IMPORTANCE_DEFAULT)
+      manager.createNotificationChannel(chan1)
+      manager.createNotificationChannel(chan2)
     }
   }
 
@@ -168,8 +170,9 @@ class WalletApp extends Application {
 
   def showStickyPaymentNotification(titleRes: Int, amount: MilliSatoshi): Unit = {
     val bodyText = getString(incoming_notify_body).format(WalletApp.denom parsedWithSign amount)
-    foregroundServiceIntent.putExtra(AwaitService.TITLE_TO_DISPLAY, this getString titleRes).putExtra(AwaitService.BODY_TO_DISPLAY, bodyText).setAction(AwaitService.ACTION_SHOW)
-    androidx.core.content.ContextCompat.startForegroundService(this, foregroundServiceIntent)
+    val withTitle = foregroundServiceIntent.putExtra(AwaitService.TITLE_TO_DISPLAY, this getString titleRes)
+    val withBodyAction = withTitle.putExtra(AwaitService.BODY_TO_DISPLAY, bodyText).setAction(AwaitService.ACTION_SHOW)
+    androidx.core.content.ContextCompat.startForegroundService(this, withBodyAction)
   }
 
   def freePossiblyUsedResouces: Unit = {
